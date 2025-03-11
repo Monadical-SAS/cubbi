@@ -46,6 +46,10 @@ mc session create --driver goose
 # Create a session with environment variables
 mc session create -e VAR1=value1 -e VAR2=value2
 
+# Mount custom volumes (similar to Docker's -v flag)
+mc session create -v /local/path:/container/path
+mc session create -v ~/data:/data -v ./configs:/etc/app/config
+
 # Shorthand for creating a session with a project repository
 mc github.com/username/repo
 ```
