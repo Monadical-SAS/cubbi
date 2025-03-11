@@ -229,8 +229,9 @@ logging:
     - type: fluentd
       url: http://fluentd.example.com:24224
     - type: langfuse
-      url: https://api.langfuse.com
-      apiKey: ${LANGFUSE_API_KEY}
+      url: https://cloud.langfuse.com
+      public_key: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY}
+      secret_key: ${LANGFUSE_INIT_PROJECT_SECRET_KEY}
 
 drivers:
   - name: goose
@@ -276,6 +277,43 @@ The MC Service implements log collection and forwarding:
 3. Real-time log streaming is available via WebSockets
 
 ## Project Management
+
+### Persistent Project Configuration
+
+MC provides persistent storage for project-specific configurations that need to survive container restarts. This is implemented through a dedicated volume mount and symlink system:
+
+1. **Configuration Storage**:
+   - Each project has a dedicated configuration directory on the host at `~/.mc/projects/<project-hash>/config`
+   - For projects specified by URL, the hash is derived from the repository URL
+   - For local projects, the hash is derived from the absolute path of the local directory
+   - This directory is mounted into the container at `/mc-config`
+
+2. **Driver Configuration**:
+   - Each driver can specify configuration files/directories that should persist across sessions
+   - These are defined in the driver's `mc-driver.yaml` file in the `persistent_configs` section
+   - Example for Goose driver:
+     ```yaml
+     persistent_configs:
+       - source: "/app/.goose"         # Path in container
+         target: "/mc-config/goose"    # Path in persistent storage
+         type: "directory"             # directory or file
+         description: "Goose memory and configuration"
+     ```
+
+3. **Automatic Symlinking**:
+   - During container initialization, the system:
+     - Creates all target directories in the persistent storage
+     - Creates symlinks from the source paths to the target paths
+   - This makes the persistence transparent to the application
+
+4. **Environment Variables**:
+   - Container has access to configuration location via environment variables:
+     ```
+     MC_CONFIG_DIR=/mc-config
+     MC_DRIVER_CONFIG_DIR=/mc-config/<driver-name>
+     ```
+
+This ensures that important configurations like Goose's memory store, authentication tokens, and other state information persist between container sessions while maintaining isolation between different projects.
 
 ### Adding Projects
 
@@ -415,6 +453,12 @@ ports:
 volumes:
   - mountPath: /app
     description: Application directory
+
+persistent_configs:
+  - source: "/app/.goose"
+    target: "/mc-config/goose"
+    type: "directory"
+    description: "Goose memory and configuration"
 ```
 
 ### Example Built-in Drivers

@@ -15,11 +15,9 @@ This driver provides a containerized environment for running [Goose](https://goo
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `MCP_HOST` | MCP server host | Yes |
-| `GOOSE_API_KEY` | Goose API key | Yes |
-| `GOOSE_ID` | Goose instance ID | No |
-| `LANGFUSE_PUBLIC_KEY` | Langfuse public key | No |
-| `LANGFUSE_SECRET_KEY` | Langfuse secret key | No |
-| `LANGFUSE_HOST` | Langfuse API host | No |
+| `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Langfuse public key | No |
+| `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Langfuse secret key | No |
+| `LANGFUSE_URL` | Langfuse API URL | No |
 | `MC_PROJECT_URL` | Project repository URL | No |
 | `MC_GIT_SSH_KEY` | SSH key for Git authentication | No |
 | `MC_GIT_TOKEN` | Token for Git authentication | No |
