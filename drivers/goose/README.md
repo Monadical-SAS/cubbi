@@ -1,11 +1,11 @@
 # Goose Driver for MC
 
-This driver provides a containerized environment for running [Goose](https://goose.ai) with MCP servers.
+This driver provides a containerized environment for running [Goose](https://goose.ai).
 
 ## Features
 
 - Pre-configured environment for Goose AI
-- MCP server integration
+- Self-hosted instance integration
 - SSH access
 - Git repository integration
 - Langfuse logging support
@@ -14,7 +14,6 @@ This driver provides a containerized environment for running [Goose](https://goo
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `MCP_HOST` | MCP server host | Yes |
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Langfuse public key | No |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Langfuse secret key | No |
 | `LANGFUSE_URL` | Langfuse API URL | No |
@@ -36,9 +35,6 @@ docker build -t monadical/mc-goose:latest .
 ```bash
 # Create a new session with this driver
 mc session create --driver goose
-
-# Create with specific MCP server
-mc session create --driver goose -e MCP_HOST=http://mcp.example.com:8000
 
 # Create with project repository
 mc session create --driver goose --project github.com/username/repo
