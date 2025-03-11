@@ -146,7 +146,6 @@ def create_session(
 
         # Auto-connect unless --no-connect flag is provided
         if not no_connect:
-            console.print(f"\nConnecting to session {session.id}...")
             container_manager.connect_session(session.id)
         else:
             console.print(
