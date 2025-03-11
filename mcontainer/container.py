@@ -89,8 +89,17 @@ class ContainerManager:
         project: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         session_name: Optional[str] = None,
+        mount_local: bool = True,
     ) -> Optional[Session]:
-        """Create a new MC session"""
+        """Create a new MC session
+
+        Args:
+            driver_name: The name of the driver to use
+            project: Optional project repository URL
+            environment: Optional environment variables
+            session_name: Optional session name
+            mount_local: Whether to mount the current directory to /app
+        """
         try:
             # Validate driver exists
             driver = self.config_manager.get_driver(driver_name)
@@ -116,6 +125,16 @@ class ContainerManager:
                 print(f"Pulling image {driver.image}...")
                 self.client.images.pull(driver.image)
 
+            # Set up volume mounts
+            volumes = {}
+            if mount_local:
+                # Mount current directory to /app in the container
+                import os
+
+                current_dir = os.getcwd()
+                volumes[current_dir] = {"bind": "/app", "mode": "rw"}
+                print(f"Mounting local directory {current_dir} to /app")
+
             # Create container
             container = self.client.containers.create(
                 image=driver.image,
@@ -125,6 +144,7 @@ class ContainerManager:
                 tty=True,
                 stdin_open=True,
                 environment=env_vars,
+                volumes=volumes,
                 labels={
                     "mc.session": "true",
                     "mc.session.id": session_id,

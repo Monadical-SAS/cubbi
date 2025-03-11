@@ -24,7 +24,14 @@ def main(ctx: typer.Context) -> None:
     """Monadical Container Tool"""
     # If no command is specified, create a session
     if ctx.invoked_subcommand is None:
-        create_session(driver=None, project=None, env=[], name=None, no_connect=False)
+        create_session(
+            driver=None,
+            project=None,
+            env=[],
+            name=None,
+            no_connect=False,
+            no_mount=False,
+        )
 
 
 @app.command()
@@ -96,6 +103,9 @@ def create_session(
     no_connect: bool = typer.Option(
         False, "--no-connect", help="Don't automatically connect to the session"
     ),
+    no_mount: bool = typer.Option(
+        False, "--no-mount", help="Don't mount local directory to /app"
+    ),
 ) -> None:
     """Create a new MC session"""
     # Use default driver if not specified
@@ -119,6 +129,7 @@ def create_session(
             project=project,
             environment=environment,
             session_name=name,
+            mount_local=not no_mount,
         )
 
     if session:
@@ -223,10 +234,18 @@ def quick_create(
     no_connect: bool = typer.Option(
         False, "--no-connect", help="Don't automatically connect to the session"
     ),
+    no_mount: bool = typer.Option(
+        False, "--no-mount", help="Don't mount local directory to /app"
+    ),
 ) -> None:
     """Create a new MC session with a project repository"""
     create_session(
-        driver=driver, project=project, env=env, name=name, no_connect=no_connect
+        driver=driver,
+        project=project,
+        env=env,
+        name=name,
+        no_connect=no_connect,
+        no_mount=no_mount,
     )
 
 
