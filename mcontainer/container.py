@@ -123,6 +123,12 @@ class ContainerManager:
             if project:
                 env_vars["MC_PROJECT_URL"] = project
 
+            # Pass API keys from host environment to container for local development
+            api_keys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"]
+            for key in api_keys:
+                if key in os.environ and key not in env_vars:
+                    env_vars[key] = os.environ[key]
+
             # Pull image if needed
             try:
                 self.client.images.get(driver.image)
@@ -136,8 +142,6 @@ class ContainerManager:
             # If no project URL and mount_local is True, mount local directory to /app
             if not project and mount_local:
                 # Mount current directory to /app in the container
-                import os
-
                 current_dir = os.getcwd()
                 volumes[current_dir] = {"bind": "/app", "mode": "rw"}
                 print(f"Mounting local directory {current_dir} to /app")

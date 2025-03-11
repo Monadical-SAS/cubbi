@@ -47,6 +47,11 @@ mc session create -e VAR1=value1 -e VAR2=value2
 
 # Shorthand for creating a session with a project repository
 mc github.com/username/repo
+
+# Local development with API keys
+# OPENAI_API_KEY, ANTHROPIC_API_KEY, and OPENROUTER_API_KEY from your
+# local environment are automatically passed to the container
+mc session create
 ```
 
 ## Driver Management
