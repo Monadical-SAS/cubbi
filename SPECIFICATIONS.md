@@ -1,0 +1,507 @@
+# MAI - Monadical AI Container Tool
+
+## Overview
+
+MAI (Monadical AI Container) is a command-line tool for managing ephemeral containers that run AI tools and development environments. It works with both local Docker and a dedicated remote web service that manages containers in a Docker-in-Docker (DinD) environment.
+
+## Technology Stack
+
+### MAI Service
+- **Web Framework**: FastAPI for high-performance, async API endpoints
+- **Package Management**: uv (Astral) for dependency management
+- **Database**: SQLite for development, PostgreSQL for production
+- **Container Management**: Docker SDK for Python
+- **Authentication**: OAuth 2.0 integration with Authentik
+
+### MAI CLI
+- **Language**: Python
+- **Package Management**: uv for dependency management
+- **Distribution**: Standalone binary via PyInstaller or similar
+- **Configuration**: YAML for configuration files
+
+## System Architecture
+
+### Components
+
+1. **CLI Tool (`mai`)**: The command-line interface users interact with
+2. **MAI Service**: A web service that handles remote container execution
+3. **Container Drivers**: Predefined container templates for various AI tools
+
+### Architecture Diagram
+
+```
+┌─────────────┐           ┌─────────────────────────┐
+│             │           │                         │
+│  MAI CLI    │◄─────────►│  Local Docker Daemon    │
+│  (mai)      │           │                         │
+│             │           └─────────────────────────┘
+└──────┬──────┘
+       │
+       │ REST API
+       │
+┌──────▼──────┐           ┌─────────────────────────┐
+│             │           │                         │
+│ MAI Service │◄─────────►│  Docker-in-Docker       │
+│ (Web API)   │           │                         │
+│             │           └─────────────────────────┘
+└─────────────┘
+       │
+       ├──────────────┬───────────────┐
+       │              │               │
+┌──────▼──────┐ ┌─────▼─────┐  ┌──────▼──────┐
+│             │ │           │  │             │
+│  Fluentd    │ │ Langfuse  │  │ Other       │
+│  Logging    │ │ Logging   │  │ Services    │
+│             │ │           │  │             │
+└─────────────┘ └───────────┘  └─────────────┘
+```
+
+## Core Concepts
+
+- **Session**: An active container instance with a specific driver
+- **Driver**: A predefined container template with specific AI tools installed
+- **Remote**: A configured MAI service instance
+
+## CLI Tool Commands
+
+### Basic Commands
+
+```bash
+# Create a new session locally (shorthand)
+mai
+
+# List active sessions on local system
+mai session list
+
+# Create a new session locally
+mai session create [OPTIONS]
+
+# Create a session with a specific driver
+mai session create --driver goose
+
+# Create a session with a specific project repository
+mai session create --driver goose --project github.com/hello/private
+
+# Create a session with a project (shorthand)
+mai git@github.com:hello/private
+
+# Close a specific session
+mai session close <id>
+
+# Connect to an existing session
+mai session connect <id>
+
+# Stop the current session (from inside the container)
+mai stop
+```
+
+### Remote Management
+
+```bash
+# Add a remote MAI service
+mai remote add <name> <url>
+
+# List configured remote services
+mai remote list
+
+# Remove a remote service
+mai remote remove <name>
+
+# Authenticate with a remote service
+mai -r <remote_name> auth
+
+# Create a session on a remote service
+mai -r <remote_name> [session create]
+
+# List sessions on a remote service
+mai -r <remote_name> session list
+```
+
+### Environment Variables
+
+```bash
+# Set environment variables for a session
+mai session create -e VAR1=value1 -e VAR2=value2
+
+# Set environment variables for a remote session
+mai -r <remote_name> session create -e VAR1=value1
+```
+
+### Logging
+
+```bash
+# Stream logs from a session
+mai session logs <id>
+
+# Stream logs with follow option
+mai session logs <id> -f
+```
+
+## MAI Service Specification
+
+### Overview
+
+The MAI Service is a web service that manages ephemeral containers in a Docker-in-Docker environment. It provides a REST API for container lifecycle management, authentication, and real-time log streaming.
+
+### API Endpoints
+
+#### Authentication
+
+```
+POST /auth/login        - Initiate Authentik authentication flow
+POST /auth/callback     - Handle Authentik OAuth callback
+POST /auth/refresh      - Refresh an existing token
+POST /auth/logout       - Invalidate current token
+```
+
+### Authentik Integration
+
+The MAI Service integrates with Authentik at https://authentik.monadical.io using OAuth 2.0:
+
+1. **Application Registration**:
+   - MAI Service is registered as an OAuth application in Authentik
+   - Configured with redirect URI to `/auth/callback`
+   - Assigned appropriate scopes for user identification
+
+2. **Authentication Flow**:
+   - User initiates authentication via CLI
+   - MAI CLI opens browser to Authentik authorization URL
+   - User logs in through Authentik's interface
+   - Authentik redirects to callback URL with authorization code
+   - MAI Service exchanges code for access and refresh tokens
+   - CLI receives and securely stores tokens
+
+3. **Token Management**:
+   - Access tokens used for API authorization
+   - Refresh tokens used to obtain new access tokens
+   - Tokens are encrypted at rest in CLI configuration
+
+#### Sessions
+
+```
+GET /sessions - List all sessions
+POST /sessions - Create a new session
+GET /sessions/{id} - Get session details
+DELETE /sessions/{id} - Terminate a session
+POST /sessions/{id}/connect - Establish connection to session
+GET /sessions/{id}/logs - Stream session logs
+```
+
+#### Drivers
+
+```
+GET /drivers - List available drivers
+GET /drivers/{name} - Get driver details
+```
+
+#### Projects
+
+```
+GET /projects - List all projects
+POST /projects - Add a new project
+GET /projects/{id} - Get project details
+PUT /projects/{id} - Update project details
+DELETE /projects/{id} - Remove a project
+```
+
+### Service Configuration
+
+```yaml
+# mai-service.yaml
+server:
+  port: 3000
+  host: 0.0.0.0
+
+docker:
+  socket: /var/run/docker.sock
+  network: mai-network
+
+auth:
+  provider: authentik
+  url: https://authentik.monadical.io
+  clientId: mai-service
+
+logging:
+  providers:
+    - type: fluentd
+      url: http://fluentd.example.com:24224
+    - type: langfuse
+      url: https://api.langfuse.com
+      apiKey: ${LANGFUSE_API_KEY}
+
+drivers:
+  - name: goose
+    image: monadical/mai-goose:latest
+    env:
+      MCP_HOST: http://mcp:8000
+  - name: aider
+    image: monadical/mai-aider:latest
+  - name: claude-code
+    image: monadical/mai-claude-code:latest
+
+projects:
+  storage:
+    type: encrypted
+    key: ${PROJECT_ENCRYPTION_KEY}
+  default_ssh_scan:
+    - github.com
+    - gitlab.com
+    - bitbucket.org
+```
+
+### Docker-in-Docker Implementation
+
+The MAI Service runs in a container with access to the host's Docker socket, allowing it to create and manage sibling containers. This approach provides:
+
+1. Isolation between containers
+2. Simple lifecycle management
+3. Resource constraints for security
+
+### Connection Handling
+
+For remote connections to containers, the service provides two methods:
+
+1. **WebSocket Terminal**: Browser-based terminal access
+2. **SSH Server**: Each container runs an SSH server for CLI access
+
+### Logging Implementation
+
+The MAI Service implements log collection and forwarding:
+
+1. Container logs are captured using Docker's logging drivers
+2. Logs are forwarded to configured providers (Fluentd, Langfuse)
+3. Real-time log streaming is available via WebSockets
+
+## Project Management
+
+### Adding Projects
+
+Users can add projects with associated credentials:
+
+```bash
+# Add a project with SSH key
+mai project add github.com/hello/private --ssh-key ~/.ssh/id_ed25519
+
+# Add a project with token authentication
+mai project add github.com/hello/private --token ghp_123456789
+
+# List all projects
+mai project list
+
+# Remove a project
+mai project remove github.com/hello/private
+```
+
+### Project Configuration
+
+Projects are stored in the MAI service and referenced by their repository URL. The configuration includes:
+
+```yaml
+# Project configuration
+id: github.com/hello/private
+url: git@github.com:hello/private.git
+type: git
+auth:
+  type: ssh
+  key: |
+    -----BEGIN OPENSSH PRIVATE KEY-----
+    ...encrypted key data...
+    -----END OPENSSH PRIVATE KEY-----
+  public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI...
+```
+
+## Driver Implementation
+
+### Driver Structure
+
+Each driver is a Docker image with a standardized structure:
+
+```
+/
+├── entrypoint.sh      # Container initialization
+├── mai-init.sh        # Standardized initialization script
+├── mai-driver.yaml    # Driver metadata and configuration
+├── tool/              # AI tool installation
+└── ssh/               # SSH server configuration
+```
+
+### Standardized Initialization Script
+
+All drivers include a standardized `mai-init.sh` script that handles common initialization tasks:
+
+```bash
+#!/bin/bash
+
+# Project initialization
+if [ -n "$MAI_PROJECT_URL" ]; then
+    echo "Initializing project: $MAI_PROJECT_URL"
+
+    # Set up SSH key if provided
+    if [ -n "$MAI_GIT_SSH_KEY" ]; then
+        mkdir -p ~/.ssh
+        echo "$MAI_GIT_SSH_KEY" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+    fi
+
+    # Set up token if provided
+    if [ -n "$MAI_GIT_TOKEN" ]; then
+        git config --global credential.helper store
+        echo "https://$MAI_GIT_TOKEN:x-oauth-basic@github.com" > ~/.git-credentials
+    fi
+
+    # Clone repository
+    git clone $MAI_PROJECT_URL /app
+    cd /app
+
+    # Run project-specific initialization if present
+    if [ -f "/app/.mai/init.sh" ]; then
+        bash /app/.mai/init.sh
+    fi
+fi
+
+# Driver-specific initialization continues...
+```
+
+### Driver Configuration (mai-driver.yaml)
+
+```yaml
+name: goose
+description: Goose with MCP servers
+version: 1.0.0
+maintainer: team@monadical.com
+
+init:
+  pre_command: /mai-init.sh
+  command: /entrypoint.sh
+
+environment:
+  - name: MCP_HOST
+    description: MCP server host
+    required: true
+    default: http://localhost:8000
+
+  - name: GOOSE_ID
+    description: Goose instance ID
+    required: false
+
+  # Project environment variables
+  - name: MAI_PROJECT_URL
+    description: Project repository URL
+    required: false
+
+  - name: MAI_PROJECT_TYPE
+    description: Project repository type (git, svn, etc.)
+    required: false
+    default: git
+
+  - name: MAI_GIT_SSH_KEY
+    description: SSH key for Git authentication
+    required: false
+    sensitive: true
+
+  - name: MAI_GIT_TOKEN
+    description: Token for Git authentication
+    required: false
+    sensitive: true
+
+ports:
+  - 8000   # Main application
+  - 22     # SSH server
+
+volumes:
+  - mountPath: /app
+    description: Application directory
+```
+
+### Example Built-in Drivers
+
+1. **goose**: Goose with MCP servers
+2. **aider**: Aider coding assistant
+3. **claude-code**: Claude Code environment
+4. **custom**: Custom Dockerfile support
+
+## Security Considerations
+
+1. **Container Isolation**: Each session runs in an isolated container
+2. **Authentication**: Integration with Authentik for secure authentication
+3. **Resource Limits**: Configurable CPU, memory, and storage limits
+4. **Network Isolation**: Internal Docker network for container-to-container communication
+5. **Encrypted Connections**: TLS for API connections and SSH for terminal access
+
+## Deployment
+
+### MAI Service Deployment
+
+```yaml
+# docker-compose.yml for MAI Service
+version: '3.8'
+
+services:
+  mai-service:
+    image: monadical/mai-service:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/app/config
+    ports:
+      - "3000:3000"
+    environment:
+      - AUTH_URL=https://authentik.monadical.io
+      - LANGFUSE_API_KEY=your_api_key
+    networks:
+      - mai-network
+
+networks:
+  mai-network:
+    driver: bridge
+```
+
+## Project Repository Integration Workflow
+
+### Adding a Project Repository
+
+1. User adds project repository with authentication:
+   ```bash
+   mai project add github.com/hello/private --ssh-key ~/.ssh/id_ed25519
+   ```
+
+2. MAI CLI reads the SSH key, encrypts it, and sends to MAI Service
+
+3. MAI Service stores the project configuration securely
+
+### Using a Project in a Session
+
+1. User creates a session with a project:
+   ```bash
+   mai -r monadical git@github.com:hello/private
+   ```
+
+2. MAI Service:
+   - Identifies the project from the URL
+   - Retrieves project authentication details
+   - Sets up environment variables:
+     ```
+     MAI_PROJECT_URL=git@github.com:hello/private
+     MAI_PROJECT_TYPE=git
+     MAI_GIT_SSH_KEY=<contents of the SSH key>
+     ```
+   - Creates container with these environment variables
+
+3. Container initialization:
+   - The standardized `mai-init.sh` script detects the project environment variables
+   - Sets up SSH key or token authentication
+   - Clones the repository to `/app`
+   - Runs any project-specific initialization scripts
+
+4. User can immediately begin working with the repository
+
+## Implementation Roadmap
+
+1. **Phase 1**: Local CLI tool with Docker integration
+2. **Phase 2**: MAI Service REST API with basic container management
+3. **Phase 3**: Authentication and secure connections
+4. **Phase 4**: Project management functionality
+5. **Phase 5**: Driver implementation (Goose, Aider, Claude Code)
+6. **Phase 6**: Logging integration with Fluentd and Langfuse
+7. **Phase 7**: CLI remote connectivity improvements
+8. **Phase 8**: Additional drivers and extensibility features
