@@ -82,11 +82,17 @@ def list_sessions() -> None:
             SessionStatus.FAILED: "red",
         }.get(session.status, "white")
 
+        status_name = (
+            session.status.value
+            if hasattr(session.status, "value")
+            else str(session.status)
+        )
+
         table.add_row(
             session.id,
             session.name,
             session.driver,
-            f"[{status_color}]{session.status}[/{status_color}]",
+            f"[{status_color}]{status_name}[/{status_color}]",
             ports_str,
             session.project or "",
         )
