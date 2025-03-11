@@ -15,14 +15,14 @@ uv run -m mcontainer.cli
 ## Lint/Test Commands
 ```bash
 # Run linting
-uv run --with=ruff ruff check .
+uvx ruff check .
 
 # Run type checking (note: currently has unresolved stub dependencies)
 # Skip for now during development
 # uv run --with=mypy mypy .
 
 # Run formatting
-uv run --with=ruff ruff format .
+uvx ruff format .
 
 # Run all tests
 uv run -m pytest

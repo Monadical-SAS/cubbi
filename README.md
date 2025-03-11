@@ -1,12 +1,19 @@
 # MC - Monadical Container Tool
 
-MC (Monadical Container) is a command-line tool for managing ephemeral containers that run AI tools and development environments. It works with both local Docker and a dedicated remote web service that manages containers in a Docker-in-Docker (DinD) environment.
+MC (Monadical Container) is a command-line tool for managing ephemeral
+containers that run AI tools and development environments. It works with both
+local Docker and a dedicated remote web service that manages containers in a
+Docker-in-Docker (DinD) environment.
+
+## Requirements
+
+- [uv](https://docs.astral.sh/uv/)
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/monadical/mc.git
+git clone https://github.com/monadical/mcontainer.git
 cd mc
 
 # Install with uv
@@ -71,13 +78,13 @@ Drivers are defined in the `drivers/` directory, with each subdirectory containi
 uv run -m pytest
 
 # Run linting
-uv run --with=ruff ruff check .
+uvx ruff check .
 
 # Run type checking
-uv run --with=mypy mypy .
+uvx mypy .
 
 # Format code
-uv run --with=ruff ruff format .
+uvx ruff format .
 ```
 
 ## License

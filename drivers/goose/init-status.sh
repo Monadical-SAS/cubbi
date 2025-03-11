@@ -19,12 +19,12 @@ follow_init_logs() {
         echo "No initialization logs found."
         return
     fi
-    
+
     echo "Initialization is still in progress. Showing logs:"
     echo "----------------------------------------"
     tail -f /init.log &
     tail_pid=$!
-    
+
     # Check every second if initialization has completed
     while true; do
         if [ -f "/init.status" ] && grep -q "INIT_COMPLETE=true" "/init.status"; then
