@@ -14,10 +14,14 @@ Docker-in-Docker (DinD) environment.
 ```bash
 # Clone the repository
 git clone https://github.com/monadical/mcontainer.git
-cd mc
 
-# Install with uv
-uv sync
+# Install the tool locally
+# (with editable, so you can update the code and work with it)
+cd mcontainer
+uv tool install --with-editable . .
+
+# Then you could use the tool as `mc`
+mc --help
 ```
 
 ## Basic Usage
