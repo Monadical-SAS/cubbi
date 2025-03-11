@@ -32,6 +32,7 @@ def main(ctx: typer.Context) -> None:
             driver=None,
             project=None,
             env=[],
+            volume=[],
             name=None,
             no_connect=False,
             no_mount=False,
