@@ -55,4 +55,6 @@ class Config(BaseModel):
     sessions: Dict[str, dict] = Field(
         default_factory=dict
     )  # Store as dict to avoid serialization issues
-    defaults: Dict[str, str] = Field(default_factory=dict)
+    defaults: Dict[str, object] = Field(
+        default_factory=dict
+    )  # Can store strings, booleans, or other values
