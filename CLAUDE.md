@@ -1,15 +1,15 @@
-# Monadical AI Development Guide
+# Monadical Container Development Guide
 
 ## Build Commands
 ```bash
 # Install dependencies using uv (Astral)
 uv sync
 
-# Run MAI service
-uv run -m monadical_ai.service
+# Run MC service
+uv run -m mcontainer.service
 
-# Run MAI CLI
-uv run -m monadical_ai.cli
+# Run MC CLI
+uv run -m mcontainer.cli
 ```
 
 ## Lint/Test Commands

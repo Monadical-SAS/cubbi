@@ -1,0 +1,66 @@
+name: goose
+description: Goose with MCP servers
+version: 1.0.0
+maintainer: team@monadical.com
+
+init:
+  pre_command: /mai-init.sh
+  command: /entrypoint.sh
+
+environment:
+  - name: MCP_HOST
+    description: MCP server host
+    required: true
+    default: http://localhost:8000
+
+  - name: GOOSE_API_KEY
+    description: Goose API key
+    required: true
+    sensitive: true
+
+  - name: GOOSE_ID
+    description: Goose instance ID
+    required: false
+
+  - name: LANGFUSE_PUBLIC_KEY
+    description: Langfuse public key
+    required: false
+    sensitive: true
+
+  - name: LANGFUSE_SECRET_KEY
+    description: Langfuse secret key
+    required: false
+    sensitive: true
+
+  - name: LANGFUSE_HOST
+    description: Langfuse API host
+    required: false
+    default: https://api.langfuse.com
+
+  # Project environment variables
+  - name: MC_PROJECT_URL
+    description: Project repository URL
+    required: false
+
+  - name: MC_PROJECT_TYPE
+    description: Project repository type (git, svn, etc.)
+    required: false
+    default: git
+
+  - name: MC_GIT_SSH_KEY
+    description: SSH key for Git authentication
+    required: false
+    sensitive: true
+
+  - name: MC_GIT_TOKEN
+    description: Token for Git authentication
+    required: false
+    sensitive: true
+
+ports:
+  - 8000   # Main application
+  - 22     # SSH server
+
+volumes:
+  - mountPath: /app
+    description: Application directory
