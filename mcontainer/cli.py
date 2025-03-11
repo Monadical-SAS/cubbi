@@ -7,15 +7,19 @@ from rich.table import Table
 from .config import ConfigManager
 from .container import ContainerManager
 from .models import SessionStatus
+from .user_config import UserConfigManager
 
 app = typer.Typer(help="Monadical Container Tool")
 session_app = typer.Typer(help="Manage MC sessions")
 driver_app = typer.Typer(help="Manage MC drivers", no_args_is_help=True)
+config_app = typer.Typer(help="Manage MC configuration")
 app.add_typer(session_app, name="session", no_args_is_help=True)
 app.add_typer(driver_app, name="driver", no_args_is_help=True)
+app.add_typer(config_app, name="config", no_args_is_help=True)
 
 console = Console()
 config_manager = ConfigManager()
+user_config = UserConfigManager()
 container_manager = ContainerManager(config_manager)
 
 
@@ -110,12 +114,16 @@ def create_session(
     ),
 ) -> None:
     """Create a new MC session"""
-    # Use default driver if not specified
+    # Use default driver from user configuration
     if not driver:
-        driver = config_manager.config.defaults.get("driver", "goose")
+        driver = user_config.get(
+            "defaults.driver", config_manager.config.defaults.get("driver", "goose")
+        )
 
-    # Parse environment variables
-    environment = {}
+    # Start with environment variables from user configuration
+    environment = user_config.get_environment_variables()
+
+    # Override with environment variables from command line
     for var in env:
         if "=" in var:
             key, value = var.split("=", 1)
@@ -131,7 +139,7 @@ def create_session(
             project=project,
             environment=environment,
             session_name=name,
-            mount_local=not no_mount,
+            mount_local=not no_mount and user_config.get("defaults.mount_local", True),
         )
 
     if session:
@@ -144,8 +152,9 @@ def create_session(
             for container_port, host_port in session.ports.items():
                 console.print(f"  {container_port} -> {host_port}")
 
-        # Auto-connect unless --no-connect flag is provided
-        if not no_connect:
+        # Auto-connect based on user config, unless overridden by --no-connect flag
+        auto_connect = user_config.get("defaults.connect", True)
+        if not no_connect and auto_connect:
             container_manager.connect_session(session.id)
         else:
             console.print(
@@ -280,6 +289,10 @@ def quick_create(
     ),
 ) -> None:
     """Create a new MC session with a project repository"""
+    # Use user config for defaults if not specified
+    if not driver:
+        driver = user_config.get("defaults.driver")
+
     create_session(
         driver=driver,
         project=project,
@@ -396,6 +409,101 @@ def driver_info(
             console.print("\n[bold]README:[/bold]")
             with open(readme_path, "r") as f:
                 console.print(f.read())
+
+
+# Configuration commands
+@config_app.command("list")
+def list_config() -> None:
+    """List all configuration values"""
+    # Create table
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Configuration", style="cyan")
+    table.add_column("Value")
+
+    # Add rows from flattened config
+    for key, value in user_config.list_config():
+        table.add_row(key, str(value))
+
+    console.print(table)
+
+
+@config_app.command("get")
+def get_config(
+    key: str = typer.Argument(
+        ..., help="Configuration key to get (e.g., langfuse.url)"
+    ),
+) -> None:
+    """Get a configuration value"""
+    value = user_config.get(key)
+    if value is None:
+        console.print(f"[yellow]Configuration key '{key}' not found[/yellow]")
+        return
+
+    # Mask sensitive values
+    if (
+        any(substr in key.lower() for substr in ["key", "token", "secret", "password"])
+        and value
+    ):
+        display_value = "*****"
+    else:
+        display_value = value
+
+    console.print(f"{key} = {display_value}")
+
+
+@config_app.command("set")
+def set_config(
+    key: str = typer.Argument(
+        ..., help="Configuration key to set (e.g., langfuse.url)"
+    ),
+    value: str = typer.Argument(..., help="Value to set"),
+) -> None:
+    """Set a configuration value"""
+    try:
+        # Convert string value to appropriate type
+        if value.lower() == "true":
+            typed_value = True
+        elif value.lower() == "false":
+            typed_value = False
+        elif value.isdigit():
+            typed_value = int(value)
+        else:
+            typed_value = value
+
+        user_config.set(key, typed_value)
+
+        # Mask sensitive values in output
+        if (
+            any(
+                substr in key.lower()
+                for substr in ["key", "token", "secret", "password"]
+            )
+            and value
+        ):
+            display_value = "*****"
+        else:
+            display_value = typed_value
+
+        console.print(f"[green]Configuration updated: {key} = {display_value}[/green]")
+    except Exception as e:
+        console.print(f"[red]Error setting configuration: {e}[/red]")
+
+
+@config_app.command("reset")
+def reset_config(
+    confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+) -> None:
+    """Reset configuration to defaults"""
+    if not confirm:
+        should_reset = typer.confirm(
+            "Are you sure you want to reset all configuration to defaults?"
+        )
+        if not should_reset:
+            console.print("Reset canceled")
+            return
+
+    user_config.reset()
+    console.print("[green]Configuration reset to defaults[/green]")
 
 
 if __name__ == "__main__":
