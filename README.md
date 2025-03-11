@@ -90,7 +90,3 @@ uvx mypy .
 # Format code
 uvx ruff format .
 ```
-
-## License
-
-See LICENSE file for details.
