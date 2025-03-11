@@ -104,7 +104,9 @@ def create_session(
         False, "--no-connect", help="Don't automatically connect to the session"
     ),
     no_mount: bool = typer.Option(
-        False, "--no-mount", help="Don't mount local directory to /app"
+        False,
+        "--no-mount",
+        help="Don't mount local directory to /app (ignored if --project is used)",
     ),
 ) -> None:
     """Create a new MC session"""
@@ -216,15 +218,33 @@ def connect_session(
 def session_logs(
     session_id: str = typer.Argument(..., help="Session ID to get logs from"),
     follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output"),
+    init: bool = typer.Option(
+        False, "--init", "-i", help="Show initialization logs instead of container logs"
+    ),
 ) -> None:
     """Stream logs from a MC session"""
-    if follow:
-        console.print(f"Streaming logs from session {session_id}... (Ctrl+C to exit)")
-        container_manager.get_session_logs(session_id, follow=True)
+    if init:
+        # Show initialization logs
+        if follow:
+            console.print(
+                f"Streaming initialization logs from session {session_id}... (Ctrl+C to exit)"
+            )
+            container_manager.get_init_logs(session_id, follow=True)
+        else:
+            logs = container_manager.get_init_logs(session_id)
+            if logs:
+                console.print(logs)
     else:
-        logs = container_manager.get_session_logs(session_id)
-        if logs:
-            console.print(logs)
+        # Show regular container logs
+        if follow:
+            console.print(
+                f"Streaming logs from session {session_id}... (Ctrl+C to exit)"
+            )
+            container_manager.get_session_logs(session_id, follow=True)
+        else:
+            logs = container_manager.get_session_logs(session_id)
+            if logs:
+                console.print(logs)
 
 
 @app.command()
@@ -255,7 +275,9 @@ def quick_create(
         False, "--no-connect", help="Don't automatically connect to the session"
     ),
     no_mount: bool = typer.Option(
-        False, "--no-mount", help="Don't mount local directory to /app"
+        False,
+        "--no-mount",
+        help="Don't mount local directory to /app (ignored if a project is specified)",
     ),
 ) -> None:
     """Create a new MC session with a project repository"""

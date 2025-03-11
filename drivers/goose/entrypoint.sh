@@ -2,7 +2,7 @@
 # Entrypoint script for Goose driver
 
 # Run the standard initialization script
-/mai-init.sh
+/mc-init.sh
 
 # Start SSH server in the background
 /usr/sbin/sshd

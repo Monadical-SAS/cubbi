@@ -4,7 +4,7 @@ version: 1.0.0
 maintainer: team@monadical.com
 
 init:
-  pre_command: /mai-init.sh
+  pre_command: /mc-init.sh
   command: /entrypoint.sh
 
 environment:

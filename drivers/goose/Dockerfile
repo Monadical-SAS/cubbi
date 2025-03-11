@@ -20,16 +20,21 @@ RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/
 # Create app directory
 WORKDIR /app
 
+# Install python dependencies
+# This is done before copying scripts for better cache management
+RUN pip install --no-cache-dir goose-ai langfuse
+
 # Copy initialization scripts
-COPY mai-init.sh /mai-init.sh
+COPY mc-init.sh /mc-init.sh
 COPY entrypoint.sh /entrypoint.sh
-COPY mai-driver.yaml /mai-driver.yaml
+COPY mc-driver.yaml /mc-driver.yaml
+COPY init-status.sh /init-status.sh
 
 # Make scripts executable
-RUN chmod +x /mai-init.sh /entrypoint.sh
+RUN chmod +x /mc-init.sh /entrypoint.sh /init-status.sh
 
-# Install python dependencies
-RUN pip install --no-cache-dir goose-ai langfuse
+# Set up initialization status check on login
+RUN echo '[ -x /init-status.sh ] && /init-status.sh' >> /etc/bash.bashrc
 
 # Set up environment
 ENV PYTHONUNBUFFERED=1

@@ -119,6 +119,10 @@ class ContainerManager:
             # Prepare environment variables
             env_vars = environment or {}
 
+            # Add project URL to environment if provided
+            if project:
+                env_vars["MC_PROJECT_URL"] = project
+
             # Pull image if needed
             try:
                 self.client.images.get(driver.image)
@@ -128,13 +132,19 @@ class ContainerManager:
 
             # Set up volume mounts
             volumes = {}
-            if mount_local:
+            # If project URL is provided, don't mount local directory (will clone into /app)
+            # If no project URL and mount_local is True, mount local directory to /app
+            if not project and mount_local:
                 # Mount current directory to /app in the container
                 import os
 
                 current_dir = os.getcwd()
                 volumes[current_dir] = {"bind": "/app", "mode": "rw"}
                 print(f"Mounting local directory {current_dir} to /app")
+            elif project:
+                print(
+                    f"Project URL provided - container will clone {project} into /app during initialization"
+                )
 
             # Create container
             container = self.client.containers.create(
@@ -220,6 +230,8 @@ class ContainerManager:
                         return False
 
                     # Execute interactive shell in container
+                    # The init-status.sh script will automatically show logs if needed
+                    print(f"Connecting to session {session_id}...")
                     os.system(f"docker exec -it {session.container_id} /bin/bash")
                     return True
 
@@ -344,4 +356,54 @@ class ContainerManager:
 
         except DockerException as e:
             print(f"Error getting session logs: {e}")
+            return None
+
+    def get_init_logs(self, session_id: str, follow: bool = False) -> Optional[str]:
+        """Get initialization logs from a MC session
+
+        Args:
+            session_id: The session ID
+            follow: Whether to follow the logs
+
+        Returns:
+            The logs as a string, or None if there was an error
+        """
+        try:
+            sessions = self.list_sessions()
+            for session in sessions:
+                if session.id == session_id and session.container_id:
+                    container = self.client.containers.get(session.container_id)
+
+                    # Check if initialization is complete
+                    init_complete = False
+                    try:
+                        exit_code, output = container.exec_run(
+                            "grep -q 'INIT_COMPLETE=true' /init.status"
+                        )
+                        init_complete = exit_code == 0
+                    except DockerException:
+                        pass
+
+                    if follow and not init_complete:
+                        print(
+                            f"Following initialization logs for session {session_id}..."
+                        )
+                        print("Press Ctrl+C to stop following")
+                        container.exec_run(
+                            "tail -f /init.log", stream=True, demux=True, tty=True
+                        )
+                        return None
+                    else:
+                        exit_code, output = container.exec_run("cat /init.log")
+                        if exit_code == 0:
+                            return output.decode()
+                        else:
+                            print("No initialization logs found")
+                            return None
+
+            print(f"Session '{session_id}' not found")
+            return None
+
+        except DockerException as e:
+            print(f"Error getting initialization logs: {e}")
             return None

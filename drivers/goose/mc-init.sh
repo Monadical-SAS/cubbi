@@ -1,6 +1,13 @@
 #!/bin/bash
 # Standardized initialization script for MC drivers
 
+# Redirect all output to both stdout and the log file
+exec > >(tee -a /init.log) 2>&1
+
+# Mark initialization as started
+echo "=== MC Initialization started at $(date) ==="
+echo "INIT_COMPLETE=false" > /init.status
+
 # Project initialization
 if [ -n "$MC_PROJECT_URL" ]; then
     echo "Initializing project: $MC_PROJECT_URL"
@@ -52,3 +59,7 @@ if [ -n "$LANGFUSE_SECRET_KEY" ] && [ -n "$LANGFUSE_PUBLIC_KEY" ]; then
 fi
 
 echo "MC driver initialization complete"
+
+# Mark initialization as complete
+echo "=== MC Initialization completed at $(date) ==="
+echo "INIT_COMPLETE=true" > /init.status
