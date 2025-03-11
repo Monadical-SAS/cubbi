@@ -213,6 +213,35 @@ class ContainerManager:
             print(f"Error connecting to session: {e}")
             return False
 
+    def close_all_sessions(self) -> tuple[int, bool]:
+        """Close all MC sessions
+
+        Returns:
+            tuple: (number of sessions closed, success)
+        """
+        try:
+            sessions = self.list_sessions()
+            if not sessions:
+                return 0, True
+
+            count = 0
+            for session in sessions:
+                if session.container_id:
+                    try:
+                        container = self.client.containers.get(session.container_id)
+                        container.stop()
+                        container.remove()
+                        self.config_manager.remove_session(session.id)
+                        count += 1
+                    except DockerException as e:
+                        print(f"Error closing session {session.id}: {e}")
+
+            return count, count > 0
+
+        except DockerException as e:
+            print(f"Error closing all sessions: {e}")
+            return 0, False
+
     def get_session_logs(self, session_id: str, follow: bool = False) -> Optional[str]:
         """Get logs from a MC session"""
         try:

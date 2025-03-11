@@ -1,5 +1,4 @@
 import os
-import sys
 from typing import List, Optional
 import typer
 from rich.console import Console
@@ -25,7 +24,7 @@ def main(ctx: typer.Context) -> None:
     """Monadical Container Tool"""
     # If no command is specified, create a session
     if ctx.invoked_subcommand is None:
-        create_session(driver=None, project=None, env=[], name=None)
+        create_session(driver=None, project=None, env=[], name=None, no_connect=False)
 
 
 @app.command()
@@ -87,11 +86,16 @@ def list_sessions() -> None:
 @session_app.command("create")
 def create_session(
     driver: Optional[str] = typer.Option(None, "--driver", "-d", help="Driver to use"),
-    project: Optional[str] = typer.Option(None, "--project", "-p", help="Project repository URL"),
+    project: Optional[str] = typer.Option(
+        None, "--project", "-p", help="Project repository URL"
+    ),
     env: List[str] = typer.Option(
         [], "--env", "-e", help="Environment variables (KEY=VALUE)"
     ),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Session name"),
+    no_connect: bool = typer.Option(
+        False, "--no-connect", help="Don't automatically connect to the session"
+    ),
 ) -> None:
     """Create a new MC session"""
     # Use default driver if not specified
@@ -127,25 +131,42 @@ def create_session(
             for container_port, host_port in session.ports.items():
                 console.print(f"  {container_port} -> {host_port}")
 
-        console.print(
-            f"\nConnect to the session with:\n  mc session connect {session.id}"
-        )
+        # Auto-connect unless --no-connect flag is provided
+        if not no_connect:
+            console.print(f"\nConnecting to session {session.id}...")
+            container_manager.connect_session(session.id)
+        else:
+            console.print(
+                f"\nConnect to the session with:\n  mc session connect {session.id}"
+            )
     else:
         console.print("[red]Failed to create session[/red]")
 
 
 @session_app.command("close")
 def close_session(
-    session_id: str = typer.Argument(..., help="Session ID to close"),
+    session_id: Optional[str] = typer.Argument(None, help="Session ID to close"),
+    all_sessions: bool = typer.Option(False, "--all", help="Close all active sessions"),
 ) -> None:
-    """Close a MC session"""
-    with console.status(f"Closing session {session_id}..."):
-        success = container_manager.close_session(session_id)
+    """Close a MC session or all sessions"""
+    if all_sessions:
+        with console.status("Closing all sessions..."):
+            count, success = container_manager.close_all_sessions()
 
-    if success:
-        console.print(f"[green]Session {session_id} closed successfully[/green]")
+        if success:
+            console.print(f"[green]{count} sessions closed successfully[/green]")
+        else:
+            console.print("[red]Failed to close all sessions[/red]")
+    elif session_id:
+        with console.status(f"Closing session {session_id}..."):
+            success = container_manager.close_session(session_id)
+
+        if success:
+            console.print(f"[green]Session {session_id} closed successfully[/green]")
+        else:
+            console.print(f"[red]Failed to close session {session_id}[/red]")
     else:
-        console.print(f"[red]Failed to close session {session_id}[/red]")
+        console.print("[red]Error: Please provide a session ID or use --all flag[/red]")
 
 
 @session_app.command("connect")
@@ -199,27 +220,32 @@ def quick_create(
         [], "--env", "-e", help="Environment variables (KEY=VALUE)"
     ),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Session name"),
+    no_connect: bool = typer.Option(
+        False, "--no-connect", help="Don't automatically connect to the session"
+    ),
 ) -> None:
     """Create a new MC session with a project repository"""
-    create_session(driver=driver, project=project, env=env, name=name)
+    create_session(
+        driver=driver, project=project, env=env, name=name, no_connect=no_connect
+    )
 
 
 @driver_app.command("list")
 def list_drivers() -> None:
     """List available MC drivers"""
     drivers = config_manager.list_drivers()
-    
+
     if not drivers:
         console.print("No drivers found")
         return
-    
+
     table = Table(show_header=True, header_style="bold")
     table.add_column("Name")
     table.add_column("Description")
     table.add_column("Version")
     table.add_column("Maintainer")
     table.add_column("Image")
-    
+
     for name, driver in drivers.items():
         table.add_row(
             driver.name,
@@ -228,7 +254,7 @@ def list_drivers() -> None:
             driver.maintainer,
             driver.image,
         )
-    
+
     console.print(table)
 
 
@@ -236,7 +262,9 @@ def list_drivers() -> None:
 def build_driver(
     driver_name: str = typer.Argument(..., help="Driver name to build"),
     tag: str = typer.Option("latest", "--tag", "-t", help="Image tag"),
-    push: bool = typer.Option(False, "--push", "-p", help="Push image to registry after building"),
+    push: bool = typer.Option(
+        False, "--push", "-p", help="Push image to registry after building"
+    ),
 ) -> None:
     """Build a driver Docker image"""
     # Get driver path
@@ -244,35 +272,35 @@ def build_driver(
     if not driver_path:
         console.print(f"[red]Driver '{driver_name}' not found[/red]")
         return
-    
+
     # Check if Dockerfile exists
     dockerfile_path = driver_path / "Dockerfile"
     if not dockerfile_path.exists():
         console.print(f"[red]Dockerfile not found in {driver_path}[/red]")
         return
-    
+
     # Build image name
     image_name = f"monadical/mc-{driver_name}:{tag}"
-    
+
     # Build the image
     with console.status(f"Building image {image_name}..."):
         result = os.system(f"cd {driver_path} && docker build -t {image_name} .")
-    
+
     if result != 0:
         console.print("[red]Failed to build driver image[/red]")
         return
-    
+
     console.print(f"[green]Successfully built image: {image_name}[/green]")
-    
+
     # Push if requested
     if push:
         with console.status(f"Pushing image {image_name}..."):
             result = os.system(f"docker push {image_name}")
-        
+
         if result != 0:
             console.print("[red]Failed to push driver image[/red]")
             return
-        
+
         console.print(f"[green]Successfully pushed image: {image_name}[/green]")
 
 
@@ -285,23 +313,23 @@ def driver_info(
     if not driver:
         console.print(f"[red]Driver '{driver_name}' not found[/red]")
         return
-    
+
     console.print(f"[bold]Driver: {driver.name}[/bold]")
     console.print(f"Description: {driver.description}")
     console.print(f"Version: {driver.version}")
     console.print(f"Maintainer: {driver.maintainer}")
     console.print(f"Image: {driver.image}")
-    
+
     if driver.ports:
         console.print("\n[bold]Ports:[/bold]")
         for port in driver.ports:
             console.print(f"  {port}")
-    
+
     # Get driver path
     driver_path = config_manager.get_driver_path(driver_name)
     if driver_path:
         console.print(f"\n[bold]Path:[/bold] {driver_path}")
-        
+
         # Check for README
         readme_path = driver_path / "README.md"
         if readme_path.exists():
