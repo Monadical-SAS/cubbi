@@ -161,9 +161,29 @@ def close_session(
 ) -> None:
     """Close a MC session or all sessions"""
     if all_sessions:
-        with console.status("Closing all sessions..."):
-            count, success = container_manager.close_all_sessions()
+        # Get sessions first to display them
+        sessions = container_manager.list_sessions()
+        if not sessions:
+            console.print("No active sessions to close")
+            return
 
+        console.print(f"Closing {len(sessions)} sessions...")
+
+        # Simple progress function that prints a line when a session is closed
+        def update_progress(session_id, status, message):
+            if status == "completed":
+                console.print(
+                    f"[green]Session {session_id} closed successfully[/green]"
+                )
+            elif status == "failed":
+                console.print(
+                    f"[red]Failed to close session {session_id}: {message}[/red]"
+                )
+
+        # Start closing sessions with progress updates
+        count, success = container_manager.close_all_sessions(update_progress)
+
+        # Final result
         if success:
             console.print(f"[green]{count} sessions closed successfully[/green]")
         else:

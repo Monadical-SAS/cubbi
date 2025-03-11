@@ -2,7 +2,8 @@ import os
 import sys
 import uuid
 import docker
-from typing import Dict, List, Optional
+import concurrent.futures
+from typing import Dict, List, Optional, Tuple
 from docker.errors import DockerException, ImageNotFound
 
 from .models import Session, SessionStatus
@@ -198,12 +199,8 @@ class ContainerManager:
         try:
             sessions = self.list_sessions()
             for session in sessions:
-                if session.id == session_id and session.container_id:
-                    container = self.client.containers.get(session.container_id)
-                    container.stop()
-                    container.remove()
-                    self.config_manager.remove_session(session_id)
-                    return True
+                if session.id == session_id:
+                    return self._close_single_session(session)
 
             print(f"Session '{session_id}' not found")
             return False
@@ -233,8 +230,34 @@ class ContainerManager:
             print(f"Error connecting to session: {e}")
             return False
 
-    def close_all_sessions(self) -> tuple[int, bool]:
-        """Close all MC sessions
+    def _close_single_session(self, session: Session) -> bool:
+        """Close a single session (helper for parallel processing)
+
+        Args:
+            session: The session to close
+
+        Returns:
+            bool: Whether the session was successfully closed
+        """
+        if not session.container_id:
+            return False
+
+        try:
+            container = self.client.containers.get(session.container_id)
+            container.stop()
+            container.remove()
+            self.config_manager.remove_session(session.id)
+            return True
+        except DockerException as e:
+            print(f"Error closing session {session.id}: {e}")
+            return False
+
+    def close_all_sessions(self, progress_callback=None) -> Tuple[int, bool]:
+        """Close all MC sessions with parallel processing and progress reporting
+
+        Args:
+            progress_callback: Optional callback function to report progress
+                The callback should accept (session_id, status, message)
 
         Returns:
             tuple: (number of sessions closed, success)
@@ -244,19 +267,59 @@ class ContainerManager:
             if not sessions:
                 return 0, True
 
-            count = 0
-            for session in sessions:
-                if session.container_id:
+            # No need for session status as we receive it via callback
+
+            # Define a wrapper to track progress
+            def close_with_progress(session):
+                if not session.container_id:
+                    return False
+
+                try:
+                    container = self.client.containers.get(session.container_id)
+                    # Stop and remove container
+                    container.stop()
+                    container.remove()
+                    # Remove from config
+                    self.config_manager.remove_session(session.id)
+
+                    # Notify about completion
+                    if progress_callback:
+                        progress_callback(
+                            session.id,
+                            "completed",
+                            f"{session.name} closed successfully",
+                        )
+
+                    return True
+                except DockerException as e:
+                    error_msg = f"Error: {str(e)}"
+                    if progress_callback:
+                        progress_callback(session.id, "failed", error_msg)
+                    print(f"Error closing session {session.id}: {e}")
+                    return False
+
+            # Use ThreadPoolExecutor to close sessions in parallel
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=min(10, len(sessions))
+            ) as executor:
+                # Submit all session closing tasks
+                future_to_session = {
+                    executor.submit(close_with_progress, session): session
+                    for session in sessions
+                }
+
+                # Collect results
+                closed_count = 0
+                for future in concurrent.futures.as_completed(future_to_session):
+                    session = future_to_session[future]
                     try:
-                        container = self.client.containers.get(session.container_id)
-                        container.stop()
-                        container.remove()
-                        self.config_manager.remove_session(session.id)
-                        count += 1
-                    except DockerException as e:
+                        success = future.result()
+                        if success:
+                            closed_count += 1
+                    except Exception as e:
                         print(f"Error closing session {session.id}: {e}")
 
-            return count, count > 0
+            return closed_count, closed_count > 0
 
         except DockerException as e:
             print(f"Error closing all sessions: {e}")
