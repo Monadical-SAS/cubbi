@@ -236,8 +236,6 @@ logging:
 drivers:
   - name: goose
     image: monadical/mc-goose:latest
-    env:
-      MCP_HOST: http://mcp:8000
   - name: aider
     image: monadical/mc-aider:latest
   - name: claude-code

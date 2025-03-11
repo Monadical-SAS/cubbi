@@ -72,12 +72,6 @@ fi
 
 # Goose uses self-hosted instance, no API key required
 
-# Set up MCP connection if provided
-if [ -n "$MCP_HOST" ]; then
-    echo "Setting up MCP connection to $MCP_HOST"
-    export MCP_HOST="$MCP_HOST"
-fi
-
 # Set up Langfuse logging if credentials are provided
 if [ -n "$LANGFUSE_INIT_PROJECT_SECRET_KEY" ] && [ -n "$LANGFUSE_INIT_PROJECT_PUBLIC_KEY" ]; then
     echo "Setting up Langfuse logging"
