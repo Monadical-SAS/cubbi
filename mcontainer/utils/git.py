@@ -1,5 +1,5 @@
 """
-Git repository handling utilities for MAI
+Git repository handling utilities for MC
 """
 
 import re
