@@ -18,6 +18,13 @@ class DriverEnvironmentVariable(BaseModel):
     sensitive: bool = False
 
 
+class PersistentConfig(BaseModel):
+    source: str
+    target: str
+    type: str  # "directory" or "file"
+    description: str = ""
+
+
 class Driver(BaseModel):
     name: str
     description: str
@@ -27,6 +34,7 @@ class Driver(BaseModel):
     environment: List[DriverEnvironmentVariable] = []
     ports: List[int] = []
     volumes: List[Dict[str, str]] = []
+    persistent_configs: List[PersistentConfig] = []
 
 
 class Session(BaseModel):

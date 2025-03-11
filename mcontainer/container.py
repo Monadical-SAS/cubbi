@@ -2,6 +2,8 @@ import os
 import sys
 import uuid
 import docker
+import hashlib
+import pathlib
 import concurrent.futures
 from typing import Dict, List, Optional, Tuple
 from docker.errors import DockerException, ImageNotFound
@@ -31,6 +33,38 @@ class ContainerManager:
     def _generate_session_id(self) -> str:
         """Generate a unique session ID"""
         return str(uuid.uuid4())[:8]
+
+    def _get_project_config_path(self, project: Optional[str] = None) -> pathlib.Path:
+        """Get the path to the project configuration directory
+
+        Args:
+            project: Optional project repository URL. If None, uses current directory.
+
+        Returns:
+            Path to the project configuration directory
+        """
+        # Get home directory for the MC config
+        mc_home = pathlib.Path.home() / ".mc"
+
+        # If no project URL is provided, use the current directory path
+        if not project:
+            # Use current working directory as project identifier
+            project_id = os.getcwd()
+        else:
+            # Use project URL as identifier
+            project_id = project
+
+        # Create a hash of the project ID to use as directory name
+        project_hash = hashlib.md5(project_id.encode()).hexdigest()
+
+        # Create the project config directory path
+        config_path = mc_home / "projects" / project_hash / "config"
+
+        # Create the directory if it doesn't exist
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.mkdir(exist_ok=True)
+
+        return config_path
 
     def list_sessions(self) -> List[Session]:
         """List all active MC sessions"""
@@ -124,7 +158,14 @@ class ContainerManager:
                 env_vars["MC_PROJECT_URL"] = project
 
             # Pass API keys from host environment to container for local development
-            api_keys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"]
+            api_keys = [
+                "OPENAI_API_KEY",
+                "ANTHROPIC_API_KEY",
+                "OPENROUTER_API_KEY",
+                "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
+                "LANGFUSE_INIT_PROJECT_SECRET_KEY",
+                "LANGFUSE_URL",
+            ]
             for key in api_keys:
                 if key in os.environ and key not in env_vars:
                     env_vars[key] = os.environ[key]
@@ -149,6 +190,36 @@ class ContainerManager:
                 print(
                     f"Project URL provided - container will clone {project} into /app during initialization"
                 )
+
+            # Set up persistent project configuration
+            project_config_path = self._get_project_config_path(project)
+            print(f"Using project configuration directory: {project_config_path}")
+
+            # Mount the project configuration directory
+            volumes[str(project_config_path)] = {"bind": "/mc-config", "mode": "rw"}
+
+            # Add environment variables for config path
+            env_vars["MC_CONFIG_DIR"] = "/mc-config"
+            env_vars["MC_DRIVER_CONFIG_DIR"] = f"/mc-config/{driver_name}"
+
+            # Create driver-specific config directories
+            if driver.persistent_configs:
+                print("Setting up persistent configuration directories:")
+                for config in driver.persistent_configs:
+                    # Get target directory path on host
+                    target_dir = project_config_path / config.target.lstrip(
+                        "/mc-config/"
+                    )
+
+                    # Create directory if it's a directory type config
+                    if config.type == "directory":
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        print(f"  - Created directory: {target_dir}")
+
+                    # For files, make sure parent directory exists
+                    elif config.type == "file":
+                        target_dir.parent.mkdir(parents=True, exist_ok=True)
+                        # File will be created by the container if needed
 
             # Create container
             container = self.client.containers.create(
