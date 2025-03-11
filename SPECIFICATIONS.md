@@ -65,6 +65,98 @@ Docker-in-Docker (DinD) environment.
 - **Driver**: A predefined container template with specific AI tools installed
 - **Remote**: A configured MC service instance
 
+## User Configuration
+
+MC supports user-specific configuration via a YAML file located at `~/.config/mc/config.yaml`. This provides a way to set default values, store service credentials, and customize behavior without modifying code.
+
+### Configuration File Structure
+
+```yaml
+# ~/.config/mc/config.yaml
+defaults:
+  driver: "goose"  # Default driver to use
+  connect: true    # Automatically connect after creating session
+  mount_local: true  # Mount local directory by default
+
+services:
+  # Service credentials with simplified naming
+  # These are mapped to environment variables in containers
+  langfuse:
+    url: ""  # Will be set by the user
+    public_key: "pk-lf-..."
+    secret_key: "sk-lf-..."
+
+  openai:
+    api_key: "sk-..."
+
+  anthropic:
+    api_key: "sk-ant-..."
+
+  openrouter:
+    api_key: "sk-or-..."
+
+docker:
+  network: "mc-network"  # Docker network to use
+  socket: "/var/run/docker.sock"  # Docker socket path
+
+remote:
+  default: "production"  # Default remote to use
+  endpoints:
+    production:
+      url: "https://mc.monadical.com"
+      auth_method: "oauth"
+    staging:
+      url: "https://mc-staging.monadical.com"
+      auth_method: "oauth"
+
+ui:
+  colors: true  # Enable/disable colors in terminal output
+  verbose: false  # Enable/disable verbose output
+  table_format: "grid"  # Table format for session listings
+```
+
+### Environment Variable Mapping
+
+The simplified configuration names are mapped to environment variables:
+
+| Config Path | Environment Variable |
+|-------------|---------------------|
+| `services.langfuse.url` | `LANGFUSE_URL` |
+| `services.langfuse.public_key` | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` |
+| `services.langfuse.secret_key` | `LANGFUSE_INIT_PROJECT_SECRET_KEY` |
+| `services.openai.api_key` | `OPENAI_API_KEY` |
+| `services.anthropic.api_key` | `ANTHROPIC_API_KEY` |
+| `services.openrouter.api_key` | `OPENROUTER_API_KEY` |
+
+### Environment Variable Precedence
+
+1. Command-line arguments (`-e KEY=VALUE`) take highest precedence
+2. User config file takes second precedence
+3. System defaults take lowest precedence
+
+### Security Considerations
+
+- Configuration file permissions are set to 600 (user read/write only)
+- Sensitive values can be referenced from environment variables: `${ENV_VAR}`
+- API keys and secrets are never logged or displayed in verbose output
+
+### CLI Configuration Commands
+
+```bash
+# View entire configuration
+mc config list
+
+# Get specific configuration value
+mc config get defaults.driver
+
+# Set configuration value (using simplified naming)
+mc config set langfuse.url "https://cloud.langfuse.com"
+mc config set openai.api_key "sk-..."
+
+# Reset configuration to defaults
+mc config reset
+```
+
 ## CLI Tool Commands
 
 ### Basic Commands

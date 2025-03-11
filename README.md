@@ -28,7 +28,8 @@ mc --help
 
 ```bash
 # Create a new session with the default driver
-mc session create
+# mc create session -- is the full command
+mc
 
 # List all active sessions
 mc session list
@@ -47,11 +48,6 @@ mc session create -e VAR1=value1 -e VAR2=value2
 
 # Shorthand for creating a session with a project repository
 mc github.com/username/repo
-
-# Local development with API keys
-# OPENAI_API_KEY, ANTHROPIC_API_KEY, and OPENROUTER_API_KEY from your
-# local environment are automatically passed to the container
-mc session create
 ```
 
 ## Driver Management
@@ -95,3 +91,42 @@ uvx mypy .
 # Format code
 uvx ruff format .
 ```
+
+## Configuration
+
+MC supports user-specific configuration via a YAML file located at `~/.config/mc/config.yaml`. This allows you to set default values and configure service credentials.
+
+### Managing Configuration
+
+```bash
+# View all configuration
+mc config list
+
+# Get a specific configuration value
+mc config get langfuse.url
+
+# Set configuration values
+mc config set langfuse.url "https://cloud.langfuse.com"
+mc config set langfuse.public_key "pk-lf-..."
+mc config set langfuse.secret_key "sk-lf-..."
+
+# Set API keys for various services
+mc config set openai.api_key "sk-..."
+mc config set anthropic.api_key "sk-ant-..."
+
+# Reset configuration to defaults
+mc config reset
+```
+
+### Service Credentials
+
+Service credentials like API keys configured in `~/.config/mc/config.yaml` are automatically passed to containers as environment variables:
+
+| Config Setting | Environment Variable |
+|----------------|---------------------|
+| `langfuse.url` | `LANGFUSE_URL` |
+| `langfuse.public_key` | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` |
+| `langfuse.secret_key` | `LANGFUSE_INIT_PROJECT_SECRET_KEY` |
+| `openai.api_key` | `OPENAI_API_KEY` |
+| `anthropic.api_key` | `ANTHROPIC_API_KEY` |
+| `openrouter.api_key` | `OPENROUTER_API_KEY` |
