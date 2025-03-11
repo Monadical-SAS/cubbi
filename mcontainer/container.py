@@ -125,6 +125,7 @@ class ContainerManager:
         environment: Optional[Dict[str, str]] = None,
         session_name: Optional[str] = None,
         mount_local: bool = True,
+        volumes: Optional[Dict[str, Dict[str, str]]] = None,
     ) -> Optional[Session]:
         """Create a new MC session
 
@@ -134,6 +135,7 @@ class ContainerManager:
             environment: Optional environment variables
             session_name: Optional session name
             mount_local: Whether to mount the current directory to /app
+            volumes: Optional additional volumes to mount (dict of {host_path: {"bind": container_path, "mode": mode}})
         """
         try:
             # Validate driver exists
@@ -178,25 +180,46 @@ class ContainerManager:
                 self.client.images.pull(driver.image)
 
             # Set up volume mounts
-            volumes = {}
+            session_volumes = {}
+
             # If project URL is provided, don't mount local directory (will clone into /app)
             # If no project URL and mount_local is True, mount local directory to /app
             if not project and mount_local:
                 # Mount current directory to /app in the container
                 current_dir = os.getcwd()
-                volumes[current_dir] = {"bind": "/app", "mode": "rw"}
+                session_volumes[current_dir] = {"bind": "/app", "mode": "rw"}
                 print(f"Mounting local directory {current_dir} to /app")
             elif project:
                 print(
                     f"Project URL provided - container will clone {project} into /app during initialization"
                 )
 
+            # Add user-specified volumes
+            if volumes:
+                for host_path, mount_spec in volumes.items():
+                    container_path = mount_spec["bind"]
+                    # Check for conflicts with /app mount
+                    if container_path == "/app" and not project and mount_local:
+                        print(
+                            "[yellow]Warning: Volume mount to /app conflicts with automatic local directory mount. User-specified mount takes precedence.[/yellow]"
+                        )
+                        # Remove the automatic mount if there's a conflict
+                        if current_dir in session_volumes:
+                            del session_volumes[current_dir]
+
+                    # Add the volume
+                    session_volumes[host_path] = mount_spec
+                    print(f"Mounting volume: {host_path} -> {container_path}")
+
             # Set up persistent project configuration
             project_config_path = self._get_project_config_path(project)
             print(f"Using project configuration directory: {project_config_path}")
 
             # Mount the project configuration directory
-            volumes[str(project_config_path)] = {"bind": "/mc-config", "mode": "rw"}
+            session_volumes[str(project_config_path)] = {
+                "bind": "/mc-config",
+                "mode": "rw",
+            }
 
             # Add environment variables for config path
             env_vars["MC_CONFIG_DIR"] = "/mc-config"
@@ -230,7 +253,7 @@ class ContainerManager:
                 tty=True,
                 stdin_open=True,
                 environment=env_vars,
-                volumes=volumes,
+                volumes=session_volumes,
                 labels={
                     "mc.session": "true",
                     "mc.session.id": session_id,

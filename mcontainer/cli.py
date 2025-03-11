@@ -109,6 +109,9 @@ def create_session(
     env: List[str] = typer.Option(
         [], "--env", "-e", help="Environment variables (KEY=VALUE)"
     ),
+    volume: List[str] = typer.Option(
+        [], "--volume", "-v", help="Mount volumes (LOCAL_PATH:CONTAINER_PATH)"
+    ),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Session name"),
     no_connect: bool = typer.Option(
         False, "--no-connect", help="Don't automatically connect to the session"
@@ -139,6 +142,29 @@ def create_session(
                 f"[yellow]Warning: Ignoring invalid environment variable format: {var}[/yellow]"
             )
 
+    # Parse volume mounts
+    volume_mounts = {}
+    for vol in volume:
+        if ":" in vol:
+            local_path, container_path = vol.split(":", 1)
+            # Convert to absolute path if relative
+            if not os.path.isabs(local_path):
+                local_path = os.path.abspath(local_path)
+
+            # Validate local path exists
+            if not os.path.exists(local_path):
+                console.print(
+                    f"[yellow]Warning: Local path '{local_path}' does not exist. Volume will not be mounted.[/yellow]"
+                )
+                continue
+
+            # Add to volume mounts
+            volume_mounts[local_path] = {"bind": container_path, "mode": "rw"}
+        else:
+            console.print(
+                f"[yellow]Warning: Ignoring invalid volume format: {vol}. Use LOCAL_PATH:CONTAINER_PATH.[/yellow]"
+            )
+
     with console.status(f"Creating session with driver '{driver}'..."):
         session = container_manager.create_session(
             driver_name=driver,
@@ -146,6 +172,7 @@ def create_session(
             environment=environment,
             session_name=name,
             mount_local=not no_mount and user_config.get("defaults.mount_local", True),
+            volumes=volume_mounts,
         )
 
     if session:
@@ -284,6 +311,9 @@ def quick_create(
     env: List[str] = typer.Option(
         [], "--env", "-e", help="Environment variables (KEY=VALUE)"
     ),
+    volume: List[str] = typer.Option(
+        [], "--volume", "-v", help="Mount volumes (LOCAL_PATH:CONTAINER_PATH)"
+    ),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Session name"),
     no_connect: bool = typer.Option(
         False, "--no-connect", help="Don't automatically connect to the session"
@@ -303,6 +333,7 @@ def quick_create(
         driver=driver,
         project=project,
         env=env,
+        volume=volume,
         name=name,
         no_connect=no_connect,
         no_mount=no_mount,
