@@ -10,6 +10,10 @@ RUN apt-get update && apt-get install -y \
     bash \
     curl \
     bzip2 \
+    iputils-ping \
+    iproute2 \
+    nano \
+    vim \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up SSH server
