@@ -8,35 +8,10 @@ DEFAULT_CONFIG_DIR = Path.home() / ".config" / "mc"
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / "config.yaml"
 DEFAULT_DRIVERS_DIR = Path.home() / ".config" / "mc" / "drivers"
 PROJECT_ROOT = Path(__file__).parent.parent
-BUILTIN_DRIVERS_DIR = PROJECT_ROOT / "drivers"
+BUILTIN_DRIVERS_DIR = Path(__file__).parent / "drivers"  # mcontainer/drivers
 
-# Default built-in driver configurations
-DEFAULT_DRIVERS = {
-    "goose": Driver(
-        name="goose",
-        description="Goose with MCP servers",
-        version="1.0.0",
-        maintainer="team@monadical.com",
-        image="monadical/mc-goose:latest",
-        ports=[8000, 22],
-    ),
-    "aider": Driver(
-        name="aider",
-        description="Aider coding assistant",
-        version="1.0.0",
-        maintainer="team@monadical.com",
-        image="monadical/mc-aider:latest",
-        ports=[22],
-    ),
-    "claude-code": Driver(
-        name="claude-code",
-        description="Claude Code environment",
-        version="1.0.0",
-        maintainer="team@monadical.com",
-        image="monadical/mc-claude-code:latest",
-        ports=[22],
-    ),
-}
+# Dynamically loaded from drivers directory at runtime
+DEFAULT_DRIVERS = {}
 
 
 class ConfigManager:
@@ -45,6 +20,10 @@ class ConfigManager:
         self.config_dir = self.config_path.parent
         self.drivers_dir = DEFAULT_DRIVERS_DIR
         self.config = self._load_or_create_config()
+
+        # Always load package drivers on initialization
+        # These are separate from the user config
+        self.builtin_drivers = self._load_package_drivers()
 
     def _load_or_create_config(self) -> Config:
         """Load existing config or create a new one with defaults"""
@@ -80,18 +59,12 @@ class ConfigManager:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.drivers_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load built-in drivers from directories
-        builtin_drivers = self.load_builtin_drivers()
-
-        # Merge with default drivers, with directory drivers taking precedence
-        drivers = {**DEFAULT_DRIVERS, **builtin_drivers}
-
+        # Initial config without drivers
         config = Config(
             docker={
                 "socket": "/var/run/docker.sock",
                 "network": "mc-network",
             },
-            drivers=drivers,
             defaults={
                 "driver": "goose",
             },
@@ -115,12 +88,23 @@ class ConfigManager:
             yaml.dump(config_dict, f)
 
     def get_driver(self, name: str) -> Optional[Driver]:
-        """Get a driver by name"""
+        """Get a driver by name, checking builtin drivers first, then user-configured ones"""
+        # Check builtin drivers first (package drivers take precedence)
+        if name in self.builtin_drivers:
+            return self.builtin_drivers[name]
+        # If not found, check user-configured drivers
         return self.config.drivers.get(name)
 
     def list_drivers(self) -> Dict[str, Driver]:
-        """List all available drivers"""
-        return self.config.drivers
+        """List all available drivers (both builtin and user-configured)"""
+        # Start with user config drivers
+        all_drivers = dict(self.config.drivers)
+
+        # Add builtin drivers, overriding any user drivers with the same name
+        # This ensures that package-provided drivers always take precedence
+        all_drivers.update(self.builtin_drivers)
+
+        return all_drivers
 
     def add_session(self, session_id: str, session_data: dict) -> None:
         """Add a session to the config"""
@@ -140,12 +124,12 @@ class ConfigManager:
 
     def load_driver_from_dir(self, driver_dir: Path) -> Optional[Driver]:
         """Load a driver configuration from a directory"""
-        yaml_path = (
-            driver_dir / "mai-driver.yaml"
-        )  # Keep this name for backward compatibility
-
+        # Try with mc-driver.yaml first (new format), then mai-driver.yaml (legacy)
+        yaml_path = driver_dir / "mc-driver.yaml"
         if not yaml_path.exists():
-            return None
+            yaml_path = driver_dir / "mai-driver.yaml"  # Backward compatibility
+            if not yaml_path.exists():
+                return None
 
         try:
             with open(yaml_path, "r") as f:
@@ -159,28 +143,33 @@ class ConfigManager:
                 print(f"Driver config {yaml_path} missing required fields")
                 return None
 
-            # Create driver object
-            driver = Driver(
-                name=driver_data["name"],
-                description=driver_data["description"],
-                version=driver_data["version"],
-                maintainer=driver_data["maintainer"],
-                image=f"monadical/mc-{driver_data['name']}:latest",
-                ports=driver_data.get("ports", []),
-            )
+            # Use Driver.model_validate to handle all fields from YAML
+            # This will map all fields according to the Driver model structure
+            try:
+                # Ensure image field is set if not in YAML
+                if "image" not in driver_data:
+                    driver_data["image"] = f"monadical/mc-{driver_data['name']}:latest"
 
-            return driver
+                driver = Driver.model_validate(driver_data)
+                return driver
+            except Exception as validation_error:
+                print(
+                    f"Error validating driver data from {yaml_path}: {validation_error}"
+                )
+                return None
+
         except Exception as e:
             print(f"Error loading driver from {yaml_path}: {e}")
             return None
 
-    def load_builtin_drivers(self) -> Dict[str, Driver]:
-        """Load all built-in drivers from the drivers directory"""
+    def _load_package_drivers(self) -> Dict[str, Driver]:
+        """Load all package drivers from the mcontainer/drivers directory"""
         drivers = {}
 
         if not BUILTIN_DRIVERS_DIR.exists():
             return drivers
 
+        # Search for mc-driver.yaml files in each subdirectory
         for driver_dir in BUILTIN_DRIVERS_DIR.iterdir():
             if driver_dir.is_dir():
                 driver = self.load_driver_from_dir(driver_dir)
@@ -191,10 +180,10 @@ class ConfigManager:
 
     def get_driver_path(self, driver_name: str) -> Optional[Path]:
         """Get the directory path for a driver"""
-        # Check built-in drivers first
-        builtin_path = BUILTIN_DRIVERS_DIR / driver_name
-        if builtin_path.exists() and builtin_path.is_dir():
-            return builtin_path
+        # Check package drivers first (these are the bundled ones)
+        package_path = BUILTIN_DRIVERS_DIR / driver_name
+        if package_path.exists() and package_path.is_dir():
+            return package_path
 
         # Then check user drivers
         user_path = self.drivers_dir / driver_name
