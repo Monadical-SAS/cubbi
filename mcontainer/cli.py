@@ -151,7 +151,14 @@ def create_session(
 
     # Parse volume mounts
     volume_mounts = {}
-    for vol in volume:
+
+    # Get default volumes from user config
+    default_volumes = user_config.get("defaults.volumes", [])
+
+    # Combine default volumes with user-specified volumes
+    all_volumes = default_volumes + list(volume)
+
+    for vol in all_volumes:
         if ":" in vol:
             local_path, container_path = vol.split(":", 1)
             # Convert to absolute path if relative
@@ -165,7 +172,7 @@ def create_session(
                 )
                 continue
 
-            # Add to volume mounts
+            # Add to volume mounts (later entries override earlier ones with same host path)
             volume_mounts[local_path] = {"bind": container_path, "mode": "rw"}
         else:
             console.print(
@@ -180,6 +187,12 @@ def create_session(
 
     if all_networks:
         console.print(f"Networks: {', '.join(all_networks)}")
+
+    # Show volumes that will be mounted
+    if volume_mounts:
+        console.print("Volumes:")
+        for host_path, mount_info in volume_mounts.items():
+            console.print(f"  {host_path} -> {mount_info['bind']}")
 
     with console.status(f"Creating session with driver '{driver}'..."):
         session = container_manager.create_session(
@@ -473,6 +486,10 @@ def driver_info(
 network_app = typer.Typer(help="Manage default networks")
 config_app.add_typer(network_app, name="network", no_args_is_help=True)
 
+# Create a volume subcommand for config
+volume_app = typer.Typer(help="Manage default volumes")
+config_app.add_typer(volume_app, name="volume", no_args_is_help=True)
+
 
 # Configuration commands
 @config_app.command("list")
@@ -618,6 +635,108 @@ def remove_network(
     networks.remove(network)
     user_config.set("defaults.networks", networks)
     console.print(f"[green]Removed network '{network}' from defaults[/green]")
+
+
+# Volume configuration commands
+@volume_app.command("list")
+def list_volumes() -> None:
+    """List all default volumes"""
+    volumes = user_config.get("defaults.volumes", [])
+
+    if not volumes:
+        console.print("No default volumes configured")
+        return
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Local Path")
+    table.add_column("Container Path")
+
+    for volume in volumes:
+        if ":" in volume:
+            local_path, container_path = volume.split(":", 1)
+            table.add_row(local_path, container_path)
+        else:
+            table.add_row(volume, "[yellow]Invalid format[/yellow]")
+
+    console.print(table)
+
+
+@volume_app.command("add")
+def add_volume(
+    volume: str = typer.Argument(
+        ..., help="Volume to add (format: LOCAL_PATH:CONTAINER_PATH)"
+    ),
+) -> None:
+    """Add a volume to default volumes"""
+    volumes = user_config.get("defaults.volumes", [])
+
+    # Validate format
+    if ":" not in volume:
+        console.print(
+            "[red]Invalid volume format. Use LOCAL_PATH:CONTAINER_PATH.[/red]"
+        )
+        return
+
+    local_path, container_path = volume.split(":", 1)
+
+    # Convert to absolute path if relative
+    if not os.path.isabs(local_path):
+        local_path = os.path.abspath(local_path)
+        volume = f"{local_path}:{container_path}"
+
+    # Validate local path exists
+    if not os.path.exists(local_path):
+        console.print(
+            f"[yellow]Warning: Local path '{local_path}' does not exist.[/yellow]"
+        )
+        if not typer.confirm("Add anyway?"):
+            return
+
+    # Check if volume is already in defaults
+    if volume in volumes:
+        console.print(f"Volume '{volume}' is already in defaults")
+        return
+
+    volumes.append(volume)
+    user_config.set("defaults.volumes", volumes)
+    console.print(f"[green]Added volume '{volume}' to defaults[/green]")
+
+
+@volume_app.command("remove")
+def remove_volume(
+    volume: str = typer.Argument(
+        ..., help="Volume to remove (format: LOCAL_PATH:CONTAINER_PATH)"
+    ),
+) -> None:
+    """Remove a volume from default volumes"""
+    volumes = user_config.get("defaults.volumes", [])
+
+    # Handle case where user provides just a prefix to match
+    matching_volumes = [v for v in volumes if v.startswith(volume)]
+
+    if not matching_volumes:
+        console.print(f"No volumes matching '{volume}' found in defaults")
+        return
+
+    if len(matching_volumes) > 1:
+        console.print(f"Multiple volumes match '{volume}':")
+        for i, v in enumerate(matching_volumes):
+            console.print(f"  {i + 1}. {v}")
+
+        index = typer.prompt(
+            "Enter the number of the volume to remove (0 to cancel)", type=int
+        )
+        if index == 0 or index > len(matching_volumes):
+            console.print("Volume removal canceled")
+            return
+
+        volume_to_remove = matching_volumes[index - 1]
+    else:
+        volume_to_remove = matching_volumes[0]
+
+    volumes.remove(volume_to_remove)
+    user_config.set("defaults.volumes", volumes)
+    console.print(f"[green]Removed volume '{volume_to_remove}' from defaults[/green]")
 
 
 if __name__ == "__main__":
