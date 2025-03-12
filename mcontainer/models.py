@@ -63,9 +63,6 @@ class Session(BaseModel):
 class Config(BaseModel):
     docker: Dict[str, str] = Field(default_factory=dict)
     drivers: Dict[str, Driver] = Field(default_factory=dict)
-    sessions: Dict[str, dict] = Field(
-        default_factory=dict
-    )  # Store as dict to avoid serialization issues
     defaults: Dict[str, object] = Field(
         default_factory=dict
     )  # Can store strings, booleans, or other values
