@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     openssh-server \
     bash \
     curl \
+    bzip2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up SSH server
@@ -17,12 +18,15 @@ RUN echo 'root:root' | chpasswd
 RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Create app directory
-WORKDIR /app
-
 # Install python dependencies
 # This is done before copying scripts for better cache management
-RUN pip install --no-cache-dir goose-ai langfuse
+WORKDIR /tmp
+RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh -o download_cli.sh && \
+    chmod +x download_cli.sh && \
+    ./download_cli.sh
+
+# Create app directory
+WORKDIR /app
 
 # Copy initialization scripts
 COPY mc-init.sh /mc-init.sh
@@ -30,10 +34,13 @@ COPY entrypoint.sh /entrypoint.sh
 COPY mc-driver.yaml /mc-driver.yaml
 COPY init-status.sh /init-status.sh
 
+# Extend env via bashrc
+
 # Make scripts executable
 RUN chmod +x /mc-init.sh /entrypoint.sh /init-status.sh
 
 # Set up initialization status check on login
+RUN echo 'export PATH=/root/.local/bin:$PATH' >> /etc/bash.bashrc
 RUN echo '[ -x /init-status.sh ] && /init-status.sh' >> /etc/bash.bashrc
 
 # Set up environment
