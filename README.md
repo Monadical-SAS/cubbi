@@ -142,6 +142,23 @@ mc config network add teamnet
 mc config network remove teamnet
 ```
 
+### Default Volumes Configuration
+
+You can configure default volumes that will be automatically mounted in every new session:
+
+```bash
+# List default volumes
+mc config volume list
+
+# Add a volume to defaults
+mc config volume add /local/path:/container/path
+
+# Remove a volume from defaults (will prompt if multiple matches found)
+mc config volume remove /local/path
+```
+
+Default volumes will be combined with any volumes specified using the `-v` flag when creating a session.
+
 ### External Network Connectivity
 
 MC containers can connect to external Docker networks, allowing them to communicate with other services in those networks:
