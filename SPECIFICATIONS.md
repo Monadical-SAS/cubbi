@@ -77,6 +77,7 @@ defaults:
   driver: "goose"  # Default driver to use
   connect: true    # Automatically connect after creating session
   mount_local: true  # Mount local directory by default
+  networks: []  # Default networks to connect to (besides mc-network)
 
 services:
   # Service credentials with simplified naming
@@ -96,7 +97,7 @@ services:
     api_key: "sk-or-..."
 
 docker:
-  network: "mc-network"  # Docker network to use
+  network: "mc-network"  # Default Docker network to use
   socket: "/var/run/docker.sock"  # Docker socket path
 
 remote:
@@ -153,6 +154,11 @@ mc config get defaults.driver
 mc config set langfuse.url "https://cloud.langfuse.com"
 mc config set openai.api_key "sk-..."
 
+# Network configuration
+mc config network list                   # List default networks
+mc config network add example-network    # Add a network to defaults
+mc config network remove example-network # Remove a network from defaults
+
 # Reset configuration to defaults
 mc config reset
 ```
@@ -176,6 +182,9 @@ mc session create --driver goose
 
 # Create a session with a specific project repository
 mc session create --driver goose --project github.com/hello/private
+
+# Create a session with external networks
+mc session create --network teamnet --network othernetwork
 
 # Create a session with a project (shorthand)
 mc git@github.com:hello/private
@@ -558,12 +567,44 @@ persistent_configs:
 3. **claude-code**: Claude Code environment
 4. **custom**: Custom Dockerfile support
 
+## Network Management
+
+### Docker Network Integration
+
+MC provides flexible network management for containers:
+
+1. **Default MC Network**:
+   - Each container is automatically connected to the MC network (`mc-network` by default)
+   - This ensures containers can communicate with each other
+
+2. **External Network Connection**:
+   - Containers can be connected to one or more external Docker networks
+   - This allows integration with existing infrastructure (e.g., databases, web servers)
+   - Networks can be specified at session creation time: `mc session create --network mynetwork`
+
+3. **Default Networks Configuration**:
+   - Users can configure default networks in their configuration
+   - These networks will be used for all new sessions unless overridden
+   - Managed with `mc config network` commands
+
+4. **Network Command Examples**:
+   ```bash
+   # Use with session creation
+   mc session create --network teamnet
+
+   # Use with multiple networks
+   mc session create --network teamnet --network dbnet
+
+   # Configure default networks
+   mc config network add teamnet
+   ```
+
 ## Security Considerations
 
 1. **Container Isolation**: Each session runs in an isolated container
 2. **Authentication**: Integration with Authentik for secure authentication
 3. **Resource Limits**: Configurable CPU, memory, and storage limits
-4. **Network Isolation**: Internal Docker network for container-to-container communication
+4. **Network Isolation**: Internal Docker network for container-to-container communication with optional external network connections
 5. **Encrypted Connections**: TLS for API connections and SSH for terminal access
 
 ## Deployment

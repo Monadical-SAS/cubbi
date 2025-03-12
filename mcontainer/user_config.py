@@ -62,6 +62,7 @@ class UserConfigManager:
                 "driver": "goose",
                 "connect": True,
                 "mount_local": True,
+                "networks": [],  # Default networks to connect to (besides mc-network)
             },
             "services": {
                 "langfuse": {},

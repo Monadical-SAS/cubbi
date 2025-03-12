@@ -126,6 +126,7 @@ class ContainerManager:
         session_name: Optional[str] = None,
         mount_local: bool = True,
         volumes: Optional[Dict[str, Dict[str, str]]] = None,
+        networks: Optional[List[str]] = None,
     ) -> Optional[Session]:
         """Create a new MC session
 
@@ -136,6 +137,7 @@ class ContainerManager:
             session_name: Optional session name
             mount_local: Whether to mount the current directory to /app
             volumes: Optional additional volumes to mount (dict of {host_path: {"bind": container_path, "mode": mode}})
+            networks: Optional list of additional Docker networks to connect to
         """
         try:
             # Validate driver exists
@@ -254,7 +256,12 @@ class ContainerManager:
                         f"  - Created direct volume mount: {target_dir} -> {config.source}"
                     )
 
-            # Create container
+            # Default MC network
+            default_network = self.config_manager.config.docker.get(
+                "network", "mc-network"
+            )
+
+            # Create container with default MC network
             container = self.client.containers.create(
                 image=driver.image,
                 name=session_name,
@@ -271,12 +278,31 @@ class ContainerManager:
                     "mc.driver": driver_name,
                     "mc.project": project or "",
                 },
-                network=self.config_manager.config.docker.get("network", "mc-network"),
+                network=default_network,
                 ports={f"{port}/tcp": None for port in driver.ports},
             )
 
             # Start container
             container.start()
+
+            # Connect to additional networks if specified
+            if networks:
+                for network_name in networks:
+                    try:
+                        # Get or create the network
+                        try:
+                            network = self.client.networks.get(network_name)
+                        except DockerException:
+                            print(f"Network '{network_name}' not found, creating it...")
+                            network = self.client.networks.create(
+                                network_name, driver="bridge"
+                            )
+
+                        # Connect the container to the network
+                        network.connect(container)
+                        print(f"Connected to network: {network_name}")
+                    except DockerException as e:
+                        print(f"Error connecting to network {network_name}: {e}")
 
             # Get updated port information
             container.reload()

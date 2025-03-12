@@ -33,6 +33,7 @@ def main(ctx: typer.Context) -> None:
             project=None,
             env=[],
             volume=[],
+            network=[],
             name=None,
             no_connect=False,
             no_mount=False,
@@ -113,6 +114,9 @@ def create_session(
     volume: List[str] = typer.Option(
         [], "--volume", "-v", help="Mount volumes (LOCAL_PATH:CONTAINER_PATH)"
     ),
+    network: List[str] = typer.Option(
+        [], "--network", "-N", help="Connect to additional Docker networks"
+    ),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Session name"),
     no_connect: bool = typer.Option(
         False, "--no-connect", help="Don't automatically connect to the session"
@@ -166,6 +170,15 @@ def create_session(
                 f"[yellow]Warning: Ignoring invalid volume format: {vol}. Use LOCAL_PATH:CONTAINER_PATH.[/yellow]"
             )
 
+    # Get default networks from user config
+    default_networks = user_config.get("defaults.networks", [])
+
+    # Combine default networks with user-specified networks, removing duplicates
+    all_networks = list(set(default_networks + network))
+
+    if all_networks:
+        console.print(f"Networks: {', '.join(all_networks)}")
+
     with console.status(f"Creating session with driver '{driver}'..."):
         session = container_manager.create_session(
             driver_name=driver,
@@ -174,6 +187,7 @@ def create_session(
             session_name=name,
             mount_local=not no_mount and user_config.get("defaults.mount_local", True),
             volumes=volume_mounts,
+            networks=all_networks,
         )
 
     if session:
@@ -315,6 +329,9 @@ def quick_create(
     volume: List[str] = typer.Option(
         [], "--volume", "-v", help="Mount volumes (LOCAL_PATH:CONTAINER_PATH)"
     ),
+    network: List[str] = typer.Option(
+        [], "--network", "-N", help="Connect to additional Docker networks"
+    ),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Session name"),
     no_connect: bool = typer.Option(
         False, "--no-connect", help="Don't automatically connect to the session"
@@ -335,6 +352,7 @@ def quick_create(
         project=project,
         env=env,
         volume=volume,
+        network=network,
         name=name,
         no_connect=no_connect,
         no_mount=no_mount,
@@ -449,6 +467,11 @@ def driver_info(
                 console.print(f.read())
 
 
+# Create a network subcommand for config
+network_app = typer.Typer(help="Manage default networks")
+config_app.add_typer(network_app, name="network", no_args_is_help=True)
+
+
 # Configuration commands
 @config_app.command("list")
 def list_config() -> None:
@@ -542,6 +565,57 @@ def reset_config(
 
     user_config.reset()
     console.print("[green]Configuration reset to defaults[/green]")
+
+
+# Network configuration commands
+@network_app.command("list")
+def list_networks() -> None:
+    """List all default networks"""
+    networks = user_config.get("defaults.networks", [])
+
+    if not networks:
+        console.print("No default networks configured")
+        return
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Network")
+
+    for network in networks:
+        table.add_row(network)
+
+    console.print(table)
+
+
+@network_app.command("add")
+def add_network(
+    network: str = typer.Argument(..., help="Network name to add to defaults"),
+) -> None:
+    """Add a network to default networks"""
+    networks = user_config.get("defaults.networks", [])
+
+    if network in networks:
+        console.print(f"Network '{network}' is already in defaults")
+        return
+
+    networks.append(network)
+    user_config.set("defaults.networks", networks)
+    console.print(f"[green]Added network '{network}' to defaults[/green]")
+
+
+@network_app.command("remove")
+def remove_network(
+    network: str = typer.Argument(..., help="Network name to remove from defaults"),
+) -> None:
+    """Remove a network from default networks"""
+    networks = user_config.get("defaults.networks", [])
+
+    if network not in networks:
+        console.print(f"Network '{network}' is not in defaults")
+        return
+
+    networks.remove(network)
+    user_config.set("defaults.networks", networks)
+    console.print(f"[green]Removed network '{network}' from defaults[/green]")
 
 
 if __name__ == "__main__":

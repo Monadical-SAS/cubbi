@@ -50,6 +50,9 @@ mc session create -e VAR1=value1 -e VAR2=value2
 mc session create -v /local/path:/container/path
 mc session create -v ~/data:/data -v ./configs:/etc/app/config
 
+# Connect to external Docker networks
+mc session create --network teamnet --network dbnet
+
 # Shorthand for creating a session with a project repository
 mc github.com/username/repo
 ```
@@ -122,6 +125,51 @@ mc config set anthropic.api_key "sk-ant-..."
 
 # Reset configuration to defaults
 mc config reset
+```
+
+### Default Networks Configuration
+
+You can configure default networks that will be applied to every new session:
+
+```bash
+# List default networks
+mc config network list
+
+# Add a network to defaults
+mc config network add teamnet
+
+# Remove a network from defaults
+mc config network remove teamnet
+```
+
+### External Network Connectivity
+
+MC containers can connect to external Docker networks, allowing them to communicate with other services in those networks:
+
+```bash
+# Create a session connected to external networks
+mc session create --network teamnet --network dbnet
+```
+
+**Important**: Networks must be "attachable" to be joined by MC containers. Here's how to create attachable networks:
+
+```bash
+# Create an attachable network with Docker
+docker network create --driver bridge --attachable teamnet
+
+# Example docker-compose.yml with attachable network
+# docker-compose.yml
+version: '3'
+services:
+  web:
+    image: nginx
+    networks:
+      - teamnet
+
+networks:
+  teamnet:
+    driver: bridge
+    attachable: true  # This is required for MC containers to connect
 ```
 
 ### Service Credentials
