@@ -48,9 +48,38 @@ class UserConfigManager:
             os.chmod(self.config_path, 0o600)
             return default_config
 
-        # Load existing config
-        with open(self.config_path, "r") as f:
-            config = yaml.safe_load(f) or {}
+        # Load existing config with error handling
+        try:
+            with open(self.config_path, "r") as f:
+                config = yaml.safe_load(f) or {}
+
+            # Check for backup file that might be newer
+            backup_path = self.config_path.with_suffix(".yaml.bak")
+            if backup_path.exists():
+                # Check if backup is newer than main config
+                if backup_path.stat().st_mtime > self.config_path.stat().st_mtime:
+                    try:
+                        with open(backup_path, "r") as f:
+                            backup_config = yaml.safe_load(f) or {}
+                        print("Found newer backup config, using that instead")
+                        config = backup_config
+                    except Exception as e:
+                        print(f"Failed to load backup config: {e}")
+
+        except Exception as e:
+            print(f"Error loading configuration: {e}")
+            # Try to load from backup if main config is corrupted
+            backup_path = self.config_path.with_suffix(".yaml.bak")
+            if backup_path.exists():
+                try:
+                    with open(backup_path, "r") as f:
+                        config = yaml.safe_load(f) or {}
+                    print("Loaded configuration from backup file")
+                except Exception as backup_e:
+                    print(f"Failed to load backup configuration: {backup_e}")
+                    config = {}
+            else:
+                config = {}
 
         # Merge with defaults for any missing fields
         return self._merge_with_defaults(config)
@@ -159,9 +188,47 @@ class UserConfigManager:
         self.save()
 
     def save(self) -> None:
-        """Save the configuration to file."""
-        with open(self.config_path, "w") as f:
-            yaml.safe_dump(self.config, f)
+        """Save the configuration to file with error handling and backup."""
+        # Create backup of existing config file if it exists
+        if self.config_path.exists():
+            backup_path = self.config_path.with_suffix(".yaml.bak")
+            try:
+                import shutil
+
+                shutil.copy2(self.config_path, backup_path)
+            except Exception as e:
+                print(f"Warning: Failed to create config backup: {e}")
+
+        # Ensure parent directory exists
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # Write to a temporary file first
+            temp_path = self.config_path.with_suffix(".yaml.tmp")
+            with open(temp_path, "w") as f:
+                yaml.safe_dump(self.config, f)
+
+            # Set secure permissions on temp file
+            os.chmod(temp_path, 0o600)
+
+            # Rename temp file to actual config file (atomic operation)
+            # Use os.replace which is atomic on Unix systems
+            os.replace(temp_path, self.config_path)
+
+        except Exception as e:
+            print(f"Error saving configuration: {e}")
+            # If we have a backup and the save failed, try to restore from backup
+            backup_path = self.config_path.with_suffix(".yaml.bak")
+            if backup_path.exists():
+                try:
+                    import shutil
+
+                    shutil.copy2(backup_path, self.config_path)
+                    print("Restored configuration from backup")
+                except Exception as restore_error:
+                    print(
+                        f"Failed to restore configuration from backup: {restore_error}"
+                    )
 
     def reset(self) -> None:
         """Reset the configuration to defaults."""
