@@ -2,13 +2,13 @@ name: goose
 description: Goose AI environment
 version: 1.0.0
 maintainer: team@monadical.com
+image: monadical/mc-goose:latest
 
 init:
   pre_command: /mc-init.sh
   command: /entrypoint.sh
 
 environment:
-
   - name: LANGFUSE_INIT_PROJECT_PUBLIC_KEY
     description: Langfuse public key
     required: false
@@ -45,8 +45,8 @@ environment:
     sensitive: true
 
 ports:
-  - 8000   # Main application
-  - 22     # SSH server
+  - 8000 # Main application
+  - 22 # SSH server
 
 volumes:
   - mountPath: /app
@@ -54,6 +54,10 @@ volumes:
 
 persistent_configs:
   - source: "/app/.goose"
-    target: "/mc-config/goose"
+    target: "/mc-config/goose-app"
     type: "directory"
-    description: "Goose memory and configuration"
+    description: "Goose memory"
+  - source: "/root/.config/goose"
+    target: "/mc-config/goose-config"
+    type: "directory"
+    description: "Goose configuration"

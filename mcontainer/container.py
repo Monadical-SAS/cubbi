@@ -225,24 +225,34 @@ class ContainerManager:
             env_vars["MC_CONFIG_DIR"] = "/mc-config"
             env_vars["MC_DRIVER_CONFIG_DIR"] = f"/mc-config/{driver_name}"
 
-            # Create driver-specific config directories
+            # Create driver-specific config directories and set up direct volume mounts
             if driver.persistent_configs:
                 print("Setting up persistent configuration directories:")
                 for config in driver.persistent_configs:
                     # Get target directory path on host
-                    target_dir = project_config_path / config.target.lstrip(
+                    target_dir = project_config_path / config.target.removeprefix(
                         "/mc-config/"
                     )
 
                     # Create directory if it's a directory type config
                     if config.type == "directory":
+                        dir_existed = target_dir.exists()
                         target_dir.mkdir(parents=True, exist_ok=True)
-                        print(f"  - Created directory: {target_dir}")
-
+                        if not dir_existed:
+                            print(f"  - Created directory: {target_dir}")
                     # For files, make sure parent directory exists
                     elif config.type == "file":
                         target_dir.parent.mkdir(parents=True, exist_ok=True)
                         # File will be created by the container if needed
+
+                    # Mount persistent config directly to container path
+                    session_volumes[str(target_dir)] = {
+                        "bind": config.source,
+                        "mode": "rw",
+                    }
+                    print(
+                        f"  - Created direct volume mount: {target_dir} -> {config.source}"
+                    )
 
             # Create container
             container = self.client.containers.create(

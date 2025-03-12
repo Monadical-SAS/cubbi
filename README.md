@@ -72,13 +72,15 @@ mc driver build goose
 mc driver build goose --push
 ```
 
-Drivers are defined in the `drivers/` directory, with each subdirectory containing:
+Drivers are defined in the `mcontainer/drivers/` directory, with each subdirectory containing:
 
 - `Dockerfile`: Docker image definition
 - `entrypoint.sh`: Container entrypoint script
-- `mai-init.sh`: Standardized initialization script
-- `mai-driver.yaml`: Driver metadata and configuration
+- `mc-init.sh`: Standardized initialization script
+- `mc-driver.yaml`: Driver metadata and configuration
 - `README.md`: Driver documentation
+
+MC automatically discovers and loads driver definitions from the YAML files.
 
 ## Development
 

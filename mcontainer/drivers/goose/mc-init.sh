@@ -8,26 +8,6 @@ exec > >(tee -a /init.log) 2>&1
 echo "=== MC Initialization started at $(date) ==="
 echo "INIT_COMPLETE=false" > /init.status
 
-# Set up persistent configuration symlinks
-if [ -n "$MC_CONFIG_DIR" ] && [ -d "$MC_CONFIG_DIR" ]; then
-    echo "Setting up persistent configuration in $MC_CONFIG_DIR"
-
-    # Create Goose configuration directory
-    mkdir -p "$MC_CONFIG_DIR/goose"
-
-    # Create symlink for Goose directory
-    if [ -d "/app" ]; then
-        # Make sure .goose directory exists in the target
-        mkdir -p "$MC_CONFIG_DIR/goose"
-
-        # Create the symlink
-        echo "Creating symlink for Goose configuration: /app/.goose -> $MC_CONFIG_DIR/goose"
-        ln -sf "$MC_CONFIG_DIR/goose" "/app/.goose"
-    else
-        echo "Warning: /app directory does not exist yet, symlinks will be created after project initialization"
-    fi
-fi
-
 # Project initialization
 if [ -n "$MC_PROJECT_URL" ]; then
     echo "Initializing project: $MC_PROJECT_URL"
@@ -57,16 +37,10 @@ if [ -n "$MC_PROJECT_URL" ]; then
         bash /app/.mc/init.sh
     fi
 
-    # Set up symlinks after project is cloned (if MC_CONFIG_DIR exists)
+    # Persistent configs are now directly mounted as volumes
+    # No need to create symlinks anymore
     if [ -n "$MC_CONFIG_DIR" ] && [ -d "$MC_CONFIG_DIR" ]; then
-        echo "Setting up persistent configuration symlinks after project clone"
-
-        # Create Goose configuration directory
-        mkdir -p "$MC_CONFIG_DIR/goose"
-
-        # Create symlink for Goose directory
-        echo "Creating symlink for Goose configuration: /app/.goose -> $MC_CONFIG_DIR/goose"
-        ln -sf "$MC_CONFIG_DIR/goose" "/app/.goose"
+        echo "Using persistent configuration volumes (direct mounts)"
     fi
 fi
 

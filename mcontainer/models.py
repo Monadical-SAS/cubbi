@@ -25,15 +25,26 @@ class PersistentConfig(BaseModel):
     description: str = ""
 
 
+class VolumeMount(BaseModel):
+    mountPath: str
+    description: str = ""
+
+
+class DriverInit(BaseModel):
+    pre_command: Optional[str] = None
+    command: str
+
+
 class Driver(BaseModel):
     name: str
     description: str
     version: str
     maintainer: str
     image: str
+    init: Optional[DriverInit] = None
     environment: List[DriverEnvironmentVariable] = []
     ports: List[int] = []
-    volumes: List[Dict[str, str]] = []
+    volumes: List[VolumeMount] = []
     persistent_configs: List[PersistentConfig] = []
 
 
