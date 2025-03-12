@@ -43,10 +43,6 @@ class ConfigManager:
                     for driver_name, driver_data in config_data["drivers"].items():
                         config.drivers[driver_name] = Driver.model_validate(driver_data)
 
-                # Add sessions (stored as simple dictionaries)
-                if "sessions" in config_data:
-                    config.sessions = config_data["sessions"]
-
                 return config
             except Exception as e:
                 print(f"Error loading config: {e}")
@@ -106,21 +102,7 @@ class ConfigManager:
 
         return all_drivers
 
-    def add_session(self, session_id: str, session_data: dict) -> None:
-        """Add a session to the config"""
-        # Store session data as a dictionary in the config
-        self.config.sessions[session_id] = session_data
-        self.save_config()
-
-    def remove_session(self, session_id: str) -> None:
-        """Remove a session from the config"""
-        if session_id in self.config.sessions:
-            del self.config.sessions[session_id]
-            self.save_config()
-
-    def list_sessions(self) -> Dict:
-        """List all sessions in the config"""
-        return self.config.sessions
+    # Session management has been moved to SessionManager in session.py
 
     def load_driver_from_dir(self, driver_dir: Path) -> Optional[Driver]:
         """Load a driver configuration from a directory"""

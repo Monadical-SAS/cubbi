@@ -8,6 +8,7 @@ from .config import ConfigManager
 from .container import ContainerManager
 from .models import SessionStatus
 from .user_config import UserConfigManager
+from .session import SessionManager
 
 app = typer.Typer(help="Monadical Container Tool")
 session_app = typer.Typer(help="Manage MC sessions")
@@ -20,7 +21,8 @@ app.add_typer(config_app, name="config", no_args_is_help=True)
 console = Console()
 config_manager = ConfigManager()
 user_config = UserConfigManager()
-container_manager = ContainerManager(config_manager)
+session_manager = SessionManager()
+container_manager = ContainerManager(config_manager, session_manager)
 
 
 @app.callback(invoke_without_command=True)

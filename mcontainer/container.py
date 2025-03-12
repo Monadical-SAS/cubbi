@@ -10,11 +10,17 @@ from docker.errors import DockerException, ImageNotFound
 
 from .models import Session, SessionStatus
 from .config import ConfigManager
+from .session import SessionManager
 
 
 class ContainerManager:
-    def __init__(self, config_manager: Optional[ConfigManager] = None):
+    def __init__(
+        self,
+        config_manager: Optional[ConfigManager] = None,
+        session_manager: Optional[SessionManager] = None,
+    ):
         self.config_manager = config_manager or ConfigManager()
+        self.session_manager = session_manager or SessionManager()
         try:
             self.client = docker.from_env()
             # Test connection
@@ -329,8 +335,10 @@ class ContainerManager:
                 ports=ports,
             )
 
-            # Save session to config as JSON-compatible dict
-            self.config_manager.add_session(session_id, session.model_dump(mode="json"))
+            # Save session to the session manager as JSON-compatible dict
+            self.session_manager.add_session(
+                session_id, session.model_dump(mode="json")
+            )
 
             return session
 
@@ -365,7 +373,6 @@ class ContainerManager:
 
                     # Execute interactive shell in container
                     # The init-status.sh script will automatically show logs if needed
-                    print(f"Connecting to session {session_id}...")
                     os.system(f"docker exec -it {session.container_id} /bin/bash")
                     return True
 
@@ -392,7 +399,7 @@ class ContainerManager:
             container = self.client.containers.get(session.container_id)
             container.stop()
             container.remove()
-            self.config_manager.remove_session(session.id)
+            self.session_manager.remove_session(session.id)
             return True
         except DockerException as e:
             print(f"Error closing session {session.id}: {e}")
@@ -425,8 +432,8 @@ class ContainerManager:
                     # Stop and remove container
                     container.stop()
                     container.remove()
-                    # Remove from config
-                    self.config_manager.remove_session(session.id)
+                    # Remove from session storage
+                    self.session_manager.remove_session(session.id)
 
                     # Notify about completion
                     if progress_callback:
