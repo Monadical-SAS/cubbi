@@ -27,6 +27,13 @@ def is_docker_available():
         return False
 
 
+# Register custom mark for Docker-dependent tests
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "requires_docker: mark test that requires Docker to be running"
+    )
+
+
 # Decorator to mark tests that require Docker
 requires_docker = pytest.mark.skipif(
     not is_docker_available(),
@@ -90,6 +97,7 @@ def mock_container_manager():
         ports={"8080": "8080"},
         project=None,
         created_at=timestamp,
+        mcps=[],
     )
 
     with patch("mcontainer.cli.container_manager") as mock_manager:
@@ -98,6 +106,21 @@ def mock_container_manager():
         mock_manager.create_session.return_value = mock_session
         mock_manager.close_session.return_value = True
         mock_manager.close_all_sessions.return_value = (3, True)
+        # MCP-related mocks
+        mock_manager.get_mcp_status.return_value = {
+            "status": "running",
+            "container_id": "test-id",
+        }
+        mock_manager.start_mcp.return_value = {
+            "status": "running",
+            "container_id": "test-id",
+        }
+        mock_manager.stop_mcp.return_value = True
+        mock_manager.restart_mcp.return_value = {
+            "status": "running",
+            "container_id": "test-id",
+        }
+        mock_manager.get_mcp_logs.return_value = "Test log output"
         yield mock_manager
 
 

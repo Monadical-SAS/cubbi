@@ -9,20 +9,24 @@ from .container import ContainerManager
 from .models import SessionStatus
 from .user_config import UserConfigManager
 from .session import SessionManager
+from .mcp import MCPManager
 
 app = typer.Typer(help="Monadical Container Tool")
 session_app = typer.Typer(help="Manage MC sessions")
 driver_app = typer.Typer(help="Manage MC drivers", no_args_is_help=True)
 config_app = typer.Typer(help="Manage MC configuration")
+mcp_app = typer.Typer(help="Manage MCP servers")
 app.add_typer(session_app, name="session", no_args_is_help=True)
 app.add_typer(driver_app, name="driver", no_args_is_help=True)
 app.add_typer(config_app, name="config", no_args_is_help=True)
+app.add_typer(mcp_app, name="mcp", no_args_is_help=True)
 
 console = Console()
 config_manager = ConfigManager()
 user_config = UserConfigManager()
 session_manager = SessionManager()
-container_manager = ContainerManager(config_manager, session_manager)
+container_manager = ContainerManager(config_manager, session_manager, user_config)
+mcp_manager = MCPManager(config_manager=user_config)
 
 
 @app.callback(invoke_without_command=True)
@@ -70,6 +74,7 @@ def list_sessions() -> None:
     table.add_column("Status")
     table.add_column("Ports")
     table.add_column("Project")
+    table.add_column("MCPs")
 
     for session in sessions:
         ports_str = ", ".join(
@@ -92,6 +97,9 @@ def list_sessions() -> None:
             else str(session.status)
         )
 
+        # Format MCPs as a comma-separated list
+        mcps_str = ", ".join(session.mcps) if session.mcps else ""
+
         table.add_row(
             session.id,
             session.name,
@@ -99,6 +107,7 @@ def list_sessions() -> None:
             f"[{status_color}]{status_name}[/{status_color}]",
             ports_str,
             session.project or "",
+            mcps_str,
         )
 
     console.print(table)
@@ -127,6 +136,12 @@ def create_session(
         False,
         "--no-mount",
         help="Don't mount local directory to /app (ignored if --project is used)",
+    ),
+    mcp: List[str] = typer.Option(
+        [],
+        "--mcp",
+        "-m",
+        help="Attach MCP servers to the session (can be specified multiple times)",
     ),
 ) -> None:
     """Create a new MC session"""
@@ -203,12 +218,18 @@ def create_session(
             mount_local=not no_mount and user_config.get("defaults.mount_local", True),
             volumes=volume_mounts,
             networks=all_networks,
+            mcp=mcp,
         )
 
     if session:
         console.print("[green]Session created successfully![/green]")
         console.print(f"Session ID: {session.id}")
         console.print(f"Driver: {session.driver}")
+
+        if session.mcps:
+            console.print("MCP Servers:")
+            for mcp in session.mcps:
+                console.print(f"  - {mcp}")
 
         if session.ports:
             console.print("Ports:")
@@ -356,6 +377,12 @@ def quick_create(
         "--no-mount",
         help="Don't mount local directory to /app (ignored if a project is specified)",
     ),
+    mcp: List[str] = typer.Option(
+        [],
+        "--mcp",
+        "-m",
+        help="Attach MCP servers to the session (can be specified multiple times)",
+    ),
 ) -> None:
     """Create a new MC session with a project repository"""
     # Use user config for defaults if not specified
@@ -371,6 +398,7 @@ def quick_create(
         name=name,
         no_connect=no_connect,
         no_mount=no_mount,
+        mcp=mcp,
     )
 
 
@@ -737,6 +765,354 @@ def remove_volume(
     volumes.remove(volume_to_remove)
     user_config.set("defaults.volumes", volumes)
     console.print(f"[green]Removed volume '{volume_to_remove}' from defaults[/green]")
+
+
+# MCP Management Commands
+
+mcp_remote_app = typer.Typer(help="Manage remote MCP servers")
+mcp_docker_app = typer.Typer(help="Manage Docker-based MCP servers")
+mcp_proxy_app = typer.Typer(help="Manage proxy-based MCP servers")
+
+mcp_app.add_typer(mcp_remote_app, name="remote", no_args_is_help=True)
+mcp_app.add_typer(mcp_docker_app, name="docker", no_args_is_help=True)
+mcp_app.add_typer(mcp_proxy_app, name="proxy", no_args_is_help=True)
+
+
+@mcp_app.command("list")
+def list_mcps() -> None:
+    """List all configured MCP servers"""
+    mcps = mcp_manager.list_mcps()
+
+    if not mcps:
+        console.print("No MCP servers configured")
+        return
+
+    # Create a table with the MCP information
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Name")
+    table.add_column("Type")
+    table.add_column("Status")
+    table.add_column("Details")
+
+    # Check status of each MCP
+    for mcp in mcps:
+        name = mcp.get("name", "")
+        mcp_type = mcp.get("type", "")
+
+        try:
+            status_info = mcp_manager.get_mcp_status(name)
+            status = status_info.get("status", "unknown")
+
+            # Set status color based on status
+            status_color = {
+                "running": "green",
+                "stopped": "red",
+                "not_found": "yellow",
+                "not_applicable": "blue",
+                "failed": "red",
+            }.get(status, "white")
+
+            # Different details based on MCP type
+            if mcp_type == "remote":
+                details = mcp.get("url", "")
+            elif mcp_type == "docker":
+                details = mcp.get("image", "")
+            elif mcp_type == "proxy":
+                details = (
+                    f"{mcp.get('base_image', '')} (via {mcp.get('proxy_image', '')})"
+                )
+            else:
+                details = ""
+
+            table.add_row(
+                name,
+                mcp_type,
+                f"[{status_color}]{status}[/{status_color}]",
+                details,
+            )
+        except Exception as e:
+            table.add_row(
+                name,
+                mcp_type,
+                "[red]error[/red]",
+                str(e),
+            )
+
+    console.print(table)
+
+
+@mcp_app.command("status")
+def mcp_status(name: str = typer.Argument(..., help="MCP server name")) -> None:
+    """Show detailed status of an MCP server"""
+    try:
+        # Get the MCP configuration
+        mcp_config = mcp_manager.get_mcp(name)
+        if not mcp_config:
+            console.print(f"[red]MCP server '{name}' not found[/red]")
+            return
+
+        # Get status information
+        status_info = mcp_manager.get_mcp_status(name)
+
+        # Print detailed information
+        console.print(f"[bold]MCP Server:[/bold] {name}")
+        console.print(f"[bold]Type:[/bold] {mcp_config.get('type')}")
+
+        status = status_info.get("status")
+        status_color = {
+            "running": "green",
+            "stopped": "red",
+            "not_found": "yellow",
+            "not_applicable": "blue",
+            "failed": "red",
+        }.get(status, "white")
+
+        console.print(f"[bold]Status:[/bold] [{status_color}]{status}[/{status_color}]")
+
+        # Type-specific information
+        if mcp_config.get("type") == "remote":
+            console.print(f"[bold]URL:[/bold] {mcp_config.get('url')}")
+            if mcp_config.get("headers"):
+                console.print("[bold]Headers:[/bold]")
+                for key, value in mcp_config.get("headers", {}).items():
+                    # Mask sensitive headers
+                    if (
+                        "token" in key.lower()
+                        or "key" in key.lower()
+                        or "auth" in key.lower()
+                    ):
+                        console.print(f"  {key}: ****")
+                    else:
+                        console.print(f"  {key}: {value}")
+
+        elif mcp_config.get("type") in ["docker", "proxy"]:
+            console.print(f"[bold]Image:[/bold] {status_info.get('image')}")
+            if status_info.get("container_id"):
+                console.print(
+                    f"[bold]Container ID:[/bold] {status_info.get('container_id')}"
+                )
+            if status_info.get("ports"):
+                console.print("[bold]Ports:[/bold]")
+                for port, host_port in status_info.get("ports", {}).items():
+                    console.print(f"  {port} -> {host_port}")
+            if status_info.get("created"):
+                console.print(f"[bold]Created:[/bold] {status_info.get('created')}")
+
+            # For proxy type, show additional information
+            if mcp_config.get("type") == "proxy":
+                console.print(
+                    f"[bold]Base Image:[/bold] {mcp_config.get('base_image')}"
+                )
+                console.print(
+                    f"[bold]Proxy Image:[/bold] {mcp_config.get('proxy_image')}"
+                )
+                console.print("[bold]Proxy Options:[/bold]")
+                for key, value in mcp_config.get("proxy_options", {}).items():
+                    console.print(f"  {key}: {value}")
+
+    except Exception as e:
+        console.print(f"[red]Error getting MCP status: {e}[/red]")
+
+
+@mcp_app.command("start")
+def start_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
+    """Start an MCP server"""
+    try:
+        with console.status(f"Starting MCP server '{name}'..."):
+            result = mcp_manager.start_mcp(name)
+
+        if result.get("status") == "running":
+            console.print(f"[green]Started MCP server '{name}'[/green]")
+        elif result.get("status") == "not_applicable":
+            console.print(
+                f"[blue]MCP server '{name}' is a remote type (no container to start)[/blue]"
+            )
+        else:
+            console.print(f"MCP server '{name}' status: {result.get('status')}")
+
+    except Exception as e:
+        console.print(f"[red]Error starting MCP server: {e}[/red]")
+
+
+@mcp_app.command("stop")
+def stop_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
+    """Stop an MCP server"""
+    try:
+        with console.status(f"Stopping MCP server '{name}'..."):
+            result = mcp_manager.stop_mcp(name)
+
+        if result:
+            console.print(f"[green]Stopped MCP server '{name}'[/green]")
+        else:
+            console.print(f"[yellow]MCP server '{name}' was not running[/yellow]")
+
+    except Exception as e:
+        console.print(f"[red]Error stopping MCP server: {e}[/red]")
+
+
+@mcp_app.command("restart")
+def restart_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
+    """Restart an MCP server"""
+    try:
+        with console.status(f"Restarting MCP server '{name}'..."):
+            result = mcp_manager.restart_mcp(name)
+
+        if result.get("status") == "running":
+            console.print(f"[green]Restarted MCP server '{name}'[/green]")
+        elif result.get("status") == "not_applicable":
+            console.print(
+                f"[blue]MCP server '{name}' is a remote type (no container to restart)[/blue]"
+            )
+        else:
+            console.print(f"MCP server '{name}' status: {result.get('status')}")
+
+    except Exception as e:
+        console.print(f"[red]Error restarting MCP server: {e}[/red]")
+
+
+@mcp_app.command("logs")
+def mcp_logs(
+    name: str = typer.Argument(..., help="MCP server name"),
+    tail: int = typer.Option(100, "--tail", "-n", help="Number of lines to show"),
+) -> None:
+    """Show logs from an MCP server"""
+    try:
+        logs = mcp_manager.get_mcp_logs(name, tail=tail)
+        console.print(logs)
+
+    except Exception as e:
+        console.print(f"[red]Error getting MCP logs: {e}[/red]")
+
+
+@mcp_app.command("remove")
+def remove_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
+    """Remove an MCP server configuration"""
+    try:
+        with console.status(f"Removing MCP server '{name}'..."):
+            result = mcp_manager.remove_mcp(name)
+
+        if result:
+            console.print(f"[green]Removed MCP server '{name}'[/green]")
+        else:
+            console.print(f"[yellow]MCP server '{name}' not found[/yellow]")
+
+    except Exception as e:
+        console.print(f"[red]Error removing MCP server: {e}[/red]")
+
+
+@mcp_remote_app.command("add")
+def add_remote_mcp(
+    name: str = typer.Argument(..., help="MCP server name"),
+    url: str = typer.Argument(..., help="URL of the remote MCP server"),
+    header: List[str] = typer.Option(
+        [], "--header", "-H", help="HTTP headers (format: KEY=VALUE)"
+    ),
+) -> None:
+    """Add a remote MCP server"""
+    # Parse headers
+    headers = {}
+    for h in header:
+        if "=" in h:
+            key, value = h.split("=", 1)
+            headers[key] = value
+        else:
+            console.print(
+                f"[yellow]Warning: Ignoring invalid header format: {h}[/yellow]"
+            )
+
+    try:
+        with console.status(f"Adding remote MCP server '{name}'..."):
+            result = mcp_manager.add_remote_mcp(name, url, headers)
+
+        console.print(f"[green]Added remote MCP server '{name}'[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error adding remote MCP server: {e}[/red]")
+
+
+@mcp_docker_app.command("add")
+def add_docker_mcp(
+    name: str = typer.Argument(..., help="MCP server name"),
+    image: str = typer.Argument(..., help="Docker image for the MCP server"),
+    command: str = typer.Option(
+        "", "--command", "-c", help="Command to run in the container"
+    ),
+    env: List[str] = typer.Option(
+        [], "--env", "-e", help="Environment variables (format: KEY=VALUE)"
+    ),
+) -> None:
+    """Add a Docker-based MCP server"""
+    # Parse environment variables
+    environment = {}
+    for var in env:
+        if "=" in var:
+            key, value = var.split("=", 1)
+            environment[key] = value
+        else:
+            console.print(
+                f"[yellow]Warning: Ignoring invalid environment variable format: {var}[/yellow]"
+            )
+
+    try:
+        with console.status(f"Adding Docker-based MCP server '{name}'..."):
+            result = mcp_manager.add_docker_mcp(name, image, command, environment)
+
+        console.print(f"[green]Added Docker-based MCP server '{name}'[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error adding Docker-based MCP server: {e}[/red]")
+
+
+@mcp_proxy_app.command("add")
+def add_proxy_mcp(
+    name: str = typer.Argument(..., help="MCP server name"),
+    base_image: str = typer.Argument(..., help="Base MCP Docker image"),
+    proxy_image: str = typer.Option(
+        "ghcr.io/sparfenyuk/mcp-proxy:latest",
+        "--proxy-image",
+        help="Proxy image for MCP",
+    ),
+    command: str = typer.Option(
+        "", "--command", "-c", help="Command to run in the container"
+    ),
+    sse_port: int = typer.Option(8080, "--sse-port", help="Port for SSE server"),
+    sse_host: str = typer.Option("0.0.0.0", "--sse-host", help="Host for SSE server"),
+    allow_origin: str = typer.Option(
+        "*", "--allow-origin", help="CORS allow-origin header"
+    ),
+    env: List[str] = typer.Option(
+        [], "--env", "-e", help="Environment variables (format: KEY=VALUE)"
+    ),
+) -> None:
+    """Add a proxy-based MCP server"""
+    # Parse environment variables
+    environment = {}
+    for var in env:
+        if "=" in var:
+            key, value = var.split("=", 1)
+            environment[key] = value
+        else:
+            console.print(
+                f"[yellow]Warning: Ignoring invalid environment variable format: {var}[/yellow]"
+            )
+
+    # Prepare proxy options
+    proxy_options = {
+        "sse_port": sse_port,
+        "sse_host": sse_host,
+        "allow_origin": allow_origin,
+    }
+
+    try:
+        with console.status(f"Adding proxy-based MCP server '{name}'..."):
+            result = mcp_manager.add_proxy_mcp(
+                name, base_image, proxy_image, command, proxy_options, environment
+            )
+
+        console.print(f"[green]Added proxy-based MCP server '{name}'[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error adding proxy-based MCP server: {e}[/red]")
 
 
 if __name__ == "__main__":

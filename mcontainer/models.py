@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union, Any
 from pydantic import BaseModel, Field
 
 
@@ -7,6 +7,13 @@ class SessionStatus(str, Enum):
     CREATING = "creating"
     RUNNING = "running"
     STOPPED = "stopped"
+    FAILED = "failed"
+
+
+class MCPStatus(str, Enum):
+    RUNNING = "running"
+    STOPPED = "stopped"
+    NOT_FOUND = "not_found"
     FAILED = "failed"
 
 
@@ -48,6 +55,44 @@ class Driver(BaseModel):
     persistent_configs: List[PersistentConfig] = []
 
 
+class RemoteMCP(BaseModel):
+    name: str
+    type: str = "remote"
+    url: str
+    headers: Dict[str, str] = Field(default_factory=dict)
+
+
+class DockerMCP(BaseModel):
+    name: str
+    type: str = "docker"
+    image: str
+    command: str
+    env: Dict[str, str] = Field(default_factory=dict)
+
+
+class ProxyMCP(BaseModel):
+    name: str
+    type: str = "proxy"
+    base_image: str
+    proxy_image: str
+    command: str
+    proxy_options: Dict[str, Any] = Field(default_factory=dict)
+    env: Dict[str, str] = Field(default_factory=dict)
+
+
+MCP = Union[RemoteMCP, DockerMCP, ProxyMCP]
+
+
+class MCPContainer(BaseModel):
+    name: str
+    container_id: str
+    status: MCPStatus
+    image: str
+    ports: Dict[str, int] = Field(default_factory=dict)
+    created_at: str
+    type: str
+
+
 class Session(BaseModel):
     id: str
     name: str
@@ -58,6 +103,7 @@ class Session(BaseModel):
     project: Optional[str] = None
     created_at: str
     ports: Dict[int, int] = Field(default_factory=dict)
+    mcps: List[str] = Field(default_factory=list)  # List of MCP server names
 
 
 class Config(BaseModel):
@@ -66,3 +112,4 @@ class Config(BaseModel):
     defaults: Dict[str, object] = Field(
         default_factory=dict
     )  # Can store strings, booleans, or other values
+    mcps: List[Dict[str, Any]] = Field(default_factory=list)

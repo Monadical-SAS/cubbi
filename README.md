@@ -3,7 +3,7 @@
 MC (Monadical Container) is a command-line tool for managing ephemeral
 containers that run AI tools and development environments. It works with both
 local Docker and a dedicated remote web service that manages containers in a
-Docker-in-Docker (DinD) environment.
+Docker-in-Docker (DinD) environment. MC also supports connecting to MCP (Model Control Protocol) servers to extend AI tools with additional capabilities.
 
 ## Requirements
 
@@ -53,8 +53,14 @@ mc session create -v ~/data:/data -v ./configs:/etc/app/config
 # Connect to external Docker networks
 mc session create --network teamnet --network dbnet
 
+# Connect to MCP servers for extended capabilities
+mc session create --mcp github --mcp jira
+
 # Shorthand for creating a session with a project repository
 mc github.com/username/repo
+
+# Shorthand with MCP servers
+mc github.com/username/repo --mcp github
 ```
 
 ## Driver Management
@@ -201,3 +207,64 @@ Service credentials like API keys configured in `~/.config/mc/config.yaml` are a
 | `openai.api_key` | `OPENAI_API_KEY` |
 | `anthropic.api_key` | `ANTHROPIC_API_KEY` |
 | `openrouter.api_key` | `OPENROUTER_API_KEY` |
+
+## MCP Server Management
+
+MCP (Model Control Protocol) servers provide tool-calling capabilities to AI models, enhancing their ability to interact with external services, databases, and systems. MC supports multiple types of MCP servers:
+
+1. **Remote HTTP SSE servers** - External MCP servers accessed over HTTP
+2. **Docker-based MCP servers** - Local MCP servers running in Docker containers
+3. **Proxy-based MCP servers** - Local MCP servers with an SSE proxy for stdio-to-SSE conversion
+
+### Managing MCP Servers
+
+```bash
+# List all configured MCP servers and their status
+mc mcp list
+
+# View detailed status of an MCP server
+mc mcp status github
+
+# Start/stop/restart an MCP server
+mc mcp start github
+mc mcp stop github
+mc mcp restart github
+
+# View MCP server logs
+mc mcp logs github
+
+# Remove an MCP server configuration
+mc mcp remove github
+```
+
+### Adding MCP Servers
+
+MC supports different types of MCP servers:
+
+```bash
+# Add a remote HTTP SSE MCP server
+mc mcp remote add github http://my-mcp-server.example.com/sse --header "Authorization=Bearer token123"
+
+# Add a Docker-based MCP server
+mc mcp docker add github mcp/github:latest --command "github-mcp" --env GITHUB_TOKEN=ghp_123456
+
+# Add a proxy-based MCP server (for stdio-to-SSE conversion)
+mc mcp proxy add github ghcr.io/mcp/github:latest --proxy-image ghcr.io/sparfenyuk/mcp-proxy:latest --command "github-mcp" --sse-port 8080
+```
+
+### Using MCP Servers with Sessions
+
+MCP servers can be attached to sessions when they are created:
+
+```bash
+# Create a session with a single MCP server
+mc session create --mcp github
+
+# Create a session with multiple MCP servers
+mc session create --mcp github --mcp jira
+
+# Using MCP with a project repository
+mc github.com/username/repo --mcp github
+```
+
+MCP servers are persistent and can be shared between sessions. They continue running even when sessions are closed, allowing for efficient reuse across multiple sessions.

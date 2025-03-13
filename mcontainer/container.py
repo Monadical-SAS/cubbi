@@ -5,12 +5,18 @@ import docker
 import hashlib
 import pathlib
 import concurrent.futures
+import logging
 from typing import Dict, List, Optional, Tuple
 from docker.errors import DockerException, ImageNotFound
 
 from .models import Session, SessionStatus
 from .config import ConfigManager
 from .session import SessionManager
+from .mcp import MCPManager
+from .user_config import UserConfigManager
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class ContainerManager:
@@ -18,14 +24,19 @@ class ContainerManager:
         self,
         config_manager: Optional[ConfigManager] = None,
         session_manager: Optional[SessionManager] = None,
+        user_config_manager: Optional[UserConfigManager] = None,
     ):
         self.config_manager = config_manager or ConfigManager()
         self.session_manager = session_manager or SessionManager()
+        self.user_config_manager = user_config_manager or UserConfigManager()
+        self.mcp_manager = MCPManager(config_manager=self.user_config_manager)
+
         try:
             self.client = docker.from_env()
             # Test connection
             self.client.ping()
         except DockerException as e:
+            logger.error(f"Error connecting to Docker: {e}")
             print(f"Error connecting to Docker: {e}")
             sys.exit(1)
 
@@ -133,6 +144,7 @@ class ContainerManager:
         mount_local: bool = True,
         volumes: Optional[Dict[str, Dict[str, str]]] = None,
         networks: Optional[List[str]] = None,
+        mcp: Optional[List[str]] = None,
     ) -> Optional[Session]:
         """Create a new MC session
 
@@ -144,6 +156,7 @@ class ContainerManager:
             mount_local: Whether to mount the current directory to /app
             volumes: Optional additional volumes to mount (dict of {host_path: {"bind": container_path, "mode": mode}})
             networks: Optional list of additional Docker networks to connect to
+            mcp: Optional list of MCP server names to attach to the session
         """
         try:
             # Validate driver exists
@@ -267,7 +280,113 @@ class ContainerManager:
                 "network", "mc-network"
             )
 
-            # Create container with default MC network
+            # Get network list
+            network_list = [default_network]
+
+            # Process MCPs if provided
+            mcp_configs = []
+            mcp_names = []
+
+            # Ensure MCP is a list
+            mcps_to_process = mcp or []
+
+            # Process each MCP
+            for mcp_name in mcps_to_process:
+                # Get the MCP configuration
+                mcp_config = self.mcp_manager.get_mcp(mcp_name)
+                if not mcp_config:
+                    print(f"Warning: MCP server '{mcp_name}' not found, skipping")
+                    continue
+
+                # Add to the list of processed MCPs
+                mcp_configs.append(mcp_config)
+                mcp_names.append(mcp_name)
+
+                # Check if the MCP server is running (for Docker-based MCPs)
+                if mcp_config.get("type") in ["docker", "proxy"]:
+                    # Ensure the MCP is running
+                    try:
+                        print(f"Ensuring MCP server '{mcp_name}' is running...")
+                        self.mcp_manager.start_mcp(mcp_name)
+
+                        # Add MCP network to the list
+                        mcp_network = self.mcp_manager._ensure_mcp_network()
+                        if mcp_network not in network_list:
+                            network_list.append(mcp_network)
+
+                        # Get MCP status to extract endpoint information
+                        mcp_status = self.mcp_manager.get_mcp_status(mcp_name)
+
+                        # Add MCP environment variables with index
+                        idx = len(mcp_names) - 1  # 0-based index for the current MCP
+
+                        if mcp_config.get("type") == "remote":
+                            # For remote MCP, set the URL and headers
+                            env_vars[f"MCP_{idx}_URL"] = mcp_config.get("url")
+                            if mcp_config.get("headers"):
+                                # Serialize headers as JSON
+                                import json
+
+                                env_vars[f"MCP_{idx}_HEADERS"] = json.dumps(
+                                    mcp_config.get("headers")
+                                )
+                        else:
+                            # For Docker/proxy MCP, set the connection details
+                            # Use the container name as hostname for internal Docker DNS resolution
+                            container_name = self.mcp_manager.get_mcp_container_name(
+                                mcp_name
+                            )
+                            env_vars[f"MCP_{idx}_HOST"] = container_name
+                            # Default port is 8080 unless specified in status
+                            port = next(
+                                iter(mcp_status.get("ports", {}).values()), 8080
+                            )
+                            env_vars[f"MCP_{idx}_PORT"] = str(port)
+                            env_vars[f"MCP_{idx}_URL"] = (
+                                f"http://{container_name}:{port}/sse"
+                            )
+
+                        # Set type-specific information
+                        env_vars[f"MCP_{idx}_TYPE"] = mcp_config.get("type")
+                        env_vars[f"MCP_{idx}_NAME"] = mcp_name
+
+                    except Exception as e:
+                        print(f"Warning: Failed to start MCP server '{mcp_name}': {e}")
+
+                elif mcp_config.get("type") == "remote":
+                    # For remote MCP, just set environment variables
+                    idx = len(mcp_names) - 1  # 0-based index for the current MCP
+
+                    env_vars[f"MCP_{idx}_URL"] = mcp_config.get("url")
+                    if mcp_config.get("headers"):
+                        # Serialize headers as JSON
+                        import json
+
+                        env_vars[f"MCP_{idx}_HEADERS"] = json.dumps(
+                            mcp_config.get("headers")
+                        )
+
+                    # Set type-specific information
+                    env_vars[f"MCP_{idx}_TYPE"] = "remote"
+                    env_vars[f"MCP_{idx}_NAME"] = mcp_name
+
+            # Set environment variables for MCP count if we have any
+            if mcp_names:
+                env_vars["MCP_COUNT"] = str(len(mcp_names))
+                env_vars["MCP_ENABLED"] = "true"
+                # Serialize all MCP names as JSON
+                import json
+
+                env_vars["MCP_NAMES"] = json.dumps(mcp_names)
+
+            # Add user-specified networks
+            if networks:
+                for network in networks:
+                    if network not in network_list:
+                        network_list.append(network)
+                        print(f"Adding network {network} to session")
+
+            # Create container
             container = self.client.containers.create(
                 image=driver.image,
                 name=session_name,
@@ -283,17 +402,18 @@ class ContainerManager:
                     "mc.session.name": session_name,
                     "mc.driver": driver_name,
                     "mc.project": project or "",
+                    "mc.mcps": ",".join(mcp_names) if mcp_names else "",
                 },
-                network=default_network,
+                network=network_list[0],  # Connect to the first network initially
                 ports={f"{port}/tcp": None for port in driver.ports},
             )
 
             # Start container
             container.start()
 
-            # Connect to additional networks if specified
-            if networks:
-                for network_name in networks:
+            # Connect to additional networks (after the first one in network_list)
+            if len(network_list) > 1:
+                for network_name in network_list[1:]:
                     try:
                         # Get or create the network
                         try:
@@ -309,6 +429,30 @@ class ContainerManager:
                         print(f"Connected to network: {network_name}")
                     except DockerException as e:
                         print(f"Error connecting to network {network_name}: {e}")
+
+            # Connect to additional user-specified networks
+            if networks:
+                for network_name in networks:
+                    if (
+                        network_name not in network_list
+                    ):  # Avoid connecting to the same network twice
+                        try:
+                            # Get or create the network
+                            try:
+                                network = self.client.networks.get(network_name)
+                            except DockerException:
+                                print(
+                                    f"Network '{network_name}' not found, creating it..."
+                                )
+                                network = self.client.networks.create(
+                                    network_name, driver="bridge"
+                                )
+
+                            # Connect the container to the network
+                            network.connect(container)
+                            print(f"Connected to network: {network_name}")
+                        except DockerException as e:
+                            print(f"Error connecting to network {network_name}: {e}")
 
             # Get updated port information
             container.reload()
@@ -333,6 +477,7 @@ class ContainerManager:
                 project=project,
                 created_at=container.attrs["Created"],
                 ports=ports,
+                mcps=mcp_names,
             )
 
             # Save session to the session manager as JSON-compatible dict
