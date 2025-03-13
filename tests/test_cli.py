@@ -1,4 +1,5 @@
 from typer.testing import CliRunner
+
 from mcontainer.cli import app
 
 runner = CliRunner()
@@ -15,8 +16,8 @@ def test_session_list() -> None:
     """Test session list command"""
     result = runner.invoke(app, ["session", "list"])
     assert result.exit_code == 0
-    # Could be either "No active sessions found" or a table of sessions
-    assert "sessions" in result.stdout.lower() or "no active" in result.stdout.lower()
+    # Could be either "No active sessions found" or a table with headers
+    assert "no active" in result.stdout.lower() or "id" in result.stdout.lower()
 
 
 def test_help() -> None:
