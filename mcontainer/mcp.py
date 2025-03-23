@@ -242,20 +242,102 @@ class MCPManager:
         elif mcp_type == "proxy":
             # For proxy, we need to create a custom Dockerfile and build an image
             with tempfile.TemporaryDirectory() as tmp_dir:
+                # Create entrypoint script for mcp-proxy that runs the base MCP image
+                entrypoint_script = """#!/bin/sh
+echo "Starting MCP proxy with base image $MCP_BASE_IMAGE (command: $MCP_COMMAND) on port $SSE_PORT"
+
+# Verify if Docker socket is available
+if [ ! -S /var/run/docker.sock ]; then
+    echo "ERROR: Docker socket not available. Cannot run base MCP image."
+    echo "Make sure the Docker socket is mounted from the host."
+    
+    # Create a minimal fallback server for testing
+    cat > /tmp/fallback_server.py << 'EOF'
+import json, sys, time
+print(json.dumps({"type": "ready", "message": "Fallback server - Docker socket not available"}))
+sys.stdout.flush()
+while True:
+    line = sys.stdin.readline().strip()
+    if line:
+        try:
+            data = json.loads(line)
+            if data.get("type") == "ping":
+                print(json.dumps({"type": "pong", "id": data.get("id")}))
+            else:
+                print(json.dumps({"type": "error", "message": "Docker socket not available"}))
+        except:
+            print(json.dumps({"type": "error"}))
+        sys.stdout.flush()
+    time.sleep(1)
+EOF
+    
+    exec mcp-proxy \
+      --sse-port "$SSE_PORT" \
+      --sse-host "$SSE_HOST" \
+      --allow-origin "$ALLOW_ORIGIN" \
+      --pass-environment \
+      -- \
+      python /tmp/fallback_server.py
+    exit 1
+fi
+
+# Pull the base MCP image
+echo "Pulling base MCP image: $MCP_BASE_IMAGE"
+docker pull "$MCP_BASE_IMAGE" || true
+
+# Prepare the command to run the MCP server
+if [ -n "$MCP_COMMAND" ]; then
+    CMD="$MCP_COMMAND"
+else
+    # Default to empty if no command specified
+    CMD=""
+fi
+
+echo "Running MCP server from image $MCP_BASE_IMAGE with command: $CMD"
+
+# Run the actual MCP server in the base image and pipe its I/O to mcp-proxy
+# Using docker run without -d to keep stdio connected
+exec mcp-proxy \
+  --sse-port "$SSE_PORT" \
+  --sse-host "$SSE_HOST" \
+  --allow-origin "$ALLOW_ORIGIN" \
+  --pass-environment \
+  -- \
+  docker run --rm -i "$MCP_BASE_IMAGE" $CMD
+"""
+                # Write the entrypoint script
+                entrypoint_path = os.path.join(tmp_dir, "entrypoint.sh")
+                with open(entrypoint_path, "w") as f:
+                    f.write(entrypoint_script)
+
                 # Create a Dockerfile for the proxy
                 dockerfile_content = f"""
-                FROM {mcp_config["proxy_image"]}
+FROM {mcp_config["proxy_image"]}
 
-                # Set environment variables for the proxy
-                ENV MCP_BASE_IMAGE={mcp_config["base_image"]}
-                ENV MCP_COMMAND={mcp_config["command"]}
-                ENV SSE_PORT={mcp_config["proxy_options"].get("sse_port", 8080)}
-                ENV SSE_HOST={mcp_config["proxy_options"].get("sse_host", "0.0.0.0")}
-                ENV ALLOW_ORIGIN={mcp_config["proxy_options"].get("allow_origin", "*")}
+# Install Docker CLI (trying multiple package managers to handle different base images)
+USER root
+RUN (apt-get update && apt-get install -y docker.io) || \\
+    (apt-get update && apt-get install -y docker-ce-cli) || \\
+    (apk add --no-cache docker-cli) || \\
+    (yum install -y docker) || \\
+    echo "WARNING: Could not install Docker CLI - will fall back to minimal MCP server"
 
-                # Add environment variables from the configuration
-                {chr(10).join([f'ENV {k}="{v}"' for k, v in mcp_config.get("env", {}).items()])}
-                """
+# Set environment variables for the proxy
+ENV MCP_BASE_IMAGE={mcp_config["base_image"]}
+ENV MCP_COMMAND={mcp_config.get("command", "")}
+ENV SSE_PORT={mcp_config["proxy_options"].get("sse_port", 8080)}
+ENV SSE_HOST={mcp_config["proxy_options"].get("sse_host", "0.0.0.0")}
+ENV ALLOW_ORIGIN={mcp_config["proxy_options"].get("allow_origin", "*")}
+ENV DEBUG=1
+
+# Add environment variables from the configuration
+{chr(10).join([f'ENV {k}="{v}"' for k, v in mcp_config.get("env", {}).items()])}
+
+# Add entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+"""
 
                 # Write the Dockerfile
                 dockerfile_path = os.path.join(tmp_dir, "Dockerfile")
@@ -271,12 +353,25 @@ class MCPManager:
                     rm=True,
                 )
 
+                # Format command for the Docker entrypoint arguments
+                # The MCP proxy container will handle this internally based on
+                # the MCP_BASE_IMAGE and MCP_COMMAND env vars we set
+                logger.info(
+                    f"Starting MCP proxy with base_image={mcp_config['base_image']}, command={mcp_config.get('command', '')}"
+                )
+
                 # Create and start the container
                 container = self.client.containers.run(
                     image=custom_image_name,
                     name=container_name,
                     detach=True,
                     network=network_name,
+                    volumes={
+                        "/var/run/docker.sock": {
+                            "bind": "/var/run/docker.sock",
+                            "mode": "rw",
+                        }
+                    },
                     labels={
                         "mc.mcp": "true",
                         "mc.mcp.name": name,

@@ -4,14 +4,15 @@
 
 This document specifies the implementation for Model Control Protocol (MCP) server support in the Monadical Container (MC) system. The MCP server feature allows users to connect, build, and manage external MCP servers that can be attached to MC sessions.
 
-An MCP server is a local (stdio) or remote (HTTP SSE server) service that can be accessed by a driver (such as Goose or Claude Code) to extend the LLM's capabilities through tool calls.
+An MCP server is a service that can be accessed by a driver (such as Goose or Claude Code) to extend the LLM's capabilities through tool calls. It can be either:
+- A local stdio-based MCP server running in a container (accessed via an SSE proxy)
+- A remote HTTP SSE server accessed directly via its URL
 
 ## Key Features
 
-1. Support multiple types of MCP servers:
-   - Remote HTTP SSE servers
-   - Local container-based servers
-   - Local container with MCP proxy for stdio-to-SSE conversion
+1. Support two types of MCP servers:
+   - **Proxy-based MCP servers** (default): Container running an MCP stdio server with a proxy that converts to SSE
+   - **Remote MCP servers**: External HTTP SSE servers accessed via URL
 
 2. Persistent MCP containers that can be:
    - Started/stopped independently of sessions
@@ -26,30 +27,25 @@ The MCP configuration will be stored in the user configuration file and will inc
 
 ```yaml
 mcps:
+  # Proxy-based MCP server (default type)
   - name: github
-    type: docker
-    image: mcp/github
-    command: "github-mcp"
-    env:
-      - GITHUB_TOKEN: "your-token-here"
-
-  - name: proxy-example
     type: proxy
-    base_image: ghcr.io/mcp/github:latest
-    proxy_image: ghcr.io/sparfenyuk/mcp-proxy:latest
-    command: "github-mcp"
+    base_image: mcp/github
+    command: "github-mcp"  # Optional command to run in the base image
+    proxy_image: ghcr.io/sparfenyuk/mcp-proxy:latest  # Optional, defaults to standard proxy image
     proxy_options:
       sse_port: 8080
       sse_host: "0.0.0.0"
       allow_origin: "*"
     env:
-      - GITHUB_TOKEN: "your-token-here"
+      GITHUB_TOKEN: "your-token-here"
 
+  # Remote MCP server
   - name: remote-mcp
     type: remote
     url: "http://mcp-server.example.com/sse"
     headers:
-      - Authorization: "Bearer your-token-here"
+      Authorization: "Bearer your-token-here"
 ```
 
 ## CLI Commands
@@ -57,21 +53,25 @@ mcps:
 ### MCP Management
 
 ```
-mc mcp list                 # List all configured MCP servers and their status
-mc mcp status <name>        # Show detailed status of a specific MCP server
-mc mcp start <name>         # Start an MCP server container
-mc mcp stop <name>          # Stop an MCP server container
-mc mcp restart <name>       # Restart an MCP server container
-mc mcp logs <name>          # Show logs for an MCP server container
+mc mcp list                # List all configured MCP servers and their status
+mc mcp status <name>       # Show detailed status of a specific MCP server
+mc mcp start <name>        # Start an MCP server container
+mc mcp stop <name>         # Stop an MCP server container
+mc mcp restart <name>      # Restart an MCP server container
+mc mcp logs <name>         # Show logs for an MCP server container
 ```
 
 ### MCP Configuration
 
 ```
-mc mcp remote add <name> <url> [--header KEY=VALUE...]  # Add a remote MCP server
-mc mcp docker add <name> <image> [--command CMD] [--env KEY=VALUE...]  # Add a Docker-based MCP
-mc mcp proxy add <name> <base_image> [--proxy-image IMG] [--command CMD] [--sse-port PORT] [--sse-host HOST] [--allow-origin ORIGIN] [--env KEY=VALUE...]  # Add a proxied MCP
-mc mcp remove <name>  # Remove an MCP configuration
+# Add a proxy-based MCP server (default)
+mc mcp add <name> <base_image> [--command CMD] [--proxy-image IMG] [--sse-port PORT] [--sse-host HOST] [--allow-origin ORIGIN] [--env KEY=VALUE...]
+
+# Add a remote MCP server
+mc mcp add-remote <name> <url> [--header KEY=VALUE...]
+
+# Remove an MCP configuration
+mc mcp remove <name>
 ```
 
 ### Session Integration
@@ -89,14 +89,7 @@ mc session create [--mcp <name>]  # Create a session with an MCP server attached
 3. MCP containers will be persistent across sessions unless explicitly stopped
 4. MCP containers will be named with a prefix to identify them (`mc_mcp_<name>`)
 
-### Docker-based MCP Servers
-
-For Docker-based MCP servers:
-1. Pull the specified image
-2. Create a dedicated network if it doesn't exist
-3. Run the container with the specified environment variables and command
-
-### Proxy-based MCP Servers
+### Proxy-based MCP Servers (Default)
 
 For proxy-based MCP servers:
 1. Create a custom Dockerfile that:
@@ -105,7 +98,16 @@ For proxy-based MCP servers:
    - Sets up the base MCP server image
    - Configures the entrypoint to run the MCP proxy with the right parameters
 2. Build the custom image
-3. Run the container with the appropriate environment variables
+3. Run the container with:
+   - The Docker socket mounted to enable Docker-in-Docker
+   - Environment variables from the configuration
+   - The SSE server port exposed
+
+The proxy container will:
+1. Pull the base image
+2. Run the base image with the specified command
+3. Connect the stdio of the base image to the MCP proxy
+4. Expose an SSE server that clients can connect to
 
 ### Remote MCP Servers
 
