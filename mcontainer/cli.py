@@ -769,14 +769,6 @@ def remove_volume(
 
 # MCP Management Commands
 
-mcp_remote_app = typer.Typer(help="Manage remote MCP servers")
-mcp_docker_app = typer.Typer(help="Manage Docker-based MCP servers")
-mcp_proxy_app = typer.Typer(help="Manage proxy-based MCP servers")
-
-mcp_app.add_typer(mcp_remote_app, name="remote", no_args_is_help=True)
-mcp_app.add_typer(mcp_docker_app, name="docker", no_args_is_help=True)
-mcp_app.add_typer(mcp_proxy_app, name="proxy", no_args_is_help=True)
-
 
 @mcp_app.command("list")
 def list_mcps() -> None:
@@ -1000,7 +992,59 @@ def remove_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
         console.print(f"[red]Error removing MCP server: {e}[/red]")
 
 
-@mcp_remote_app.command("add")
+@mcp_app.command("add")
+def add_mcp(
+    name: str = typer.Argument(..., help="MCP server name"),
+    base_image: str = typer.Argument(..., help="Base MCP Docker image"),
+    proxy_image: str = typer.Option(
+        "ghcr.io/sparfenyuk/mcp-proxy:latest",
+        "--proxy-image",
+        help="Proxy image for MCP",
+    ),
+    command: str = typer.Option(
+        "", "--command", "-c", help="Command to run in the container"
+    ),
+    sse_port: int = typer.Option(8080, "--sse-port", help="Port for SSE server"),
+    sse_host: str = typer.Option("0.0.0.0", "--sse-host", help="Host for SSE server"),
+    allow_origin: str = typer.Option(
+        "*", "--allow-origin", help="CORS allow-origin header"
+    ),
+    env: List[str] = typer.Option(
+        [], "--env", "-e", help="Environment variables (format: KEY=VALUE)"
+    ),
+) -> None:
+    """Add a proxy-based MCP server (default type)"""
+    # Parse environment variables
+    environment = {}
+    for var in env:
+        if "=" in var:
+            key, value = var.split("=", 1)
+            environment[key] = value
+        else:
+            console.print(
+                f"[yellow]Warning: Ignoring invalid environment variable format: {var}[/yellow]"
+            )
+
+    # Prepare proxy options
+    proxy_options = {
+        "sse_port": sse_port,
+        "sse_host": sse_host,
+        "allow_origin": allow_origin,
+    }
+
+    try:
+        with console.status(f"Adding MCP server '{name}'..."):
+            mcp_manager.add_proxy_mcp(
+                name, base_image, proxy_image, command, proxy_options, environment
+            )
+
+        console.print(f"[green]Added MCP server '{name}'[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error adding MCP server: {e}[/red]")
+
+
+@mcp_app.command("add-remote")
 def add_remote_mcp(
     name: str = typer.Argument(..., help="MCP server name"),
     url: str = typer.Argument(..., help="URL of the remote MCP server"),
@@ -1022,97 +1066,12 @@ def add_remote_mcp(
 
     try:
         with console.status(f"Adding remote MCP server '{name}'..."):
-            result = mcp_manager.add_remote_mcp(name, url, headers)
+            mcp_manager.add_remote_mcp(name, url, headers)
 
         console.print(f"[green]Added remote MCP server '{name}'[/green]")
 
     except Exception as e:
         console.print(f"[red]Error adding remote MCP server: {e}[/red]")
-
-
-@mcp_docker_app.command("add")
-def add_docker_mcp(
-    name: str = typer.Argument(..., help="MCP server name"),
-    image: str = typer.Argument(..., help="Docker image for the MCP server"),
-    command: str = typer.Option(
-        "", "--command", "-c", help="Command to run in the container"
-    ),
-    env: List[str] = typer.Option(
-        [], "--env", "-e", help="Environment variables (format: KEY=VALUE)"
-    ),
-) -> None:
-    """Add a Docker-based MCP server"""
-    # Parse environment variables
-    environment = {}
-    for var in env:
-        if "=" in var:
-            key, value = var.split("=", 1)
-            environment[key] = value
-        else:
-            console.print(
-                f"[yellow]Warning: Ignoring invalid environment variable format: {var}[/yellow]"
-            )
-
-    try:
-        with console.status(f"Adding Docker-based MCP server '{name}'..."):
-            result = mcp_manager.add_docker_mcp(name, image, command, environment)
-
-        console.print(f"[green]Added Docker-based MCP server '{name}'[/green]")
-
-    except Exception as e:
-        console.print(f"[red]Error adding Docker-based MCP server: {e}[/red]")
-
-
-@mcp_proxy_app.command("add")
-def add_proxy_mcp(
-    name: str = typer.Argument(..., help="MCP server name"),
-    base_image: str = typer.Argument(..., help="Base MCP Docker image"),
-    proxy_image: str = typer.Option(
-        "ghcr.io/sparfenyuk/mcp-proxy:latest",
-        "--proxy-image",
-        help="Proxy image for MCP",
-    ),
-    command: str = typer.Option(
-        "", "--command", "-c", help="Command to run in the container"
-    ),
-    sse_port: int = typer.Option(8080, "--sse-port", help="Port for SSE server"),
-    sse_host: str = typer.Option("0.0.0.0", "--sse-host", help="Host for SSE server"),
-    allow_origin: str = typer.Option(
-        "*", "--allow-origin", help="CORS allow-origin header"
-    ),
-    env: List[str] = typer.Option(
-        [], "--env", "-e", help="Environment variables (format: KEY=VALUE)"
-    ),
-) -> None:
-    """Add a proxy-based MCP server"""
-    # Parse environment variables
-    environment = {}
-    for var in env:
-        if "=" in var:
-            key, value = var.split("=", 1)
-            environment[key] = value
-        else:
-            console.print(
-                f"[yellow]Warning: Ignoring invalid environment variable format: {var}[/yellow]"
-            )
-
-    # Prepare proxy options
-    proxy_options = {
-        "sse_port": sse_port,
-        "sse_host": sse_host,
-        "allow_origin": allow_origin,
-    }
-
-    try:
-        with console.status(f"Adding proxy-based MCP server '{name}'..."):
-            result = mcp_manager.add_proxy_mcp(
-                name, base_image, proxy_image, command, proxy_options, environment
-            )
-
-        console.print(f"[green]Added proxy-based MCP server '{name}'[/green]")
-
-    except Exception as e:
-        console.print(f"[red]Error adding proxy-based MCP server: {e}[/red]")
 
 
 if __name__ == "__main__":

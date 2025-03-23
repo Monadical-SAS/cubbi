@@ -288,7 +288,7 @@ class ContainerManager:
             mcp_names = []
 
             # Ensure MCP is a list
-            mcps_to_process = mcp or []
+            mcps_to_process = mcp if isinstance(mcp, list) else []
 
             # Process each MCP
             for mcp_name in mcps_to_process:
