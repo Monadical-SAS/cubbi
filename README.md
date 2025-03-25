@@ -225,10 +225,30 @@ mc mcp list
 # View detailed status of an MCP server
 mc mcp status github
 
-# Start/stop/restart an MCP server
+# Start/stop/restart individual MCP servers
 mc mcp start github
 mc mcp stop github
 mc mcp restart github
+
+# Start all MCP servers at once
+mc mcp start --all
+
+# Stop and remove all MCP servers at once
+mc mcp stop --all
+
+# Run the MCP Inspector to visualize and interact with MCP servers
+# It automatically joins all MCP networks for seamless DNS resolution
+# Uses two ports: frontend UI (default: 5173) and backend API (default: 3000)
+mc mcp inspector
+
+# Run the MCP Inspector with custom ports
+mc mcp inspector --client-port 6173 --server-port 6174
+
+# Run the MCP Inspector in detached mode
+mc mcp inspector --detach
+
+# Stop the MCP Inspector
+mc mcp inspector --stop
 
 # View MCP server logs
 mc mcp logs github
