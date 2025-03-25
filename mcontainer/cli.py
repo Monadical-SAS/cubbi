@@ -1,3 +1,7 @@
+"""
+CLI for Monadical Container Tool.
+"""
+
 import os
 from typing import List, Optional
 import typer
@@ -784,6 +788,7 @@ def list_mcps() -> None:
     table.add_column("Name")
     table.add_column("Type")
     table.add_column("Status")
+    table.add_column("Ports")
     table.add_column("Details")
 
     # Check status of each MCP
@@ -804,6 +809,24 @@ def list_mcps() -> None:
                 "failed": "red",
             }.get(status, "white")
 
+            # Get port information
+            ports_info = ""
+            if mcp_type == "proxy" and status == "running":
+                # For running proxy MCP, show the bound ports
+                container_ports = status_info.get("ports", {})
+                if container_ports:
+                    port_mappings = []
+                    for container_port, host_port in container_ports.items():
+                        if host_port:
+                            port_mappings.append(f"{host_port}←{container_port}")
+                    if port_mappings:
+                        ports_info = ", ".join(port_mappings)
+
+            # For non-running proxy MCP, show the configured host port
+            if not ports_info and mcp_type == "proxy" and mcp.get("host_port"):
+                sse_port = mcp.get("proxy_options", {}).get("sse_port", 8080)
+                ports_info = f"{mcp.get('host_port')}←{sse_port}/tcp (configured)"
+
             # Different details based on MCP type
             if mcp_type == "remote":
                 details = mcp.get("url", "")
@@ -820,6 +843,7 @@ def list_mcps() -> None:
                 name,
                 mcp_type,
                 f"[{status_color}]{status}[/{status_color}]",
+                ports_info,
                 details,
             )
         except Exception as e:
@@ -827,6 +851,7 @@ def list_mcps() -> None:
                 name,
                 mcp_type,
                 "[red]error[/red]",
+                "",  # Empty ports column for error
                 str(e),
             )
 
@@ -884,9 +909,14 @@ def mcp_status(name: str = typer.Argument(..., help="MCP server name")) -> None:
                     f"[bold]Container ID:[/bold] {status_info.get('container_id')}"
                 )
             if status_info.get("ports"):
-                console.print("[bold]Ports:[/bold]")
+                console.print("[bold]Container Ports:[/bold]")
                 for port, host_port in status_info.get("ports", {}).items():
-                    console.print(f"  {port} -> {host_port}")
+                    if host_port:
+                        console.print(
+                            f"  {port} -> [green]bound to host port {host_port}[/green]"
+                        )
+                    else:
+                        console.print(f"  {port} (internal only)")
             if status_info.get("created"):
                 console.print(f"[bold]Created:[/bold] {status_info.get('created')}")
 
@@ -898,6 +928,14 @@ def mcp_status(name: str = typer.Argument(..., help="MCP server name")) -> None:
                 console.print(
                     f"[bold]Proxy Image:[/bold] {mcp_config.get('proxy_image')}"
                 )
+
+                # Show configured host port binding
+                if mcp_config.get("host_port"):
+                    sse_port = mcp_config.get("proxy_options", {}).get("sse_port", 8080)
+                    console.print(
+                        f"[bold]Port Binding:[/bold] Container port {sse_port}/tcp -> Host port {mcp_config.get('host_port')}"
+                    )
+
                 console.print("[bold]Proxy Options:[/bold]")
                 for key, value in mcp_config.get("proxy_options", {}).items():
                     console.print(f"  {key}: {value}")
@@ -907,59 +945,245 @@ def mcp_status(name: str = typer.Argument(..., help="MCP server name")) -> None:
 
 
 @mcp_app.command("start")
-def start_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
-    """Start an MCP server"""
-    try:
-        with console.status(f"Starting MCP server '{name}'..."):
-            result = mcp_manager.start_mcp(name)
+def start_mcp(
+    name: Optional[str] = typer.Argument(None, help="MCP server name"),
+    all_servers: bool = typer.Option(False, "--all", help="Start all MCP servers"),
+) -> None:
+    """Start an MCP server or all servers"""
+    # Check if we need to start all servers
+    if all_servers:
+        # Get all configured MCP servers
+        mcps = mcp_manager.list_mcps()
 
-        if result.get("status") == "running":
-            console.print(f"[green]Started MCP server '{name}'[/green]")
-        elif result.get("status") == "not_applicable":
+        if not mcps:
+            console.print("[yellow]No MCP servers configured[/yellow]")
+            return
+
+        # Count of successfully started servers
+        started_count = 0
+        remote_count = 0
+        failed_count = 0
+
+        console.print(f"Starting {len(mcps)} MCP servers...")
+
+        for mcp in mcps:
+            mcp_name = mcp.get("name")
+            if not mcp_name:
+                continue
+
+            try:
+                with console.status(f"Starting MCP server '{mcp_name}'..."):
+                    result = mcp_manager.start_mcp(mcp_name)
+
+                if result.get("status") == "running":
+                    console.print(f"[green]Started MCP server '{mcp_name}'[/green]")
+                    started_count += 1
+                elif result.get("status") == "not_applicable":
+                    console.print(
+                        f"[blue]MCP server '{mcp_name}' is a remote type (no container to start)[/blue]"
+                    )
+                    remote_count += 1
+                else:
+                    console.print(
+                        f"MCP server '{mcp_name}' status: {result.get('status')}"
+                    )
+                    failed_count += 1
+            except Exception as e:
+                console.print(f"[red]Error starting MCP server '{mcp_name}': {e}[/red]")
+                failed_count += 1
+
+        # Show a summary
+        if started_count > 0:
             console.print(
-                f"[blue]MCP server '{name}' is a remote type (no container to start)[/blue]"
+                f"[green]Successfully started {started_count} MCP servers[/green]"
             )
-        else:
-            console.print(f"MCP server '{name}' status: {result.get('status')}")
+        if remote_count > 0:
+            console.print(
+                f"[blue]{remote_count} remote MCP servers (no action needed)[/blue]"
+            )
+        if failed_count > 0:
+            console.print(f"[red]Failed to start {failed_count} MCP servers[/red]")
 
-    except Exception as e:
-        console.print(f"[red]Error starting MCP server: {e}[/red]")
+    # Otherwise start a specific server
+    elif name:
+        try:
+            with console.status(f"Starting MCP server '{name}'..."):
+                result = mcp_manager.start_mcp(name)
+
+            if result.get("status") == "running":
+                console.print(f"[green]Started MCP server '{name}'[/green]")
+            elif result.get("status") == "not_applicable":
+                console.print(
+                    f"[blue]MCP server '{name}' is a remote type (no container to start)[/blue]"
+                )
+            else:
+                console.print(f"MCP server '{name}' status: {result.get('status')}")
+
+        except Exception as e:
+            console.print(f"[red]Error starting MCP server: {e}[/red]")
+    else:
+        console.print(
+            "[red]Error: Please provide a server name or use --all to start all servers[/red]"
+        )
 
 
 @mcp_app.command("stop")
-def stop_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
-    """Stop an MCP server"""
-    try:
-        with console.status(f"Stopping MCP server '{name}'..."):
-            result = mcp_manager.stop_mcp(name)
+def stop_mcp(
+    name: Optional[str] = typer.Argument(None, help="MCP server name"),
+    all_servers: bool = typer.Option(False, "--all", help="Stop all MCP servers"),
+) -> None:
+    """Stop an MCP server or all servers"""
+    # Check if we need to stop all servers
+    if all_servers:
+        # Get all configured MCP servers
+        mcps = mcp_manager.list_mcps()
 
-        if result:
-            console.print(f"[green]Stopped MCP server '{name}'[/green]")
-        else:
-            console.print(f"[yellow]MCP server '{name}' was not running[/yellow]")
+        if not mcps:
+            console.print("[yellow]No MCP servers configured[/yellow]")
+            return
 
-    except Exception as e:
-        console.print(f"[red]Error stopping MCP server: {e}[/red]")
+        # Count of successfully stopped servers
+        stopped_count = 0
+        not_running_count = 0
+        failed_count = 0
+
+        console.print(f"Stopping {len(mcps)} MCP servers...")
+
+        for mcp in mcps:
+            mcp_name = mcp.get("name")
+            if not mcp_name:
+                continue
+
+            try:
+                with console.status(f"Stopping MCP server '{mcp_name}'..."):
+                    result = mcp_manager.stop_mcp(mcp_name)
+
+                if result:
+                    console.print(f"[green]Stopped MCP server '{mcp_name}'[/green]")
+                    stopped_count += 1
+                else:
+                    console.print(
+                        f"[yellow]MCP server '{mcp_name}' was not running[/yellow]"
+                    )
+                    not_running_count += 1
+            except Exception as e:
+                console.print(f"[red]Error stopping MCP server '{mcp_name}': {e}[/red]")
+                failed_count += 1
+
+        # Show a summary
+        if stopped_count > 0:
+            console.print(
+                f"[green]Successfully stopped {stopped_count} MCP servers[/green]"
+            )
+        if not_running_count > 0:
+            console.print(
+                f"[yellow]{not_running_count} MCP servers were not running[/yellow]"
+            )
+        if failed_count > 0:
+            console.print(f"[red]Failed to stop {failed_count} MCP servers[/red]")
+
+    # Otherwise stop a specific server
+    elif name:
+        try:
+            with console.status(f"Stopping MCP server '{name}'..."):
+                result = mcp_manager.stop_mcp(name)
+
+            if result:
+                console.print(f"[green]Stopped MCP server '{name}'[/green]")
+            else:
+                console.print(f"[yellow]MCP server '{name}' was not running[/yellow]")
+
+        except Exception as e:
+            console.print(f"[red]Error stopping MCP server: {e}[/red]")
+    else:
+        console.print(
+            "[red]Error: Please provide a server name or use --all to stop all servers[/red]"
+        )
 
 
 @mcp_app.command("restart")
-def restart_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
-    """Restart an MCP server"""
-    try:
-        with console.status(f"Restarting MCP server '{name}'..."):
-            result = mcp_manager.restart_mcp(name)
+def restart_mcp(
+    name: Optional[str] = typer.Argument(None, help="MCP server name"),
+    all_servers: bool = typer.Option(False, "--all", help="Restart all MCP servers"),
+) -> None:
+    """Restart an MCP server or all servers"""
+    # Check if we need to restart all servers
+    if all_servers:
+        # Get all configured MCP servers
+        mcps = mcp_manager.list_mcps()
 
-        if result.get("status") == "running":
-            console.print(f"[green]Restarted MCP server '{name}'[/green]")
-        elif result.get("status") == "not_applicable":
+        if not mcps:
+            console.print("[yellow]No MCP servers configured[/yellow]")
+            return
+
+        # Count of successfully restarted servers
+        restarted_count = 0
+        remote_count = 0
+        failed_count = 0
+
+        console.print(f"Restarting {len(mcps)} MCP servers...")
+
+        for mcp in mcps:
+            mcp_name = mcp.get("name")
+            if not mcp_name:
+                continue
+
+            try:
+                with console.status(f"Restarting MCP server '{mcp_name}'..."):
+                    result = mcp_manager.restart_mcp(mcp_name)
+
+                if result.get("status") == "running":
+                    console.print(f"[green]Restarted MCP server '{mcp_name}'[/green]")
+                    restarted_count += 1
+                elif result.get("status") == "not_applicable":
+                    console.print(
+                        f"[blue]MCP server '{mcp_name}' is a remote type (no container to restart)[/blue]"
+                    )
+                    remote_count += 1
+                else:
+                    console.print(
+                        f"MCP server '{mcp_name}' status: {result.get('status')}"
+                    )
+                    failed_count += 1
+            except Exception as e:
+                console.print(
+                    f"[red]Error restarting MCP server '{mcp_name}': {e}[/red]"
+                )
+                failed_count += 1
+
+        # Show a summary
+        if restarted_count > 0:
             console.print(
-                f"[blue]MCP server '{name}' is a remote type (no container to restart)[/blue]"
+                f"[green]Successfully restarted {restarted_count} MCP servers[/green]"
             )
-        else:
-            console.print(f"MCP server '{name}' status: {result.get('status')}")
+        if remote_count > 0:
+            console.print(
+                f"[blue]{remote_count} remote MCP servers (no action needed)[/blue]"
+            )
+        if failed_count > 0:
+            console.print(f"[red]Failed to restart {failed_count} MCP servers[/red]")
 
-    except Exception as e:
-        console.print(f"[red]Error restarting MCP server: {e}[/red]")
+    # Otherwise restart a specific server
+    elif name:
+        try:
+            with console.status(f"Restarting MCP server '{name}'..."):
+                result = mcp_manager.restart_mcp(name)
+
+            if result.get("status") == "running":
+                console.print(f"[green]Restarted MCP server '{name}'[/green]")
+            elif result.get("status") == "not_applicable":
+                console.print(
+                    f"[blue]MCP server '{name}' is a remote type (no container to restart)[/blue]"
+                )
+            else:
+                console.print(f"MCP server '{name}' status: {result.get('status')}")
+
+        except Exception as e:
+            console.print(f"[red]Error restarting MCP server: {e}[/red]")
+    else:
+        console.print(
+            "[red]Error: Please provide a server name or use --all to restart all servers[/red]"
+        )
 
 
 @mcp_app.command("logs")
@@ -1004,10 +1228,18 @@ def add_mcp(
     command: str = typer.Option(
         "", "--command", "-c", help="Command to run in the container"
     ),
-    sse_port: int = typer.Option(8080, "--sse-port", help="Port for SSE server"),
+    sse_port: int = typer.Option(
+        8080, "--sse-port", help="Port for SSE server inside container"
+    ),
     sse_host: str = typer.Option("0.0.0.0", "--sse-host", help="Host for SSE server"),
     allow_origin: str = typer.Option(
         "*", "--allow-origin", help="CORS allow-origin header"
+    ),
+    host_port: Optional[int] = typer.Option(
+        None,
+        "--host-port",
+        "-p",
+        help="Host port to bind the MCP server to (auto-assigned if not specified)",
     ),
     env: List[str] = typer.Option(
         [], "--env", "-e", help="Environment variables (format: KEY=VALUE)"
@@ -1034,11 +1266,24 @@ def add_mcp(
 
     try:
         with console.status(f"Adding MCP server '{name}'..."):
-            mcp_manager.add_proxy_mcp(
-                name, base_image, proxy_image, command, proxy_options, environment
+            result = mcp_manager.add_proxy_mcp(
+                name,
+                base_image,
+                proxy_image,
+                command,
+                proxy_options,
+                environment,
+                host_port,
             )
 
+            # Get the assigned port
+            assigned_port = result.get("host_port")
+
         console.print(f"[green]Added MCP server '{name}'[/green]")
+        if assigned_port:
+            console.print(
+                f"Container port {sse_port} will be bound to host port {assigned_port}"
+            )
 
     except Exception as e:
         console.print(f"[red]Error adding MCP server: {e}[/red]")
@@ -1072,6 +1317,407 @@ def add_remote_mcp(
 
     except Exception as e:
         console.print(f"[red]Error adding remote MCP server: {e}[/red]")
+
+
+@mcp_app.command("inspector")
+def run_mcp_inspector(
+    host_port: int = typer.Option(
+        5173, "--port", "-p", help="Host port for the MCP Inspector"
+    ),
+    detach: bool = typer.Option(False, "--detach", "-d", help="Run in detached mode"),
+    stop: bool = typer.Option(False, "--stop", help="Stop running MCP Inspector(s)"),
+) -> None:
+    """Run the MCP Inspector to visualize and debug MCP servers"""
+    import docker
+    import time
+
+    # Get Docker client quietly
+    try:
+        client = docker.from_env()
+    except Exception as e:
+        console.print(f"[red]Error connecting to Docker: {e}[/red]")
+        return
+
+    # If stop flag is set, stop all running MCP Inspectors
+    if stop:
+        containers = client.containers.list(
+            all=True, filters={"label": "mc.mcp.inspector=true"}
+        )
+        if not containers:
+            console.print("[yellow]No running MCP Inspector instances found[/yellow]")
+            return
+
+        with console.status("Stopping MCP Inspector..."):
+            for container in containers:
+                try:
+                    container.stop()
+                    container.remove(force=True)
+                except Exception:
+                    pass
+
+        console.print("[green]MCP Inspector stopped[/green]")
+        return
+
+    # Check if inspector is already running
+    all_inspectors = client.containers.list(
+        all=True, filters={"label": "mc.mcp.inspector=true"}
+    )
+
+    # Stop any existing inspectors first
+    for inspector in all_inspectors:
+        try:
+            if inspector.status == "running":
+                inspector.stop(timeout=1)
+            inspector.remove(force=True)
+        except Exception as e:
+            console.print(
+                f"[yellow]Warning: Could not remove existing inspector: {e}[/yellow]"
+            )
+
+    # Check if the specified port is already in use
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(("0.0.0.0", host_port))
+        s.close()
+    except socket.error:
+        console.print(
+            f"[red]Error: Port {host_port} is already in use by another process.[/red]"
+        )
+        console.print("Please stop any web servers or other processes using this port.")
+        console.print("You can try a different port with --port option")
+        return
+
+    # Container name with timestamp to avoid conflicts
+    container_name = f"mc_mcp_inspector_{int(time.time())}"
+
+    with console.status("Starting MCP Inspector..."):
+        # Get MCP servers from configuration
+        all_mcps = mcp_manager.list_mcps()
+
+        # Get all MCP server URLs (including remote ones)
+        mcp_servers = []
+
+        # Collect networks that need to be connected to the Inspector
+        mcp_networks_to_connect = []
+
+        # Add remote MCP servers
+        for mcp in all_mcps:
+            if mcp.get("type") == "remote":
+                url = mcp.get("url", "")
+                headers = mcp.get("headers", {})
+                if url:
+                    mcp_servers.append(
+                        {
+                            "name": mcp.get("name", "Remote MCP"),
+                            "url": url,
+                            "headers": headers,
+                        }
+                    )
+
+        # Process container-based MCP servers from the configuration
+        for mcp in all_mcps:
+            # We only need to connect to container-based MCPs
+            if mcp.get("type") in ["docker", "proxy"]:
+                mcp_name = mcp.get("name")
+                try:
+                    # Get the container name for this MCP
+                    container_name = f"mc_mcp_{mcp_name}"
+                    container = None
+
+                    # Try to find the container
+                    try:
+                        container = client.containers.get(container_name)
+                    except docker.errors.NotFound:
+                        console.print(
+                            f"[yellow]Warning: Container for MCP '{mcp_name}' not found[/yellow]"
+                        )
+                        continue
+
+                    if container and container.status == "running":
+                        # Find all networks this MCP container is connected to
+                        for network_name, network_info in (
+                            container.attrs.get("NetworkSettings", {})
+                            .get("Networks", {})
+                            .items()
+                        ):
+                            # Don't add default bridge network - it doesn't support DNS resolution
+                            # Also avoid duplicate networks
+                            if (
+                                network_name != "bridge"
+                                and network_name not in mcp_networks_to_connect
+                            ):
+                                mcp_networks_to_connect.append(network_name)
+
+                        # For proxy type, get the SSE port from the config
+                        port = "8080"  # Default MCP proxy SSE port
+                        if mcp.get("type") == "proxy" and "proxy_options" in mcp:
+                            port = str(
+                                mcp.get("proxy_options", {}).get("sse_port", "8080")
+                            )
+
+                        # Add container-based MCP server URL using just the MCP name as the hostname
+                        # This works because we join all networks and the MCP containers have aliases
+                        mcp_servers.append(
+                            {
+                                "name": mcp_name,
+                                "url": f"http://{mcp_name}:{port}",
+                                "headers": {},
+                            }
+                        )
+                except Exception as e:
+                    console.print(
+                        f"[yellow]Warning: Error processing MCP '{mcp_name}': {str(e)}[/yellow]"
+                    )
+
+        # Make sure we have at least one network to connect to
+        if not mcp_networks_to_connect:
+            # Create an MCP-specific network if none exists
+            network_name = "mc-mcp-network"
+            console.print("No MCP networks found, creating a default one")
+            try:
+                networks = client.networks.list(names=[network_name])
+                if not networks:
+                    client.networks.create(network_name, driver="bridge")
+                mcp_networks_to_connect.append(network_name)
+            except Exception as e:
+                console.print(
+                    f"[yellow]Warning: Could not create default network: {str(e)}[/yellow]"
+                )
+
+        # Pull the image if needed (silently)
+        try:
+            client.images.get("mcp/inspector")
+        except docker.errors.ImageNotFound:
+            client.images.pull("mcp/inspector")
+
+        try:
+            # Create a custom entrypoint to handle the localhost binding issue and auto-connect to MCP servers
+            script_content = """#!/bin/sh
+# This script modifies the Express server to bind to all interfaces
+
+# Try to find the CLI script
+CLI_FILE=$(find /app -name "cli.js" | grep -v node_modules | head -1)
+
+if [ -z "$CLI_FILE" ]; then
+  echo "Could not find CLI file. Trying common locations..."
+  for path in "/app/client/bin/cli.js" "/app/bin/cli.js" "./client/bin/cli.js" "./bin/cli.js"; do
+    if [ -f "$path" ]; then
+      CLI_FILE="$path"
+      break
+    fi
+  done
+fi
+
+if [ -z "$CLI_FILE" ]; then
+  echo "ERROR: Could not find the MCP Inspector CLI file."
+  exit 1
+fi
+
+echo "Found CLI file at: $CLI_FILE"
+
+# Make a backup of the original file
+cp "$CLI_FILE" "$CLI_FILE.bak"
+
+# Modify the file to use 0.0.0.0 as the host
+sed -i 's/app.listen(PORT/app.listen(PORT, "0.0.0.0"/g' "$CLI_FILE"
+sed -i 's/server.listen(port/server.listen(port, "0.0.0.0"/g' "$CLI_FILE"
+sed -i 's/listen(PORT/listen(PORT, "0.0.0.0"/g' "$CLI_FILE"
+
+echo "Modified server to listen on all interfaces (0.0.0.0)"
+
+# Start the MCP Inspector
+echo "Starting MCP Inspector on all interfaces..."
+exec npm start
+"""
+
+            # Write the script to a temp file
+            script_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "mc_inspector_entrypoint.sh"
+            )
+            with open(script_path, "w") as f:
+                f.write(script_content)
+            os.chmod(script_path, 0o755)
+
+            # Use the script as the entrypoint
+            # The entrypoint is directly specified in the container.run() call below
+
+            # Run the MCP Inspector container - use the first network initially
+            initial_network = (
+                mcp_networks_to_connect[0] if mcp_networks_to_connect else "bridge"
+            )
+            console.print(f"Starting Inspector on network: {initial_network}")
+
+            # Check if existing container with the same name exists, and remove it
+            try:
+                existing = client.containers.get("mc_mcp_inspector")
+                if existing.status == "running":
+                    existing.stop(timeout=1)
+                existing.remove(force=True)
+                console.print("Removed existing MCP Inspector container")
+            except docker.errors.NotFound:
+                pass
+            except Exception as e:
+                console.print(
+                    f"[yellow]Warning: Error removing existing container: {e}[/yellow]"
+                )
+
+            # Create network config with just the inspector alias for the initial network
+            network_config = {
+                initial_network: {
+                    "aliases": [
+                        "inspector"
+                    ]  # Allow container to be reached as just "inspector"
+                }
+            }
+
+            # Log MCP servers that are in the initial network
+            initial_mcp_containers = []
+            for mcp in all_mcps:
+                if mcp.get("type") in ["docker", "proxy"]:
+                    mcp_name = mcp.get("name")
+                    container_name = f"mc_mcp_{mcp_name}"
+
+                    try:
+                        # Check if this container exists
+                        mcp_container = client.containers.get(container_name)
+                        # Check if it's in the initial network
+                        if initial_network in mcp_container.attrs.get(
+                            "NetworkSettings", {}
+                        ).get("Networks", {}):
+                            initial_mcp_containers.append(mcp_name)
+                    except Exception:
+                        pass
+
+            if initial_mcp_containers:
+                console.print(
+                    f"MCP servers in initial network: {', '.join(initial_mcp_containers)}"
+                )
+
+            container = client.containers.run(
+                image="mcp/inspector",
+                name="mc_mcp_inspector",  # Use a fixed name
+                detach=True,
+                network=initial_network,
+                ports={
+                    "5173/tcp": host_port,  # Map container port 5173 to host port (frontend)
+                    "3000/tcp": 3000,  # Map container port 3000 to host port 3000 (backend)
+                },
+                environment={
+                    "SERVER_PORT": "3000",  # Tell the server to use port 3000 (default)
+                },
+                volumes={
+                    script_path: {
+                        "bind": "/entrypoint.sh",
+                        "mode": "ro",
+                    }
+                },
+                entrypoint="/entrypoint.sh",
+                labels={
+                    "mc.mcp.inspector": "true",
+                    "mc.managed": "true",
+                },
+                network_mode=None,  # Don't use network_mode as we're using network with aliases
+                networking_config=client.api.create_networking_config(network_config),
+            )
+
+            # Connect to all additional MCP networks
+            if len(mcp_networks_to_connect) > 1:
+                # Get the networks the container is already connected to
+                container_networks = list(
+                    container.attrs["NetworkSettings"]["Networks"].keys()
+                )
+
+                for network_name in mcp_networks_to_connect[
+                    1:
+                ]:  # Skip the first one that we already connected to
+                    # Skip if already connected to this network
+                    if network_name in container_networks:
+                        console.print(
+                            f"Inspector already connected to network: {network_name}"
+                        )
+                        continue
+
+                    try:
+                        console.print(
+                            f"Connecting Inspector to additional network: {network_name}"
+                        )
+                        network = client.networks.get(network_name)
+
+                        # Get all MCP containers in this network
+                        mcp_containers = []
+
+                        # Find all MCP containers that are in this network
+                        for mcp in all_mcps:
+                            if mcp.get("type") in ["docker", "proxy"]:
+                                mcp_name = mcp.get("name")
+                                container_name = f"mc_mcp_{mcp_name}"
+
+                                try:
+                                    # Check if this container exists
+                                    mcp_container = client.containers.get(
+                                        container_name
+                                    )
+                                    # Check if it's in the current network
+                                    if network_name in mcp_container.attrs.get(
+                                        "NetworkSettings", {}
+                                    ).get("Networks", {}):
+                                        mcp_containers.append(mcp_name)
+                                except Exception:
+                                    pass
+
+                        # Connect the inspector with the inspector alias and the individual MCP server aliases
+                        network.connect(container, aliases=["inspector"])
+                        console.print(f"  Added inspector to network {network_name}")
+
+                        if mcp_containers:
+                            console.print(
+                                f"  MCP servers in this network: {', '.join(mcp_containers)}"
+                            )
+                    except Exception as e:
+                        console.print(
+                            f"[yellow]Warning: Could not connect Inspector to network {network_name}: {str(e)}[/yellow]"
+                        )
+
+            # Wait a moment for the container to start properly
+            time.sleep(1)
+
+        except Exception as e:
+            console.print(f"[red]Error running MCP Inspector: {e}[/red]")
+            # Try to clean up
+            try:
+                client.containers.get(container_name).remove(force=True)
+            except Exception:
+                pass
+            return
+
+    console.print("[bold]MCP Inspector is available at:[/bold]")
+    console.print(f"- Frontend: http://localhost:{host_port}")
+    console.print("- Backend API: http://localhost:3000")
+
+    if len(mcp_servers) > 0:
+        console.print(
+            f"[green]Auto-connected to {len(mcp_servers)} MCP servers[/green]"
+        )
+    else:
+        console.print(
+            "[yellow]Warning: No MCP servers found or started. The Inspector will run but won't have any servers to connect to.[/yellow]"
+        )
+        console.print(
+            "Start MCP servers using 'mc mcp start --all' and then restart the Inspector."
+        )
+
+    if not detach:
+        try:
+            console.print("[yellow]Press Ctrl+C to stop the MCP Inspector...[/yellow]")
+            for line in container.logs(stream=True):
+                console.print(line.decode().strip())
+        except KeyboardInterrupt:
+            with console.status("Stopping MCP Inspector..."):
+                container.stop()
+                container.remove(force=True)
+            console.print("[green]MCP Inspector stopped[/green]")
 
 
 if __name__ == "__main__":

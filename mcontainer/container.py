@@ -332,17 +332,21 @@ class ContainerManager:
                                 )
                         else:
                             # For Docker/proxy MCP, set the connection details
-                            # Use the container name as hostname for internal Docker DNS resolution
+                            # Use both the container name and the short name for internal Docker DNS resolution
                             container_name = self.mcp_manager.get_mcp_container_name(
                                 mcp_name
                             )
-                            env_vars[f"MCP_{idx}_HOST"] = container_name
+                            # Use the short name (mcp_name) as the primary hostname
+                            env_vars[f"MCP_{idx}_HOST"] = mcp_name
                             # Default port is 8080 unless specified in status
                             port = next(
                                 iter(mcp_status.get("ports", {}).values()), 8080
                             )
                             env_vars[f"MCP_{idx}_PORT"] = str(port)
-                            env_vars[f"MCP_{idx}_URL"] = (
+                            # Use the short name in the URL to take advantage of the network alias
+                            env_vars[f"MCP_{idx}_URL"] = f"http://{mcp_name}:{port}/sse"
+                            # For backward compatibility, also set the full container name URL
+                            env_vars[f"MCP_{idx}_CONTAINER_URL"] = (
                                 f"http://{container_name}:{port}/sse"
                             )
 
@@ -424,9 +428,11 @@ class ContainerManager:
                                 network_name, driver="bridge"
                             )
 
-                        # Connect the container to the network
-                        network.connect(container)
-                        print(f"Connected to network: {network_name}")
+                        # Connect the container to the network with session name as an alias
+                        network.connect(container, aliases=[session_name])
+                        print(
+                            f"Connected to network: {network_name} with alias: {session_name}"
+                        )
                     except DockerException as e:
                         print(f"Error connecting to network {network_name}: {e}")
 
@@ -448,9 +454,11 @@ class ContainerManager:
                                     network_name, driver="bridge"
                                 )
 
-                            # Connect the container to the network
-                            network.connect(container)
-                            print(f"Connected to network: {network_name}")
+                            # Connect the container to the network with session name as an alias
+                            network.connect(container, aliases=[session_name])
+                            print(
+                                f"Connected to network: {network_name} with alias: {session_name}"
+                            )
                         except DockerException as e:
                             print(f"Error connecting to network {network_name}: {e}")
 
