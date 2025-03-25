@@ -34,8 +34,26 @@ class MCPManager:
             self.client = None
 
     def _ensure_mcp_network(self) -> str:
-        """Ensure the MCP network exists and return its name."""
+        """Ensure the MCP network exists and return its name.
+        Note: This is used only by the inspector, not for session-to-MCP connections.
+        """
         network_name = "mc-mcp-network"
+        if self.client:
+            networks = self.client.networks.list(names=[network_name])
+            if not networks:
+                self.client.networks.create(network_name, driver="bridge")
+        return network_name
+        
+    def _get_mcp_dedicated_network(self, mcp_name: str) -> str:
+        """Get or create a dedicated network for direct session-to-MCP connections.
+        
+        Args:
+            mcp_name: The name of the MCP server
+            
+        Returns:
+            The name of the dedicated network
+        """
+        network_name = f"mc-mcp-{mcp_name}-network"
         if self.client:
             networks = self.client.networks.list(names=[network_name])
             if not networks:
@@ -279,11 +297,23 @@ class MCPManager:
                 },
             )
 
-            # Connect to the network with aliases
+            # Connect to the inspector network 
             network = self.client.networks.get(network_name)
             network.connect(container, aliases=[name])
             logger.info(
-                f"Connected MCP server '{name}' to network {network_name} with alias '{name}'"
+                f"Connected MCP server '{name}' to inspector network {network_name} with alias '{name}'"
+            )
+            
+            # Create and connect to a dedicated network for session connections
+            dedicated_network_name = self._get_mcp_dedicated_network(name)
+            try:
+                dedicated_network = self.client.networks.get(dedicated_network_name)
+            except DockerException:
+                dedicated_network = self.client.networks.create(dedicated_network_name, driver="bridge")
+            
+            dedicated_network.connect(container, aliases=[name])
+            logger.info(
+                f"Connected MCP server '{name}' to dedicated network {dedicated_network_name} with alias '{name}'"
             )
 
             return {
@@ -442,11 +472,23 @@ ENTRYPOINT ["/entrypoint.sh"]
                     ports=port_bindings,  # Bind the SSE port to the host if configured
                 )
 
-                # Connect to the network with aliases
+                # Connect to the inspector network 
                 network = self.client.networks.get(network_name)
                 network.connect(container, aliases=[name])
                 logger.info(
-                    f"Connected MCP server '{name}' to network {network_name} with alias '{name}'"
+                    f"Connected MCP server '{name}' to inspector network {network_name} with alias '{name}'"
+                )
+                
+                # Create and connect to a dedicated network for session connections
+                dedicated_network_name = self._get_mcp_dedicated_network(name)
+                try:
+                    dedicated_network = self.client.networks.get(dedicated_network_name)
+                except DockerException:
+                    dedicated_network = self.client.networks.create(dedicated_network_name, driver="bridge")
+                
+                dedicated_network.connect(container, aliases=[name])
+                logger.info(
+                    f"Connected MCP server '{name}' to dedicated network {dedicated_network_name} with alias '{name}'"
                 )
 
                 return {

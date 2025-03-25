@@ -286,6 +286,7 @@ class ContainerManager:
             # Process MCPs if provided
             mcp_configs = []
             mcp_names = []
+            mcp_container_names = []
 
             # Ensure MCP is a list
             mcps_to_process = mcp if isinstance(mcp, list) else []
@@ -308,11 +309,10 @@ class ContainerManager:
                     try:
                         print(f"Ensuring MCP server '{mcp_name}' is running...")
                         self.mcp_manager.start_mcp(mcp_name)
-
-                        # Add MCP network to the list
-                        mcp_network = self.mcp_manager._ensure_mcp_network()
-                        if mcp_network not in network_list:
-                            network_list.append(mcp_network)
+                        
+                        # Store container name for later network connection
+                        container_name = self.mcp_manager.get_mcp_container_name(mcp_name)
+                        mcp_container_names.append(container_name)
 
                         # Get MCP status to extract endpoint information
                         mcp_status = self.mcp_manager.get_mcp_status(mcp_name)
@@ -356,6 +356,9 @@ class ContainerManager:
 
                     except Exception as e:
                         print(f"Warning: Failed to start MCP server '{mcp_name}': {e}")
+                        # Remove from the container names list if failed
+                        if container_name in mcp_container_names:
+                            mcp_container_names.remove(container_name)
 
                 elif mcp_config.get("type") == "remote":
                     # For remote MCP, just set environment variables
@@ -435,13 +438,33 @@ class ContainerManager:
                         )
                     except DockerException as e:
                         print(f"Error connecting to network {network_name}: {e}")
+            
+            # Reload the container to get updated network information
+            container.reload()
+            
+            # Connect directly to each MCP's dedicated network
+            for mcp_name in mcp_names:
+                try:
+                    # Get the dedicated network for this MCP
+                    dedicated_network_name = f"mc-mcp-{mcp_name}-network"
+                    
+                    try:
+                        network = self.client.networks.get(dedicated_network_name)
+                        
+                        # Connect the session container to the MCP's dedicated network
+                        network.connect(container, aliases=[session_name])
+                        print(f"Connected session to MCP '{mcp_name}' via dedicated network: {dedicated_network_name}")
+                    except DockerException as e:
+                        print(f"Error connecting to MCP dedicated network '{dedicated_network_name}': {e}")
+                        
+                except Exception as e:
+                    print(f"Error connecting session to MCP '{mcp_name}': {e}")
 
             # Connect to additional user-specified networks
             if networks:
                 for network_name in networks:
-                    if (
-                        network_name not in network_list
-                    ):  # Avoid connecting to the same network twice
+                    # Check if already connected to this network
+                    if network_name not in [net.name for net in container.attrs.get("NetworkSettings", {}).get("Networks", {}).values()]:
                         try:
                             # Get or create the network
                             try:
