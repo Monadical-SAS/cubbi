@@ -74,9 +74,19 @@ class MCPManager:
         return None
 
     def add_remote_mcp(
-        self, name: str, url: str, headers: Dict[str, str] = None
+        self, name: str, url: str, headers: Dict[str, str] = None, add_as_default: bool = True
     ) -> Dict[str, Any]:
-        """Add a remote MCP server."""
+        """Add a remote MCP server.
+        
+        Args:
+            name: Name of the MCP server
+            url: URL of the remote MCP server
+            headers: HTTP headers to use when connecting
+            add_as_default: Whether to add this MCP to the default MCPs list
+            
+        Returns:
+            The MCP configuration dictionary
+        """
         # Create the remote MCP configuration
         remote_mcp = RemoteMCP(
             name=name,
@@ -91,17 +101,36 @@ class MCPManager:
         mcps = [mcp for mcp in mcps if mcp.get("name") != name]
 
         # Add the new MCP
-        mcps.append(remote_mcp.model_dump())
+        mcp_config = remote_mcp.model_dump()
+        mcps.append(mcp_config)
 
         # Save the configuration
         self.config_manager.set("mcps", mcps)
+        
+        # Add to default MCPs if requested
+        if add_as_default:
+            default_mcps = self.config_manager.get("defaults.mcps", [])
+            if name not in default_mcps:
+                default_mcps.append(name)
+                self.config_manager.set("defaults.mcps", default_mcps)
 
-        return remote_mcp.model_dump()
+        return mcp_config
 
     def add_docker_mcp(
-        self, name: str, image: str, command: str, env: Dict[str, str] = None
+        self, name: str, image: str, command: str, env: Dict[str, str] = None, add_as_default: bool = True
     ) -> Dict[str, Any]:
-        """Add a Docker-based MCP server."""
+        """Add a Docker-based MCP server.
+        
+        Args:
+            name: Name of the MCP server
+            image: Docker image for the MCP server
+            command: Command to run in the container
+            env: Environment variables to set in the container
+            add_as_default: Whether to add this MCP to the default MCPs list
+            
+        Returns:
+            The MCP configuration dictionary
+        """
         # Create the Docker MCP configuration
         docker_mcp = DockerMCP(
             name=name,
@@ -117,12 +146,20 @@ class MCPManager:
         mcps = [mcp for mcp in mcps if mcp.get("name") != name]
 
         # Add the new MCP
-        mcps.append(docker_mcp.model_dump())
+        mcp_config = docker_mcp.model_dump()
+        mcps.append(mcp_config)
 
         # Save the configuration
         self.config_manager.set("mcps", mcps)
+        
+        # Add to default MCPs if requested
+        if add_as_default:
+            default_mcps = self.config_manager.get("defaults.mcps", [])
+            if name not in default_mcps:
+                default_mcps.append(name)
+                self.config_manager.set("defaults.mcps", default_mcps)
 
-        return docker_mcp.model_dump()
+        return mcp_config
 
     def add_proxy_mcp(
         self,
@@ -133,8 +170,23 @@ class MCPManager:
         proxy_options: Dict[str, Any] = None,
         env: Dict[str, str] = None,
         host_port: Optional[int] = None,
+        add_as_default: bool = True,
     ) -> Dict[str, Any]:
-        """Add a proxy-based MCP server."""
+        """Add a proxy-based MCP server.
+        
+        Args:
+            name: Name of the MCP server
+            base_image: Base Docker image running the actual MCP server
+            proxy_image: Docker image for the MCP proxy
+            command: Command to run in the container
+            proxy_options: Options for the MCP proxy
+            env: Environment variables to set in the container
+            host_port: Host port to bind the MCP server to (auto-assigned if not specified)
+            add_as_default: Whether to add this MCP to the default MCPs list
+            
+        Returns:
+            The MCP configuration dictionary
+        """
         # If no host port specified, find the next available port starting from 5101
         if host_port is None:
             # Get current MCPs and find highest assigned port
@@ -171,15 +223,30 @@ class MCPManager:
         mcps = [mcp for mcp in mcps if mcp.get("name") != name]
 
         # Add the new MCP
-        mcps.append(proxy_mcp.model_dump())
+        mcp_config = proxy_mcp.model_dump()
+        mcps.append(mcp_config)
 
         # Save the configuration
         self.config_manager.set("mcps", mcps)
+        
+        # Add to default MCPs if requested
+        if add_as_default:
+            default_mcps = self.config_manager.get("defaults.mcps", [])
+            if name not in default_mcps:
+                default_mcps.append(name)
+                self.config_manager.set("defaults.mcps", default_mcps)
 
-        return proxy_mcp.model_dump()
+        return mcp_config
 
     def remove_mcp(self, name: str) -> bool:
-        """Remove an MCP server configuration."""
+        """Remove an MCP server configuration.
+        
+        Args:
+            name: Name of the MCP server to remove
+            
+        Returns:
+            True if the MCP was successfully removed, False otherwise
+        """
         mcps = self.list_mcps()
 
         # Filter out the MCP with the specified name
@@ -191,6 +258,12 @@ class MCPManager:
 
         # Save the updated configuration
         self.config_manager.set("mcps", updated_mcps)
+        
+        # Also remove from default MCPs if it's there
+        default_mcps = self.config_manager.get("defaults.mcps", [])
+        if name in default_mcps:
+            default_mcps.remove(name)
+            self.config_manager.set("defaults.mcps", default_mcps)
 
         # Stop and remove the container if it exists
         self.stop_mcp(name)

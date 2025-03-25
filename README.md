@@ -165,6 +165,31 @@ mc config volume remove /local/path
 
 Default volumes will be combined with any volumes specified using the `-v` flag when creating a session.
 
+### Default MCP Servers Configuration
+
+You can configure default MCP servers that sessions will automatically connect to:
+
+```bash
+# List default MCP servers
+mc config mcp list
+
+# Add an MCP server to defaults
+mc config mcp add github
+
+# Remove an MCP server from defaults
+mc config mcp remove github
+```
+
+When adding new MCP servers, they are added to defaults by default. Use the `--no-default` flag to prevent this:
+
+```bash
+# Add an MCP server without adding it to defaults
+mc mcp add github ghcr.io/mcp/github:latest --no-default
+mc mcp add-remote jira https://jira-mcp.example.com/sse --no-default
+```
+
+When creating sessions, if no MCP server is specified with `--mcp`, the default MCP servers will be used automatically.
+
 ### External Network Connectivity
 
 MC containers can connect to external Docker networks, allowing them to communicate with other services in those networks:
@@ -269,7 +294,7 @@ mc mcp remote add github http://my-mcp-server.example.com/sse --header "Authoriz
 mc mcp docker add github mcp/github:latest --command "github-mcp" --env GITHUB_TOKEN=ghp_123456
 
 # Add a proxy-based MCP server (for stdio-to-SSE conversion)
-mc mcp proxy add github ghcr.io/mcp/github:latest --proxy-image ghcr.io/sparfenyuk/mcp-proxy:latest --command "github-mcp" --sse-port 8080
+mc mcp add github ghcr.io/mcp/github:latest --proxy-image ghcr.io/sparfenyuk/mcp-proxy:latest --command "github-mcp" --sse-port 8080 --no-default
 ```
 
 ### Using MCP Servers with Sessions

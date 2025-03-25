@@ -204,6 +204,15 @@ def create_session(
     # Combine default networks with user-specified networks, removing duplicates
     all_networks = list(set(default_networks + network))
 
+    # Get default MCPs from user config if none specified
+    all_mcps = mcp if isinstance(mcp, list) else []
+    if not all_mcps:
+        default_mcps = user_config.get("defaults.mcps", [])
+        all_mcps = default_mcps
+        
+        if default_mcps:
+            console.print(f"Using default MCP servers: {', '.join(default_mcps)}")
+
     if all_networks:
         console.print(f"Networks: {', '.join(all_networks)}")
 
@@ -222,18 +231,13 @@ def create_session(
             mount_local=not no_mount and user_config.get("defaults.mount_local", True),
             volumes=volume_mounts,
             networks=all_networks,
-            mcp=mcp,
+            mcp=all_mcps,
         )
 
     if session:
         console.print("[green]Session created successfully![/green]")
         console.print(f"Session ID: {session.id}")
         console.print(f"Driver: {session.driver}")
-
-        if session.mcps:
-            console.print("MCP Servers:")
-            for mcp in session.mcps:
-                console.print(f"  - {mcp}")
 
         if session.ports:
             console.print("Ports:")
@@ -392,6 +396,13 @@ def quick_create(
     # Use user config for defaults if not specified
     if not driver:
         driver = user_config.get("defaults.driver")
+    
+    # Get default MCPs if none specified
+    all_mcps = mcp if isinstance(mcp, list) else []
+    if not all_mcps:
+        default_mcps = user_config.get("defaults.mcps", [])
+        if default_mcps:
+            all_mcps = default_mcps
 
     create_session(
         driver=driver,
@@ -402,7 +413,7 @@ def quick_create(
         name=name,
         no_connect=no_connect,
         no_mount=no_mount,
-        mcp=mcp,
+        mcp=all_mcps,
     )
 
 
@@ -521,6 +532,64 @@ config_app.add_typer(network_app, name="network", no_args_is_help=True)
 # Create a volume subcommand for config
 volume_app = typer.Typer(help="Manage default volumes")
 config_app.add_typer(volume_app, name="volume", no_args_is_help=True)
+
+# Create an MCP subcommand for config
+config_mcp_app = typer.Typer(help="Manage default MCP servers")
+config_app.add_typer(config_mcp_app, name="mcp", no_args_is_help=True)
+
+# MCP configuration commands
+@config_mcp_app.command("list")
+def list_default_mcps() -> None:
+    """List all default MCP servers"""
+    default_mcps = user_config.get("defaults.mcps", [])
+
+    if not default_mcps:
+        console.print("No default MCP servers configured")
+        return
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("MCP Server")
+
+    for mcp in default_mcps:
+        table.add_row(mcp)
+
+    console.print(table)
+
+@config_mcp_app.command("add")
+def add_default_mcp(
+    name: str = typer.Argument(..., help="MCP server name to add to defaults"),
+) -> None:
+    """Add an MCP server to default MCPs"""
+    # First check if the MCP server exists
+    mcp = mcp_manager.get_mcp(name)
+    if not mcp:
+        console.print(f"[red]MCP server '{name}' not found[/red]")
+        return
+
+    default_mcps = user_config.get("defaults.mcps", [])
+
+    if name in default_mcps:
+        console.print(f"MCP server '{name}' is already in defaults")
+        return
+
+    default_mcps.append(name)
+    user_config.set("defaults.mcps", default_mcps)
+    console.print(f"[green]Added MCP server '{name}' to defaults[/green]")
+
+@config_mcp_app.command("remove")
+def remove_default_mcp(
+    name: str = typer.Argument(..., help="MCP server name to remove from defaults"),
+) -> None:
+    """Remove an MCP server from default MCPs"""
+    default_mcps = user_config.get("defaults.mcps", [])
+
+    if name not in default_mcps:
+        console.print(f"MCP server '{name}' is not in defaults")
+        return
+
+    default_mcps.remove(name)
+    user_config.set("defaults.mcps", default_mcps)
+    console.print(f"[green]Removed MCP server '{name}' from defaults[/green]")
 
 
 # Configuration commands
@@ -1252,6 +1321,9 @@ def add_mcp(
     env: List[str] = typer.Option(
         [], "--env", "-e", help="Environment variables (format: KEY=VALUE)"
     ),
+    no_default: bool = typer.Option(
+        False, "--no-default", help="Don't add MCP server to defaults"
+    ),
 ) -> None:
     """Add a proxy-based MCP server (default type)"""
     # Parse environment variables
@@ -1282,6 +1354,7 @@ def add_mcp(
                 proxy_options,
                 environment,
                 host_port,
+                add_as_default=not no_default,
             )
 
             # Get the assigned port
@@ -1292,6 +1365,11 @@ def add_mcp(
             console.print(
                 f"Container port {sse_port} will be bound to host port {assigned_port}"
             )
+            
+        if not no_default:
+            console.print(f"MCP server '{name}' added to defaults")
+        else:
+            console.print(f"MCP server '{name}' not added to defaults")
 
     except Exception as e:
         console.print(f"[red]Error adding MCP server: {e}[/red]")
@@ -1303,6 +1381,9 @@ def add_remote_mcp(
     url: str = typer.Argument(..., help="URL of the remote MCP server"),
     header: List[str] = typer.Option(
         [], "--header", "-H", help="HTTP headers (format: KEY=VALUE)"
+    ),
+    no_default: bool = typer.Option(
+        False, "--no-default", help="Don't add MCP server to defaults"
     ),
 ) -> None:
     """Add a remote MCP server"""
@@ -1319,9 +1400,14 @@ def add_remote_mcp(
 
     try:
         with console.status(f"Adding remote MCP server '{name}'..."):
-            mcp_manager.add_remote_mcp(name, url, headers)
+            mcp_manager.add_remote_mcp(name, url, headers, add_as_default=not no_default)
 
         console.print(f"[green]Added remote MCP server '{name}'[/green]")
+        
+        if not no_default:
+            console.print(f"MCP server '{name}' added to defaults")
+        else:
+            console.print(f"MCP server '{name}' not added to defaults")
 
     except Exception as e:
         console.print(f"[red]Error adding remote MCP server: {e}[/red]")
