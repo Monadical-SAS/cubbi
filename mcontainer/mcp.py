@@ -114,8 +114,27 @@ class MCPManager:
         command: str,
         proxy_options: Dict[str, Any] = None,
         env: Dict[str, str] = None,
+        host_port: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Add a proxy-based MCP server."""
+        # If no host port specified, find the next available port starting from 5101
+        if host_port is None:
+            # Get current MCPs and find highest assigned port
+            mcps = self.list_mcps()
+            highest_port = 5100  # Start at 5100, so next will be 5101
+
+            for mcp in mcps:
+                if mcp.get("type") == "proxy" and mcp.get("host_port"):
+                    try:
+                        port = int(mcp.get("host_port"))
+                        if port > highest_port:
+                            highest_port = port
+                    except (ValueError, TypeError):
+                        pass
+
+            # Next port will be highest + 1
+            host_port = highest_port + 1
+
         # Create the Proxy MCP configuration
         proxy_mcp = ProxyMCP(
             name=name,
@@ -124,6 +143,7 @@ class MCPManager:
             command=command,
             proxy_options=proxy_options or {},
             env=env or {},
+            host_port=host_port,
         )
 
         # Add to the configuration
@@ -179,16 +199,45 @@ class MCPManager:
         # Check if the container already exists
         try:
             container = self.client.containers.get(container_name)
-            # If it exists, start it if it's not running
-            if container.status != "running":
-                container.start()
+            # Check if we need to recreate the container due to port binding changes
+            needs_recreate = False
 
-            # Return the container status
-            return {
-                "container_id": container.id,
-                "status": "running",
-                "name": name,
-            }
+            if mcp_config.get("type") == "proxy" and mcp_config.get("host_port"):
+                # Get the current container port bindings
+                port_bindings = container.attrs.get("HostConfig", {}).get(
+                    "PortBindings", {}
+                )
+                sse_port = f"{mcp_config['proxy_options'].get('sse_port', 8080)}/tcp"
+
+                # Check if the port binding matches the configured host port
+                current_binding = port_bindings.get(sse_port, [])
+                if not current_binding or int(
+                    current_binding[0].get("HostPort", 0)
+                ) != mcp_config.get("host_port"):
+                    logger.info(
+                        f"Port binding changed for MCP '{name}', recreating container"
+                    )
+                    needs_recreate = True
+
+            # If we don't need to recreate, just start it if it's not running
+            if not needs_recreate:
+                if container.status != "running":
+                    container.start()
+
+                # Return the container status
+                return {
+                    "container_id": container.id,
+                    "status": "running",
+                    "name": name,
+                }
+            else:
+                # We need to recreate the container with new port bindings
+                logger.info(
+                    f"Recreating container for MCP '{name}' with updated port bindings"
+                )
+                container.remove(force=True)
+                # Container doesn't exist, we need to create it
+                pass
         except NotFound:
             # Container doesn't exist, we need to create it
             pass
@@ -221,16 +270,20 @@ class MCPManager:
                 command=mcp_config.get("command"),
                 name=container_name,
                 detach=True,
-                network=network_name,
+                network=None,  # Start without network, we'll add it with aliases
                 environment=mcp_config.get("env", {}),
                 labels={
                     "mc.mcp": "true",
                     "mc.mcp.name": name,
                     "mc.mcp.type": "docker",
                 },
-                ports={
-                    "8080/tcp": 8080,  # Default SSE port
-                },
+            )
+
+            # Connect to the network with aliases
+            network = self.client.networks.get(network_name)
+            network.connect(container, aliases=[name])
+            logger.info(
+                f"Connected MCP server '{name}' to network {network_name} with alias '{name}'"
             )
 
             return {
@@ -250,7 +303,7 @@ echo "Starting MCP proxy with base image $MCP_BASE_IMAGE (command: $MCP_COMMAND)
 if [ ! -S /var/run/docker.sock ]; then
     echo "ERROR: Docker socket not available. Cannot run base MCP image."
     echo "Make sure the Docker socket is mounted from the host."
-    
+
     # Create a minimal fallback server for testing
     cat > /tmp/fallback_server.py << 'EOF'
 import json, sys, time
@@ -270,7 +323,7 @@ while True:
         sys.stdout.flush()
     time.sleep(1)
 EOF
-    
+
     exec mcp-proxy \
       --sse-port "$SSE_PORT" \
       --sse-host "$SSE_HOST" \
@@ -324,7 +377,7 @@ RUN (apt-get update && apt-get install -y docker.io) || \\
 
 # Set environment variables for the proxy
 ENV MCP_BASE_IMAGE={mcp_config["base_image"]}
-ENV MCP_COMMAND={mcp_config.get("command", "")}
+ENV MCP_COMMAND="{mcp_config.get("command", "")}"
 ENV SSE_PORT={mcp_config["proxy_options"].get("sse_port", 8080)}
 ENV SSE_HOST={mcp_config["proxy_options"].get("sse_host", "0.0.0.0")}
 ENV ALLOW_ORIGIN={mcp_config["proxy_options"].get("allow_origin", "*")}
@@ -360,12 +413,21 @@ ENTRYPOINT ["/entrypoint.sh"]
                     f"Starting MCP proxy with base_image={mcp_config['base_image']}, command={mcp_config.get('command', '')}"
                 )
 
+                # Get the SSE port from the proxy options
+                sse_port = mcp_config["proxy_options"].get("sse_port", 8080)
+
+                # Check if we need to bind to a host port
+                port_bindings = {}
+                if mcp_config.get("host_port"):
+                    host_port = mcp_config.get("host_port")
+                    port_bindings = {f"{sse_port}/tcp": host_port}
+
                 # Create and start the container
                 container = self.client.containers.run(
                     image=custom_image_name,
                     name=container_name,
                     detach=True,
-                    network=network_name,
+                    network=None,  # Start without network, we'll add it with aliases
                     volumes={
                         "/var/run/docker.sock": {
                             "bind": "/var/run/docker.sock",
@@ -377,11 +439,14 @@ ENTRYPOINT ["/entrypoint.sh"]
                         "mc.mcp.name": name,
                         "mc.mcp.type": "proxy",
                     },
-                    ports={
-                        f"{mcp_config['proxy_options'].get('sse_port', 8080)}/tcp": mcp_config[
-                            "proxy_options"
-                        ].get("sse_port", 8080),
-                    },
+                    ports=port_bindings,  # Bind the SSE port to the host if configured
+                )
+
+                # Connect to the network with aliases
+                network = self.client.networks.get(network_name)
+                network.connect(container, aliases=[name])
+                logger.info(
+                    f"Connected MCP server '{name}' to network {network_name} with alias '{name}'"
                 )
 
                 return {
@@ -413,8 +478,13 @@ ENTRYPOINT ["/entrypoint.sh"]
         # Try to get and stop the container
         try:
             container = self.client.containers.get(container_name)
-            container.stop(timeout=10)
-            return True
+            # Only stop if it's running
+            if container.status == "running":
+                container.stop(timeout=10)
+                return True
+            else:
+                # Container exists but is not running
+                return False
         except NotFound:
             # Container doesn't exist
             return False
@@ -493,8 +563,17 @@ ENTRYPOINT ["/entrypoint.sh"]
             # Get container details
             container_info = container.attrs
 
-            # Extract ports
+            # Extract exposed ports from config
             ports = {}
+            if (
+                "Config" in container_info
+                and "ExposedPorts" in container_info["Config"]
+            ):
+                # Add all exposed ports
+                for port in container_info["Config"]["ExposedPorts"].keys():
+                    ports[port] = None
+
+            # Add any ports that might be published
             if (
                 "NetworkSettings" in container_info
                 and "Ports" in container_info["NetworkSettings"]
@@ -503,6 +582,7 @@ ENTRYPOINT ["/entrypoint.sh"]
                     "Ports"
                 ].items():
                     if mappings:
+                        # Port is bound to host
                         ports[port] = int(mappings[0]["HostPort"])
 
             return {
@@ -574,8 +654,17 @@ ENTRYPOINT ["/entrypoint.sh"]
             # Extract labels
             labels = container_info["Config"]["Labels"]
 
-            # Extract ports
+            # Extract exposed ports from config
             ports = {}
+            if (
+                "Config" in container_info
+                and "ExposedPorts" in container_info["Config"]
+            ):
+                # Add all exposed ports
+                for port in container_info["Config"]["ExposedPorts"].keys():
+                    ports[port] = None
+
+            # Add any ports that might be published
             if (
                 "NetworkSettings" in container_info
                 and "Ports" in container_info["NetworkSettings"]
@@ -584,6 +673,7 @@ ENTRYPOINT ["/entrypoint.sh"]
                     "Ports"
                 ].items():
                     if mappings:
+                        # Port is bound to host
                         ports[port] = int(mappings[0]["HostPort"])
 
             # Determine status
