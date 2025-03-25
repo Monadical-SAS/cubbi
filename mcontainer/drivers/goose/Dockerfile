@@ -37,11 +37,12 @@ COPY mc-init.sh /mc-init.sh
 COPY entrypoint.sh /entrypoint.sh
 COPY mc-driver.yaml /mc-driver.yaml
 COPY init-status.sh /init-status.sh
+COPY update-goose-config.sh /usr/local/bin/update-goose-config.sh
 
 # Extend env via bashrc
 
 # Make scripts executable
-RUN chmod +x /mc-init.sh /entrypoint.sh /init-status.sh
+RUN chmod +x /mc-init.sh /entrypoint.sh /init-status.sh /usr/local/bin/update-goose-config.sh
 
 # Set up initialization status check on login
 RUN echo 'export PATH=/root/.local/bin:$PATH' >> /etc/bash.bashrc
