@@ -54,11 +54,17 @@ mcps:
 
 ```
 mc mcp list                # List all configured MCP servers and their status
-mc mcp status <name>       # Show detailed status of a specific MCP server
-mc mcp start <name>        # Start an MCP server container
-mc mcp stop <name>         # Stop an MCP server container
-mc mcp restart <name>      # Restart an MCP server container
-mc mcp logs <name>         # Show logs for an MCP server container
+mc mcp status <name>          # Show detailed status of a specific MCP server
+mc mcp start <name>           # Start an MCP server container
+mc mcp stop <name>            # Stop and remove an MCP server container
+mc mcp restart <name>         # Restart an MCP server container
+mc mcp start --all         # Start all MCP server containers
+mc mcp stop --all          # Stop and remove all MCP server containers
+mc mcp inspector                      # Run the MCP Inspector UI with network connectivity to all MCP servers
+mc mcp inspector --client-port <cp> --server-port <sp>  # Run with custom client port (default: 5173) and server port (default: 3000)
+mc mcp inspector --detach  # Run the inspector in detached mode
+mc mcp inspector --stop    # Stop the running inspector
+mc mcp logs <name>            # Show logs for an MCP server container
 ```
 
 ### MCP Configuration
@@ -84,10 +90,28 @@ mc session create [--mcp <name>]  # Create a session with an MCP server attached
 
 ### MCP Container Management
 
-1. MCP containers will have their own dedicated Docker network
+1. MCP containers will have their own dedicated Docker network (`mc-mcp-network`)
 2. Session containers will be attached to both their session network and the MCP network when using an MCP
 3. MCP containers will be persistent across sessions unless explicitly stopped
 4. MCP containers will be named with a prefix to identify them (`mc_mcp_<name>`)
+5. Each MCP container will have a network alias matching its name without the prefix (e.g., `mc_mcp_github` will have the alias `github`)
+6. Network aliases enable DNS-based service discovery between containers
+
+### MCP Inspector
+
+The MCP Inspector is a web-based UI tool that allows you to:
+
+1. Visualize and interact with multiple MCP servers
+2. Debug MCP server messages and interactions
+3. Test MCP server capabilities directly
+
+The MCP Inspector implementation includes:
+
+1. A container based on the `mcp/inspector` image
+2. Automatic joining of all MCP server networks for seamless DNS resolution
+3. A modified Express server that binds to all interfaces (0.0.0.0)
+4. Port mapping for both the frontend (default: 5173) and backend API (default: 3000)
+5. Network connectivity to all MCP servers using their simple names as DNS hostnames
 
 ### Proxy-based MCP Servers (Default)
 

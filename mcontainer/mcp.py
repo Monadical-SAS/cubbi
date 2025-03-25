@@ -475,21 +475,26 @@ ENTRYPOINT ["/entrypoint.sh"]
         # Get the container name
         container_name = self.get_mcp_container_name(name)
 
-        # Try to get and stop the container
+        # Try to get, stop, and remove the container
         try:
             container = self.client.containers.get(container_name)
-            # Only stop if it's running
+
+            # Stop the container if it's running
             if container.status == "running":
+                logger.info(f"Stopping MCP container '{name}'...")
                 container.stop(timeout=10)
-                return True
-            else:
-                # Container exists but is not running
-                return False
+
+            # Remove the container regardless of its status
+            logger.info(f"Removing MCP container '{name}'...")
+            container.remove(force=True)
+            return True
+
         except NotFound:
             # Container doesn't exist
+            logger.info(f"MCP container '{name}' not found, nothing to stop or remove")
             return False
         except Exception as e:
-            logger.error(f"Error stopping MCP container: {e}")
+            logger.error(f"Error stopping/removing MCP container: {e}")
             return False
 
     def restart_mcp(self, name: str) -> Dict[str, Any]:

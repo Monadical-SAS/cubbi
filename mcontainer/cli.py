@@ -1047,7 +1047,7 @@ def stop_mcp(
         not_running_count = 0
         failed_count = 0
 
-        console.print(f"Stopping {len(mcps)} MCP servers...")
+        console.print(f"Stopping and removing {len(mcps)} MCP servers...")
 
         for mcp in mcps:
             mcp_name = mcp.get("name")
@@ -1055,25 +1055,31 @@ def stop_mcp(
                 continue
 
             try:
-                with console.status(f"Stopping MCP server '{mcp_name}'..."):
+                with console.status(
+                    f"Stopping and removing MCP server '{mcp_name}'..."
+                ):
                     result = mcp_manager.stop_mcp(mcp_name)
 
                 if result:
-                    console.print(f"[green]Stopped MCP server '{mcp_name}'[/green]")
+                    console.print(
+                        f"[green]Stopped and removed MCP server '{mcp_name}'[/green]"
+                    )
                     stopped_count += 1
                 else:
                     console.print(
-                        f"[yellow]MCP server '{mcp_name}' was not running[/yellow]"
+                        f"[yellow]MCP server '{mcp_name}' was not running or doesn't exist[/yellow]"
                     )
                     not_running_count += 1
             except Exception as e:
-                console.print(f"[red]Error stopping MCP server '{mcp_name}': {e}[/red]")
+                console.print(
+                    f"[red]Error stopping/removing MCP server '{mcp_name}': {e}[/red]"
+                )
                 failed_count += 1
 
         # Show a summary
         if stopped_count > 0:
             console.print(
-                f"[green]Successfully stopped {stopped_count} MCP servers[/green]"
+                f"[green]Successfully stopped and removed {stopped_count} MCP servers[/green]"
             )
         if not_running_count > 0:
             console.print(
@@ -1085,16 +1091,18 @@ def stop_mcp(
     # Otherwise stop a specific server
     elif name:
         try:
-            with console.status(f"Stopping MCP server '{name}'..."):
+            with console.status(f"Stopping and removing MCP server '{name}'..."):
                 result = mcp_manager.stop_mcp(name)
 
             if result:
-                console.print(f"[green]Stopped MCP server '{name}'[/green]")
+                console.print(f"[green]Stopped and removed MCP server '{name}'[/green]")
             else:
-                console.print(f"[yellow]MCP server '{name}' was not running[/yellow]")
+                console.print(
+                    f"[yellow]MCP server '{name}' was not running or doesn't exist[/yellow]"
+                )
 
         except Exception as e:
-            console.print(f"[red]Error stopping MCP server: {e}[/red]")
+            console.print(f"[red]Error stopping/removing MCP server: {e}[/red]")
     else:
         console.print(
             "[red]Error: Please provide a server name or use --all to stop all servers[/red]"
@@ -1321,8 +1329,17 @@ def add_remote_mcp(
 
 @mcp_app.command("inspector")
 def run_mcp_inspector(
-    host_port: int = typer.Option(
-        5173, "--port", "-p", help="Host port for the MCP Inspector"
+    client_port: int = typer.Option(
+        5173,
+        "--client-port",
+        "-c",
+        help="Port for the MCP Inspector frontend (default: 5173)",
+    ),
+    server_port: int = typer.Option(
+        3000,
+        "--server-port",
+        "-s",
+        help="Port for the MCP Inspector backend API (default: 3000)",
     ),
     detach: bool = typer.Option(False, "--detach", "-d", help="Run in detached mode"),
     stop: bool = typer.Option(False, "--stop", help="Stop running MCP Inspector(s)"),
@@ -1374,19 +1391,33 @@ def run_mcp_inspector(
                 f"[yellow]Warning: Could not remove existing inspector: {e}[/yellow]"
             )
 
-    # Check if the specified port is already in use
+    # Check if the specified ports are already in use
     import socket
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Check client port
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        s.bind(("0.0.0.0", host_port))
-        s.close()
+        client_socket.bind(("0.0.0.0", client_port))
+        client_socket.close()
     except socket.error:
         console.print(
-            f"[red]Error: Port {host_port} is already in use by another process.[/red]"
+            f"[red]Error: Client port {client_port} is already in use by another process.[/red]"
         )
         console.print("Please stop any web servers or other processes using this port.")
-        console.print("You can try a different port with --port option")
+        console.print("You can try a different client port with --client-port option")
+        return
+
+    # Check server port
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        server_socket.bind(("0.0.0.0", server_port))
+        server_socket.close()
+    except socket.error:
+        console.print(
+            f"[red]Error: Server port {server_port} is already in use by another process.[/red]"
+        )
+        console.print("Please stop any web servers or other processes using this port.")
+        console.print("You can try a different server port with --server-port option")
         return
 
     # Container name with timestamp to avoid conflicts
@@ -1601,11 +1632,16 @@ exec npm start
                 detach=True,
                 network=initial_network,
                 ports={
-                    "5173/tcp": host_port,  # Map container port 5173 to host port (frontend)
-                    "3000/tcp": 3000,  # Map container port 3000 to host port 3000 (backend)
+                    f"{client_port}/tcp": client_port,  # Map container port to host port (frontend)
+                    f"{server_port}/tcp": server_port,  # Map container port to host port (backend)
                 },
                 environment={
-                    "SERVER_PORT": "3000",  # Tell the server to use port 3000 (default)
+                    "CLIENT_PORT": str(
+                        client_port
+                    ),  # Tell the client to use the client_port
+                    "SERVER_PORT": str(
+                        server_port
+                    ),  # Tell the server to use the server_port
                 },
                 volumes={
                     script_path: {
@@ -1693,13 +1729,32 @@ exec npm start
             return
 
     console.print("[bold]MCP Inspector is available at:[/bold]")
-    console.print(f"- Frontend: http://localhost:{host_port}")
-    console.print("- Backend API: http://localhost:3000")
+    console.print(f"- Frontend: http://localhost:{client_port}")
+    console.print(f"- Backend API: http://localhost:{server_port}")
 
     if len(mcp_servers) > 0:
         console.print(
             f"[green]Auto-connected to {len(mcp_servers)} MCP servers[/green]"
         )
+
+        # Print MCP server URLs for access within the Inspector
+        console.print("[bold]MCP Server URLs (for use within Inspector):[/bold]")
+        for mcp in all_mcps:
+            mcp_name = mcp.get("name")
+            mcp_type = mcp.get("type")
+
+            if mcp_type in ["docker", "proxy"]:
+                # For container-based MCPs, use the container name as hostname
+                # Default SSE port is 8080 unless specified in proxy_options
+                sse_port = "8080"
+                if mcp_type == "proxy" and "proxy_options" in mcp:
+                    sse_port = str(mcp.get("proxy_options", {}).get("sse_port", "8080"))
+                console.print(f"- {mcp_name}: http://{mcp_name}:{sse_port}/sse")
+            elif mcp_type == "remote":
+                # For remote MCPs, use the configured URL
+                mcp_url = mcp.get("url")
+                if mcp_url:
+                    console.print(f"- {mcp_name}: {mcp_url}")
     else:
         console.print(
             "[yellow]Warning: No MCP servers found or started. The Inspector will run but won't have any servers to connect to.[/yellow]"
