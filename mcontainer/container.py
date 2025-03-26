@@ -417,10 +417,14 @@ class ContainerManager:
                 network=network_list[0],  # Connect to the first network initially
                 ports={f"{port}/tcp": None for port in driver.ports},
             )
-
             # Start container
             container.start()
-
+            config_content = f'GOOSE_MODEL: {model}\nGOOSE_PROVIDER: {model}\n'
+            container.exec_run('mkdir -p /root/.config/goose', user='root')
+            container.exec_run('sh -c "echo \'{}\' > /root/.config/goose/config.yaml"'.format(config_content.replace('\n', '\\n')), user='root')
+            container.exec_run('cat /root/.config/goose/config.yaml')
+            container.exec_run('pwd')  
+            
             # Connect to additional networks (after the first one in network_list)
             if len(network_list) > 1:
                 for network_name in network_list[1:]:

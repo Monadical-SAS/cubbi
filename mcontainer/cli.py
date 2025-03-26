@@ -228,6 +228,7 @@ def create_session(
             console.print(f"  {host_path} -> {mount_info['bind']}")
 
     with console.status(f"Creating session with driver '{driver}'..."):
+    
         session = container_manager.create_session(
             driver_name=driver,
             project=project,
