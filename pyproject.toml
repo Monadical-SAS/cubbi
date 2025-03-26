@@ -25,6 +25,7 @@ dev = [
 
 [project.scripts]
 mc = "mcontainer.cli:app"
+mcx = "mcontainer.cli:session_create_entry_point"
 
 [tool.ruff]
 line-length = 88

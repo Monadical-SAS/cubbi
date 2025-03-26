@@ -5,6 +5,14 @@ containers that run AI tools and development environments. It works with both
 local Docker and a dedicated remote web service that manages containers in a
 Docker-in-Docker (DinD) environment. MC also supports connecting to MCP (Model Control Protocol) servers to extend AI tools with additional capabilities.
 
+## Quick Reference
+
+- `mc session create` - Create a new session
+- `mcx` - Shortcut for `mc session create` (mount directories or clone repos)
+- `mcx .` - Mount the current directory
+- `mcx /path/to/dir` - Mount a specific directory
+- `mcx https://github.com/user/repo` - Clone a repository
+
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/)
@@ -27,9 +35,11 @@ mc --help
 ## Basic Usage
 
 ```bash
-# Create a new session with the default driver
-# mc create session -- is the full command
+# Show help message (displays available commands)
 mc
+
+# Create a new session with the default driver
+mc session create
 
 # List all active sessions
 mc session list
@@ -50,17 +60,27 @@ mc session create -e VAR1=value1 -e VAR2=value2
 mc session create -v /local/path:/container/path
 mc session create -v ~/data:/data -v ./configs:/etc/app/config
 
+# Mount a local directory (current directory or specific path)
+mc session create .
+mc session create /path/to/project
+
 # Connect to external Docker networks
 mc session create --network teamnet --network dbnet
 
 # Connect to MCP servers for extended capabilities
 mc session create --mcp github --mcp jira
 
-# Shorthand for creating a session with a project repository
-mc github.com/username/repo
+# Clone a Git repository
+mc session create https://github.com/username/repo
+
+# Using the mcx shortcut (equivalent to mc session create)
+mcx                        # Creates a session without mounting anything
+mcx .                      # Mounts the current directory
+mcx /path/to/project       # Mounts the specified directory
+mcx https://github.com/username/repo  # Clones the repository
 
 # Shorthand with MCP servers
-mc github.com/username/repo --mcp github
+mcx https://github.com/username/repo --mcp github
 ```
 
 ## Driver Management
