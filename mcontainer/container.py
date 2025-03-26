@@ -113,6 +113,7 @@ class ContainerManager:
                     container_id=container_id,
                     created_at=container.attrs["Created"],
                     project=labels.get("mc.project"),
+                    model=labels.get("mc.model"),
                 )
 
                 # Get port mappings

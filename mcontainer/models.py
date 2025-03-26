@@ -105,7 +105,7 @@ class Session(BaseModel):
     created_at: str
     ports: Dict[int, int] = Field(default_factory=dict)
     mcps: List[str] = Field(default_factory=list)  # List of MCP server names
-    model: str # Model used in this session
+    model: Optional[str] = None # Model used in this session
 
 
 class Config(BaseModel):
