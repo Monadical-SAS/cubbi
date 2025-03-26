@@ -1,5 +1,7 @@
 import os
 import sys
+import tarfile
+import tempfile
 import uuid
 import docker
 import hashlib
@@ -8,6 +10,8 @@ import concurrent.futures
 import logging
 from typing import Dict, List, Optional, Tuple
 from docker.errors import DockerException, ImageNotFound
+
+from mcontainer.utils.goose import get_goose_config
 
 from .models import Session, SessionStatus
 from .config import ConfigManager
@@ -421,10 +425,14 @@ class ContainerManager:
             )
             # Start container
             container.start()
-            config_content = f'GOOSE_MODEL: {model}\nGOOSE_PROVIDER: {provider}\n'
+            config_content = get_goose_config(model=model, provider=provider)
             container.exec_run('mkdir -p /root/.config/goose', user='root')
-            container.exec_run('sh -c "echo \'{}\' > /root/.config/goose/config.yaml"'.format(config_content.replace('\n', '\\n')), user='root')
-            
+            container.exec_run([
+                "/bin/sh", 
+                "-c", 
+                f"cat > /root/.config/goose/config.yaml << 'EOL'\n{config_content}EOL"
+            ], user='root')
+
             # Connect to additional networks (after the first one in network_list)
             if len(network_list) > 1:
                 for network_name in network_list[1:]:
