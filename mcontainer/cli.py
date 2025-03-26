@@ -147,6 +147,7 @@ def create_session(
         "-m",
         help="Attach MCP servers to the session (can be specified multiple times)",
     ),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
 ) -> None:
     """Create a new MC session"""
     # Use default driver from user configuration
@@ -157,7 +158,7 @@ def create_session(
 
     # Start with environment variables from user configuration
     environment = user_config.get_environment_variables()
-
+    
     # Override with environment variables from command line
     for var in env:
         if "=" in var:
@@ -232,6 +233,7 @@ def create_session(
             volumes=volume_mounts,
             networks=all_networks,
             mcp=all_mcps,
+            model=model
         )
 
     if session:
@@ -254,6 +256,9 @@ def create_session(
             )
     else:
         console.print("[red]Failed to create session[/red]")
+        
+        
+    
 
 
 @session_app.command("close")

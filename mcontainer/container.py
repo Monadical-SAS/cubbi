@@ -145,6 +145,7 @@ class ContainerManager:
         volumes: Optional[Dict[str, Dict[str, str]]] = None,
         networks: Optional[List[str]] = None,
         mcp: Optional[List[str]] = None,
+        model: Optional[str] = None,
     ) -> Optional[Session]:
         """Create a new MC session
 
@@ -408,6 +409,7 @@ class ContainerManager:
                     "mc.session.id": session_id,
                     "mc.session.name": session_name,
                     "mc.driver": driver_name,
+                    "mc.model": model,
                     "mc.project": project or "",
                     "mc.mcps": ",".join(mcp_names) if mcp_names else "",
                 },
@@ -509,6 +511,7 @@ class ContainerManager:
                 created_at=container.attrs["Created"],
                 ports=ports,
                 mcps=mcp_names,
+                model=model,
             )
 
             # Save session to the session manager as JSON-compatible dict
