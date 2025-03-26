@@ -3,6 +3,7 @@ CLI for Monadical Container Tool.
 """
 
 import os
+import logging
 from typing import List, Optional
 import typer
 from rich.console import Console
@@ -14,6 +15,13 @@ from .models import SessionStatus
 from .user_config import UserConfigManager
 from .session import SessionManager
 from .mcp import MCPManager
+
+# Configure logging - will only show logs if --verbose flag is used
+logging.basicConfig(
+    level=logging.WARNING,  # Default to WARNING level
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
 
 app = typer.Typer(help="Monadical Container Tool")
 session_app = typer.Typer(help="Manage MC sessions")
@@ -34,11 +42,17 @@ mcp_manager = MCPManager(config_manager=user_config)
 
 
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context, 
-         model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
-         provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Provider to use"),
-         ) -> None:
+def main(
+        ctx: typer.Context,
+        verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+        model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
+        provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Provider to use"),
+    ) -> None:
     """Monadical Container Tool"""
+    # Set log level based on verbose flag
+    if verbose:
+        logging.getLogger().setLevel(logging.INFO)
+    
     # If no command is specified, create a session
     if ctx.invoked_subcommand is None:
         create_session(
@@ -1030,8 +1044,13 @@ def mcp_status(name: str = typer.Argument(..., help="MCP server name")) -> None:
 def start_mcp(
     name: Optional[str] = typer.Argument(None, help="MCP server name"),
     all_servers: bool = typer.Option(False, "--all", help="Start all MCP servers"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
 ) -> None:
     """Start an MCP server or all servers"""
+    # Set log level based on verbose flag
+    if verbose:
+        logging.getLogger().setLevel(logging.INFO)
+        
     # Check if we need to start all servers
     if all_servers:
         # Get all configured MCP servers
@@ -1294,6 +1313,22 @@ def mcp_logs(
 def remove_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
     """Remove an MCP server configuration"""
     try:
+        # Check if any active sessions might be using this MCP
+        active_sessions = container_manager.list_sessions()
+        affected_sessions = []
+        
+        for session in active_sessions:
+            if session.mcps and name in session.mcps:
+                affected_sessions.append(session)
+                
+        # Just warn users about affected sessions
+        if affected_sessions:
+            console.print(f"[yellow]Warning: Found {len(affected_sessions)} active sessions using MCP '{name}'[/yellow]")
+            console.print("[yellow]You may need to restart these sessions for changes to take effect:[/yellow]")
+            for session in affected_sessions:
+                console.print(f"  - Session: {session.id} ({session.name})")
+        
+        # Remove the MCP from configuration
         with console.status(f"Removing MCP server '{name}'..."):
             result = mcp_manager.remove_mcp(name)
 
