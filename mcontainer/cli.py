@@ -35,7 +35,8 @@ mcp_manager = MCPManager(config_manager=user_config)
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, 
-         model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use")
+         model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
+         provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Provider to use"),
          ) -> None:
     """Monadical Container Tool"""
     # If no command is specified, create a session
@@ -49,7 +50,8 @@ def main(ctx: typer.Context,
             name=None,
             no_connect=False,
             no_mount=False,
-            model=model
+            model=model,
+            provider=provider
         )
 
 
@@ -151,8 +153,8 @@ def create_session(
         help="Attach MCP servers to the session (can be specified multiple times)",
     ),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
+    provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Provider to use"),
 ) -> None:
-    print(model, "MODEL HERE")
     """Create a new MC session"""
     # Use default driver from user configuration
     if not driver:
@@ -238,7 +240,8 @@ def create_session(
             volumes=volume_mounts,
             networks=all_networks,
             mcp=all_mcps,
-            model=model
+            model=model,
+            provider=provider
         )
 
     if session:

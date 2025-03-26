@@ -114,6 +114,7 @@ class ContainerManager:
                     created_at=container.attrs["Created"],
                     project=labels.get("mc.project"),
                     model=labels.get("mc.model"),
+                    provider=labels.get("mc.provider"),
                 )
 
                 # Get port mappings
@@ -147,6 +148,7 @@ class ContainerManager:
         networks: Optional[List[str]] = None,
         mcp: Optional[List[str]] = None,
         model: Optional[str] = None,
+        provider: Optional[str] = None,
     ) -> Optional[Session]:
         """Create a new MC session
 
@@ -394,7 +396,6 @@ class ContainerManager:
                     if network not in network_list:
                         network_list.append(network)
                         print(f"Adding network {network} to session")
-
             # Create container
             container = self.client.containers.create(
                 image=driver.image,
@@ -411,6 +412,7 @@ class ContainerManager:
                     "mc.session.name": session_name,
                     "mc.driver": driver_name,
                     "mc.model": model,
+                    "mc.provider": provider,
                     "mc.project": project or "",
                     "mc.mcps": ",".join(mcp_names) if mcp_names else "",
                 },
@@ -419,7 +421,7 @@ class ContainerManager:
             )
             # Start container
             container.start()
-            config_content = f'GOOSE_MODEL: {model}\nGOOSE_PROVIDER: {model}\n'
+            config_content = f'GOOSE_MODEL: {model}\nGOOSE_PROVIDER: {provider}\n'
             container.exec_run('mkdir -p /root/.config/goose', user='root')
             container.exec_run('sh -c "echo \'{}\' > /root/.config/goose/config.yaml"'.format(config_content.replace('\n', '\\n')), user='root')
             container.exec_run('cat /root/.config/goose/config.yaml')
@@ -517,6 +519,7 @@ class ContainerManager:
                 ports=ports,
                 mcps=mcp_names,
                 model=model,
+                provider=provider
             )
 
             # Save session to the session manager as JSON-compatible dict
