@@ -43,13 +43,13 @@ class MCPManager:
             if not networks:
                 self.client.networks.create(network_name, driver="bridge")
         return network_name
-        
+
     def _get_mcp_dedicated_network(self, mcp_name: str) -> str:
         """Get or create a dedicated network for direct session-to-MCP connections.
-        
+
         Args:
             mcp_name: The name of the MCP server
-            
+
         Returns:
             The name of the dedicated network
         """
@@ -74,16 +74,20 @@ class MCPManager:
         return None
 
     def add_remote_mcp(
-        self, name: str, url: str, headers: Dict[str, str] = None, add_as_default: bool = True
+        self,
+        name: str,
+        url: str,
+        headers: Dict[str, str] = None,
+        add_as_default: bool = True,
     ) -> Dict[str, Any]:
         """Add a remote MCP server.
-        
+
         Args:
             name: Name of the MCP server
             url: URL of the remote MCP server
             headers: HTTP headers to use when connecting
             add_as_default: Whether to add this MCP to the default MCPs list
-            
+
         Returns:
             The MCP configuration dictionary
         """
@@ -106,7 +110,7 @@ class MCPManager:
 
         # Save the configuration
         self.config_manager.set("mcps", mcps)
-        
+
         # Add to default MCPs if requested
         if add_as_default:
             default_mcps = self.config_manager.get("defaults.mcps", [])
@@ -117,17 +121,22 @@ class MCPManager:
         return mcp_config
 
     def add_docker_mcp(
-        self, name: str, image: str, command: str, env: Dict[str, str] = None, add_as_default: bool = True
+        self,
+        name: str,
+        image: str,
+        command: str,
+        env: Dict[str, str] = None,
+        add_as_default: bool = True,
     ) -> Dict[str, Any]:
         """Add a Docker-based MCP server.
-        
+
         Args:
             name: Name of the MCP server
             image: Docker image for the MCP server
             command: Command to run in the container
             env: Environment variables to set in the container
             add_as_default: Whether to add this MCP to the default MCPs list
-            
+
         Returns:
             The MCP configuration dictionary
         """
@@ -151,7 +160,7 @@ class MCPManager:
 
         # Save the configuration
         self.config_manager.set("mcps", mcps)
-        
+
         # Add to default MCPs if requested
         if add_as_default:
             default_mcps = self.config_manager.get("defaults.mcps", [])
@@ -173,7 +182,7 @@ class MCPManager:
         add_as_default: bool = True,
     ) -> Dict[str, Any]:
         """Add a proxy-based MCP server.
-        
+
         Args:
             name: Name of the MCP server
             base_image: Base Docker image running the actual MCP server
@@ -183,7 +192,7 @@ class MCPManager:
             env: Environment variables to set in the container
             host_port: Host port to bind the MCP server to (auto-assigned if not specified)
             add_as_default: Whether to add this MCP to the default MCPs list
-            
+
         Returns:
             The MCP configuration dictionary
         """
@@ -228,7 +237,7 @@ class MCPManager:
 
         # Save the configuration
         self.config_manager.set("mcps", mcps)
-        
+
         # Add to default MCPs if requested
         if add_as_default:
             default_mcps = self.config_manager.get("defaults.mcps", [])
@@ -240,10 +249,10 @@ class MCPManager:
 
     def remove_mcp(self, name: str) -> bool:
         """Remove an MCP server configuration.
-        
+
         Args:
             name: Name of the MCP server to remove
-            
+
         Returns:
             True if the MCP was successfully removed, False otherwise
         """
@@ -258,7 +267,7 @@ class MCPManager:
 
         # Save the updated configuration
         self.config_manager.set("mcps", updated_mcps)
-        
+
         # Also remove from default MCPs if it's there
         default_mcps = self.config_manager.get("defaults.mcps", [])
         if name in default_mcps:
@@ -370,20 +379,22 @@ class MCPManager:
                 },
             )
 
-            # Connect to the inspector network 
+            # Connect to the inspector network
             network = self.client.networks.get(network_name)
             network.connect(container, aliases=[name])
             logger.info(
                 f"Connected MCP server '{name}' to inspector network {network_name} with alias '{name}'"
             )
-            
+
             # Create and connect to a dedicated network for session connections
             dedicated_network_name = self._get_mcp_dedicated_network(name)
             try:
                 dedicated_network = self.client.networks.get(dedicated_network_name)
             except DockerException:
-                dedicated_network = self.client.networks.create(dedicated_network_name, driver="bridge")
-            
+                dedicated_network = self.client.networks.create(
+                    dedicated_network_name, driver="bridge"
+                )
+
             dedicated_network.connect(container, aliases=[name])
             logger.info(
                 f"Connected MCP server '{name}' to dedicated network {dedicated_network_name} with alias '{name}'"
@@ -400,6 +411,7 @@ class MCPManager:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 # Create entrypoint script for mcp-proxy that runs the base MCP image
                 entrypoint_script = """#!/bin/sh
+set -x
 echo "Starting MCP proxy with base image $MCP_BASE_IMAGE (command: $MCP_COMMAND) on port $SSE_PORT"
 
 # Verify if Docker socket is available
@@ -453,18 +465,43 @@ echo "Running MCP server from image $MCP_BASE_IMAGE with command: $CMD"
 
 # Run the actual MCP server in the base image and pipe its I/O to mcp-proxy
 # Using docker run without -d to keep stdio connected
+
+# Build env vars string to pass through to the inner container
+ENV_ARGS=""
+
+# Check if the environment variable names file exists
+if [ -f "/mcp-envs.txt" ]; then
+  # Read env var names from file and pass them to docker
+  while read -r var_name; do
+    # Skip empty lines
+    if [ -n "$var_name" ]; then
+      # Simply add the env var - Docker will only pass it if it exists
+      ENV_ARGS="$ENV_ARGS -e $var_name"
+    fi
+  done < "/mcp-envs.txt"
+
+  echo "Passing environment variables from mcp-envs.txt: $ENV_ARGS"
+fi
+
 exec mcp-proxy \
   --sse-port "$SSE_PORT" \
   --sse-host "$SSE_HOST" \
   --allow-origin "$ALLOW_ORIGIN" \
   --pass-environment \
   -- \
-  docker run --rm -i "$MCP_BASE_IMAGE" $CMD
+  docker run --rm -i $ENV_ARGS "$MCP_BASE_IMAGE" $CMD
 """
                 # Write the entrypoint script
                 entrypoint_path = os.path.join(tmp_dir, "entrypoint.sh")
                 with open(entrypoint_path, "w") as f:
                     f.write(entrypoint_script)
+
+                # Create a file with environment variable names (no values)
+                env_names_path = os.path.join(tmp_dir, "mcp-envs.txt")
+                with open(env_names_path, "w") as f:
+                    # Write one env var name per line
+                    for env_name in mcp_config.get("env", {}).keys():
+                        f.write(f"{env_name}\n")
 
                 # Create a Dockerfile for the proxy
                 dockerfile_content = f"""
@@ -489,7 +526,8 @@ ENV DEBUG=1
 # Add environment variables from the configuration
 {chr(10).join([f'ENV {k}="{v}"' for k, v in mcp_config.get("env", {}).items()])}
 
-# Add entrypoint script
+# Add env names file and entrypoint script
+COPY mcp-envs.txt /mcp-envs.txt
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
@@ -545,20 +583,22 @@ ENTRYPOINT ["/entrypoint.sh"]
                     ports=port_bindings,  # Bind the SSE port to the host if configured
                 )
 
-                # Connect to the inspector network 
+                # Connect to the inspector network
                 network = self.client.networks.get(network_name)
                 network.connect(container, aliases=[name])
                 logger.info(
                     f"Connected MCP server '{name}' to inspector network {network_name} with alias '{name}'"
                 )
-                
+
                 # Create and connect to a dedicated network for session connections
                 dedicated_network_name = self._get_mcp_dedicated_network(name)
                 try:
                     dedicated_network = self.client.networks.get(dedicated_network_name)
                 except DockerException:
-                    dedicated_network = self.client.networks.create(dedicated_network_name, driver="bridge")
-                
+                    dedicated_network = self.client.networks.create(
+                        dedicated_network_name, driver="bridge"
+                    )
+
                 dedicated_network.connect(container, aliases=[name])
                 logger.info(
                     f"Connected MCP server '{name}' to dedicated network {dedicated_network_name} with alias '{name}'"
@@ -574,14 +614,25 @@ ENTRYPOINT ["/entrypoint.sh"]
             raise ValueError(f"Unsupported MCP type: {mcp_type}")
 
     def stop_mcp(self, name: str) -> bool:
-        """Stop an MCP server container."""
-        if not self.client:
-            raise Exception("Docker client is not available")
+        """Stop an MCP server container.
 
-        # Get the MCP configuration
+        Args:
+            name: The name of the MCP server to stop
+
+        Returns:
+            True if the operation was successful (including cases where the container doesn't exist)
+        """
+        if not self.client:
+            logger.warning("Docker client is not available")
+            return False
+
+        # Get the MCP configuration - don't raise an exception if not found
         mcp_config = self.get_mcp(name)
         if not mcp_config:
-            raise ValueError(f"MCP server '{name}' not found")
+            logger.warning(
+                f"MCP server '{name}' not found, but continuing with removal"
+            )
+            return True
 
         # Remote MCPs don't have containers to stop
         if mcp_config.get("type") == "remote":
@@ -605,12 +656,13 @@ ENTRYPOINT ["/entrypoint.sh"]
             return True
 
         except NotFound:
-            # Container doesn't exist
+            # Container doesn't exist - this is fine when removing
             logger.info(f"MCP container '{name}' not found, nothing to stop or remove")
-            return False
+            return True
         except Exception as e:
+            # Log the error but don't fail the removal operation
             logger.error(f"Error stopping/removing MCP container: {e}")
-            return False
+            return True  # Return true anyway to continue with removal
 
     def restart_mcp(self, name: str) -> Dict[str, Any]:
         """Restart an MCP server container."""

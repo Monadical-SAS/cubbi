@@ -141,7 +141,7 @@ class ContainerManager:
         project: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         session_name: Optional[str] = None,
-        mount_local: bool = True,
+        mount_local: bool = False,
         volumes: Optional[Dict[str, Dict[str, str]]] = None,
         networks: Optional[List[str]] = None,
         mcp: Optional[List[str]] = None,
@@ -150,10 +150,10 @@ class ContainerManager:
 
         Args:
             driver_name: The name of the driver to use
-            project: Optional project repository URL
+            project: Optional project repository URL or local directory path
             environment: Optional environment variables
             session_name: Optional session name
-            mount_local: Whether to mount the current directory to /app
+            mount_local: Whether to mount the specified local directory to /app (ignored if project is None)
             volumes: Optional additional volumes to mount (dict of {host_path: {"bind": container_path, "mode": mode}})
             networks: Optional list of additional Docker networks to connect to
             mcp: Optional list of MCP server names to attach to the session
@@ -203,16 +203,29 @@ class ContainerManager:
             # Set up volume mounts
             session_volumes = {}
 
-            # If project URL is provided, don't mount local directory (will clone into /app)
-            # If no project URL and mount_local is True, mount local directory to /app
-            if not project and mount_local:
-                # Mount current directory to /app in the container
-                current_dir = os.getcwd()
-                session_volumes[current_dir] = {"bind": "/app", "mode": "rw"}
-                print(f"Mounting local directory {current_dir} to /app")
-            elif project:
+            # Determine if project is a local directory or a Git repository
+            is_local_directory = False
+            is_git_repo = False
+
+            if project:
+                # Check if project is a local directory
+                if os.path.isdir(os.path.expanduser(project)):
+                    is_local_directory = True
+                else:
+                    # If not a local directory, assume it's a Git repo URL
+                    is_git_repo = True
+
+            # Handle mounting based on project type
+            if is_local_directory and mount_local:
+                # Mount the specified local directory to /app in the container
+                local_dir = os.path.abspath(os.path.expanduser(project))
+                session_volumes[local_dir] = {"bind": "/app", "mode": "rw"}
+                print(f"Mounting local directory {local_dir} to /app")
+                # Clear project for container environment since we're mounting
+                project = None
+            elif is_git_repo:
                 print(
-                    f"Project URL provided - container will clone {project} into /app during initialization"
+                    f"Git repository URL provided - container will clone {project} into /app during initialization"
                 )
 
             # Add user-specified volumes
@@ -220,13 +233,13 @@ class ContainerManager:
                 for host_path, mount_spec in volumes.items():
                     container_path = mount_spec["bind"]
                     # Check for conflicts with /app mount
-                    if container_path == "/app" and not project and mount_local:
+                    if container_path == "/app" and is_local_directory and mount_local:
                         print(
-                            "[yellow]Warning: Volume mount to /app conflicts with automatic local directory mount. User-specified mount takes precedence.[/yellow]"
+                            "[yellow]Warning: Volume mount to /app conflicts with local directory mount. User-specified mount takes precedence.[/yellow]"
                         )
-                        # Remove the automatic mount if there's a conflict
-                        if current_dir in session_volumes:
-                            del session_volumes[current_dir]
+                        # Remove the local directory mount if there's a conflict
+                        if local_dir in session_volumes:
+                            del session_volumes[local_dir]
 
                     # Add the volume
                     session_volumes[host_path] = mount_spec
@@ -309,9 +322,11 @@ class ContainerManager:
                     try:
                         print(f"Ensuring MCP server '{mcp_name}' is running...")
                         self.mcp_manager.start_mcp(mcp_name)
-                        
+
                         # Store container name for later network connection
-                        container_name = self.mcp_manager.get_mcp_container_name(mcp_name)
+                        container_name = self.mcp_manager.get_mcp_container_name(
+                            mcp_name
+                        )
                         mcp_container_names.append(container_name)
 
                         # Get MCP status to extract endpoint information
@@ -438,25 +453,29 @@ class ContainerManager:
                         )
                     except DockerException as e:
                         print(f"Error connecting to network {network_name}: {e}")
-            
+
             # Reload the container to get updated network information
             container.reload()
-            
+
             # Connect directly to each MCP's dedicated network
             for mcp_name in mcp_names:
                 try:
                     # Get the dedicated network for this MCP
                     dedicated_network_name = f"mc-mcp-{mcp_name}-network"
-                    
+
                     try:
                         network = self.client.networks.get(dedicated_network_name)
-                        
+
                         # Connect the session container to the MCP's dedicated network
                         network.connect(container, aliases=[session_name])
-                        print(f"Connected session to MCP '{mcp_name}' via dedicated network: {dedicated_network_name}")
+                        print(
+                            f"Connected session to MCP '{mcp_name}' via dedicated network: {dedicated_network_name}"
+                        )
                     except DockerException as e:
-                        print(f"Error connecting to MCP dedicated network '{dedicated_network_name}': {e}")
-                        
+                        print(
+                            f"Error connecting to MCP dedicated network '{dedicated_network_name}': {e}"
+                        )
+
                 except Exception as e:
                     print(f"Error connecting session to MCP '{mcp_name}': {e}")
 
@@ -464,7 +483,13 @@ class ContainerManager:
             if networks:
                 for network_name in networks:
                     # Check if already connected to this network
-                    if network_name not in [net.name for net in container.attrs.get("NetworkSettings", {}).get("Networks", {}).values()]:
+                    # NetworkSettings.Networks contains a dict where keys are network names
+                    existing_networks = (
+                        container.attrs.get("NetworkSettings", {})
+                        .get("Networks", {})
+                        .keys()
+                    )
+                    if network_name not in existing_networks:
                         try:
                             # Get or create the network
                             try:

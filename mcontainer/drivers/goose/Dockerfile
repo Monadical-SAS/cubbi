@@ -42,7 +42,8 @@ COPY update-goose-config.sh /usr/local/bin/update-goose-config.sh
 # Extend env via bashrc
 
 # Make scripts executable
-RUN chmod +x /mc-init.sh /entrypoint.sh /init-status.sh /usr/local/bin/update-goose-config.sh
+RUN chmod +x /mc-init.sh /entrypoint.sh /init-status.sh \
+    /usr/local/bin/update-goose-config.sh
 
 # Set up initialization status check on login
 RUN echo 'export PATH=/root/.local/bin:$PATH' >> /etc/bash.bashrc

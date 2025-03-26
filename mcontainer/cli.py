@@ -3,6 +3,7 @@ CLI for Monadical Container Tool.
 """
 
 import os
+import logging
 from typing import List, Optional
 import typer
 from rich.console import Console
@@ -15,11 +16,18 @@ from .user_config import UserConfigManager
 from .session import SessionManager
 from .mcp import MCPManager
 
-app = typer.Typer(help="Monadical Container Tool")
-session_app = typer.Typer(help="Manage MC sessions")
+# Configure logging - will only show logs if --verbose flag is used
+logging.basicConfig(
+    level=logging.WARNING,  # Default to WARNING level
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+
+app = typer.Typer(help="Monadical Container Tool", no_args_is_help=True)
+session_app = typer.Typer(help="Manage MC sessions", no_args_is_help=True)
 driver_app = typer.Typer(help="Manage MC drivers", no_args_is_help=True)
-config_app = typer.Typer(help="Manage MC configuration")
-mcp_app = typer.Typer(help="Manage MCP servers")
+config_app = typer.Typer(help="Manage MC configuration", no_args_is_help=True)
+mcp_app = typer.Typer(help="Manage MCP servers", no_args_is_help=True)
 app.add_typer(session_app, name="session", no_args_is_help=True)
 app.add_typer(driver_app, name="driver", no_args_is_help=True)
 app.add_typer(config_app, name="config", no_args_is_help=True)
@@ -33,21 +41,21 @@ container_manager = ContainerManager(config_manager, session_manager, user_confi
 mcp_manager = MCPManager(config_manager=user_config)
 
 
-@app.callback(invoke_without_command=True)
-def main(ctx: typer.Context) -> None:
-    """Monadical Container Tool"""
-    # If no command is specified, create a session
-    if ctx.invoked_subcommand is None:
-        create_session(
-            driver=None,
-            project=None,
-            env=[],
-            volume=[],
-            network=[],
-            name=None,
-            no_connect=False,
-            no_mount=False,
-        )
+@app.callback()
+def main(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose logging"
+    ),
+) -> None:
+    """Monadical Container Tool
+
+    Run 'mc session create' to create a new session.
+    Use 'mcx' as a shortcut for 'mc session create'.
+    """
+    # Set log level based on verbose flag
+    if verbose:
+        logging.getLogger().setLevel(logging.INFO)
 
 
 @app.command()
@@ -120,8 +128,10 @@ def list_sessions() -> None:
 @session_app.command("create")
 def create_session(
     driver: Optional[str] = typer.Option(None, "--driver", "-d", help="Driver to use"),
-    project: Optional[str] = typer.Option(
-        None, "--project", "-p", help="Project repository URL"
+    project: Optional[str] = typer.Argument(
+        None,
+        help="Local directory path to mount or repository URL to clone",
+        show_default=False,
     ),
     env: List[str] = typer.Option(
         [], "--env", "-e", help="Environment variables (KEY=VALUE)"
@@ -136,11 +146,6 @@ def create_session(
     no_connect: bool = typer.Option(
         False, "--no-connect", help="Don't automatically connect to the session"
     ),
-    no_mount: bool = typer.Option(
-        False,
-        "--no-mount",
-        help="Don't mount local directory to /app (ignored if --project is used)",
-    ),
     mcp: List[str] = typer.Option(
         [],
         "--mcp",
@@ -148,7 +153,12 @@ def create_session(
         help="Attach MCP servers to the session (can be specified multiple times)",
     ),
 ) -> None:
-    """Create a new MC session"""
+    """Create a new MC session
+
+    If a local directory path is provided, it will be mounted at /app in the container.
+    If a repository URL is provided, it will be cloned into /app during initialization.
+    If no path or URL is provided, no local volume will be mounted.
+    """
     # Use default driver from user configuration
     if not driver:
         driver = user_config.get(
@@ -209,7 +219,7 @@ def create_session(
     if not all_mcps:
         default_mcps = user_config.get("defaults.mcps", [])
         all_mcps = default_mcps
-        
+
         if default_mcps:
             console.print(f"Using default MCP servers: {', '.join(default_mcps)}")
 
@@ -223,12 +233,18 @@ def create_session(
             console.print(f"  {host_path} -> {mount_info['bind']}")
 
     with console.status(f"Creating session with driver '{driver}'..."):
+        # If project is a local directory, we should mount it
+        # If it's a Git URL or doesn't exist, handle accordingly
+        mount_local = False
+        if project and os.path.isdir(os.path.expanduser(project)):
+            mount_local = True
+
         session = container_manager.create_session(
             driver_name=driver,
             project=project,
             environment=environment,
             session_name=name,
-            mount_local=not no_mount and user_config.get("defaults.mount_local", True),
+            mount_local=mount_local,
             volumes=volume_mounts,
             networks=all_networks,
             mcp=all_mcps,
@@ -362,61 +378,6 @@ def stop() -> None:
     os.system("kill 1")  # Send SIGTERM to PID 1 (container's init process)
 
 
-# Main CLI entry point that handles project repository URLs
-@app.command(name="")
-def quick_create(
-    project: Optional[str] = typer.Argument(..., help="Project repository URL"),
-    driver: Optional[str] = typer.Option(None, "--driver", "-d", help="Driver to use"),
-    env: List[str] = typer.Option(
-        [], "--env", "-e", help="Environment variables (KEY=VALUE)"
-    ),
-    volume: List[str] = typer.Option(
-        [], "--volume", "-v", help="Mount volumes (LOCAL_PATH:CONTAINER_PATH)"
-    ),
-    network: List[str] = typer.Option(
-        [], "--network", "-N", help="Connect to additional Docker networks"
-    ),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Session name"),
-    no_connect: bool = typer.Option(
-        False, "--no-connect", help="Don't automatically connect to the session"
-    ),
-    no_mount: bool = typer.Option(
-        False,
-        "--no-mount",
-        help="Don't mount local directory to /app (ignored if a project is specified)",
-    ),
-    mcp: List[str] = typer.Option(
-        [],
-        "--mcp",
-        "-m",
-        help="Attach MCP servers to the session (can be specified multiple times)",
-    ),
-) -> None:
-    """Create a new MC session with a project repository"""
-    # Use user config for defaults if not specified
-    if not driver:
-        driver = user_config.get("defaults.driver")
-    
-    # Get default MCPs if none specified
-    all_mcps = mcp if isinstance(mcp, list) else []
-    if not all_mcps:
-        default_mcps = user_config.get("defaults.mcps", [])
-        if default_mcps:
-            all_mcps = default_mcps
-
-    create_session(
-        driver=driver,
-        project=project,
-        env=env,
-        volume=volume,
-        network=network,
-        name=name,
-        no_connect=no_connect,
-        no_mount=no_mount,
-        mcp=all_mcps,
-    )
-
-
 @driver_app.command("list")
 def list_drivers() -> None:
     """List available MC drivers"""
@@ -537,6 +498,7 @@ config_app.add_typer(volume_app, name="volume", no_args_is_help=True)
 config_mcp_app = typer.Typer(help="Manage default MCP servers")
 config_app.add_typer(config_mcp_app, name="mcp", no_args_is_help=True)
 
+
 # MCP configuration commands
 @config_mcp_app.command("list")
 def list_default_mcps() -> None:
@@ -554,6 +516,7 @@ def list_default_mcps() -> None:
         table.add_row(mcp)
 
     console.print(table)
+
 
 @config_mcp_app.command("add")
 def add_default_mcp(
@@ -575,6 +538,7 @@ def add_default_mcp(
     default_mcps.append(name)
     user_config.set("defaults.mcps", default_mcps)
     console.print(f"[green]Added MCP server '{name}' to defaults[/green]")
+
 
 @config_mcp_app.command("remove")
 def remove_default_mcp(
@@ -1017,8 +981,15 @@ def mcp_status(name: str = typer.Argument(..., help="MCP server name")) -> None:
 def start_mcp(
     name: Optional[str] = typer.Argument(None, help="MCP server name"),
     all_servers: bool = typer.Option(False, "--all", help="Start all MCP servers"),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose logging"
+    ),
 ) -> None:
     """Start an MCP server or all servers"""
+    # Set log level based on verbose flag
+    if verbose:
+        logging.getLogger().setLevel(logging.INFO)
+
     # Check if we need to start all servers
     if all_servers:
         # Get all configured MCP servers
@@ -1281,6 +1252,26 @@ def mcp_logs(
 def remove_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
     """Remove an MCP server configuration"""
     try:
+        # Check if any active sessions might be using this MCP
+        active_sessions = container_manager.list_sessions()
+        affected_sessions = []
+
+        for session in active_sessions:
+            if session.mcps and name in session.mcps:
+                affected_sessions.append(session)
+
+        # Just warn users about affected sessions
+        if affected_sessions:
+            console.print(
+                f"[yellow]Warning: Found {len(affected_sessions)} active sessions using MCP '{name}'[/yellow]"
+            )
+            console.print(
+                "[yellow]You may need to restart these sessions for changes to take effect:[/yellow]"
+            )
+            for session in affected_sessions:
+                console.print(f"  - Session: {session.id} ({session.name})")
+
+        # Remove the MCP from configuration
         with console.status(f"Removing MCP server '{name}'..."):
             result = mcp_manager.remove_mcp(name)
 
@@ -1365,7 +1356,7 @@ def add_mcp(
             console.print(
                 f"Container port {sse_port} will be bound to host port {assigned_port}"
             )
-            
+
         if not no_default:
             console.print(f"MCP server '{name}' added to defaults")
         else:
@@ -1400,10 +1391,12 @@ def add_remote_mcp(
 
     try:
         with console.status(f"Adding remote MCP server '{name}'..."):
-            mcp_manager.add_remote_mcp(name, url, headers, add_as_default=not no_default)
+            mcp_manager.add_remote_mcp(
+                name, url, headers, add_as_default=not no_default
+            )
 
         console.print(f"[green]Added remote MCP server '{name}'[/green]")
-        
+
         if not no_default:
             console.print(f"MCP server '{name}' added to defaults")
         else:
@@ -1859,6 +1852,28 @@ exec npm start
                 container.stop()
                 container.remove(force=True)
             console.print("[green]MCP Inspector stopped[/green]")
+
+
+def session_create_entry_point():
+    """Entry point that directly invokes 'mc session create'.
+
+    This provides a convenient shortcut:
+    - 'mcx' runs as if you typed 'mc session create'
+    - 'mcx .' mounts the current directory
+    - 'mcx /path/to/project' mounts the specified directory
+    - 'mcx repo-url' clones the repository
+
+    All command-line options are passed through to 'session create'.
+    """
+    import sys
+
+    # Save the program name (e.g., 'mcx')
+    prog_name = sys.argv[0]
+    # Insert 'session' and 'create' commands before any other arguments
+    sys.argv.insert(1, "session")
+    sys.argv.insert(2, "create")
+    # Run the app with the modified arguments
+    app(prog_name=prog_name)
 
 
 if __name__ == "__main__":
