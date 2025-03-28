@@ -1,8 +1,7 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONUNBUFFERED=1
+LABEL maintainer="team@monadical.com"
+LABEL description="Aider"
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -18,15 +17,12 @@ RUN apt-get update && apt-get install -y \
 
 # Set up SSH server
 RUN mkdir /var/run/sshd
-RUN echo 'root:password' | chpasswd
+RUN echo 'root:root' | chpasswd
 RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
 # Setup working directory
 WORKDIR /app
-
-# Setup persistent directories
-RUN mkdir -p /app/.aider/chats
-RUN mkdir -p /root/.config/aider
 
 # Install uv package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
