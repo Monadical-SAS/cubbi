@@ -20,7 +20,11 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -29,7 +33,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import TuneIcon from '@mui/icons-material/Tune';
 
 interface Container {
-  name: string;
+  navigator: string;
   provider: string;
   model: string;
   provider_params: string;
@@ -41,7 +45,7 @@ interface ValidationError {
 }
 
 interface ContainerErrors {
-  name: ValidationError;
+  navigator: ValidationError;
   provider: ValidationError;
   model: ValidationError;
   provider_params: ValidationError;
@@ -229,18 +233,15 @@ const ContainerComponent: React.FC<ContainerProps> = ({
               Container Identification
             </SectionTitle>
             <Paper sx={{ p: 3, borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-              <TextField
-                fullWidth
-                label="Name"
-                variant="outlined"
-                placeholder="Enter a unique name for this container"
-                value={container.name}
-                onChange={(e) => onChange(index, 'name', e.target.value)}
-                error={errors.name.hasError}
-                helperText={errors.name.hasError ? errors.name.value : 'Unique identifier for this container'}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
+              <FormControl fullWidth>
+                <InputLabel id="navigator-label">Navigator</InputLabel>
+                <Select
+                  labelId="navigator-label"
+                  value={container.navigator}
+                  label="Navigator"
+                  onChange={(e) => onChange(index, 'navigator', e.target.value)}
+                  error={errors.navigator.hasError}
+                  sx={{
                     borderRadius: '8px',
                     transition: 'all 0.2s',
                     '&:hover': {
@@ -249,9 +250,15 @@ const ContainerComponent: React.FC<ContainerProps> = ({
                     '&.Mui-focused': {
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }
-                  }
-                }}
-              />
+                  }}
+                >
+                  <MenuItem value="goose">Goose</MenuItem>
+                  <MenuItem value="aider">Aider</MenuItem>
+                </Select>
+                <FormHelperText error={errors.navigator.hasError}>
+                  {errors.navigator.hasError ? errors.navigator.value : 'Select the AI navigator to use'}
+                </FormHelperText>
+              </FormControl>
             </Paper>
           </Grid>
           
@@ -261,18 +268,15 @@ const ContainerComponent: React.FC<ContainerProps> = ({
               Provider
             </SectionTitle>
             <Paper sx={{ p: 3, borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-              <TextField
-                fullWidth
-                label="Provider"
-                variant="outlined"
-                placeholder="e.g., openai, anthropic, azure"
-                value={container.provider}
-                onChange={(e) => onChange(index, 'provider', e.target.value)}
-                error={errors.provider.hasError}
-                helperText={errors.provider.hasError ? errors.provider.value : 'The provider of the LLM service'}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
+              <FormControl fullWidth>
+                <InputLabel id="provider-label">Provider</InputLabel>
+                <Select
+                  labelId="provider-label"
+                  value={container.provider}
+                  label="Provider"
+                  onChange={(e) => onChange(index, 'provider', e.target.value)}
+                  error={errors.provider.hasError}
+                  sx={{
                     borderRadius: '8px',
                     transition: 'all 0.2s',
                     '&:hover': {
@@ -281,9 +285,20 @@ const ContainerComponent: React.FC<ContainerProps> = ({
                     '&.Mui-focused': {
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }
-                  }
-                }}
-              />
+                  }}
+                >
+                  <MenuItem value="openai">OpenAI</MenuItem>
+                  <MenuItem value="litell">Litell</MenuItem>
+                  <MenuItem value="anthropic">Anthropic</MenuItem>
+                  <MenuItem value="azure">Azure</MenuItem>
+                  <MenuItem value="google">Google</MenuItem>
+                  <MenuItem value="aws">AWS</MenuItem>
+                  <MenuItem value="openrouter">OpenRouter</MenuItem>
+                </Select>
+                <FormHelperText error={errors.provider.hasError}>
+                  {errors.provider.hasError ? errors.provider.value : 'The provider of the LLM service'}
+                </FormHelperText>
+              </FormControl>
             </Paper>
           </Grid>
           
@@ -293,18 +308,15 @@ const ContainerComponent: React.FC<ContainerProps> = ({
               Model
             </SectionTitle>
             <Paper sx={{ p: 3, borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-              <TextField
-                fullWidth
-                label="Model"
-                variant="outlined"
-                placeholder="e.g., gpt-4, claude-3-opus"
-                value={container.model}
-                onChange={(e) => onChange(index, 'model', e.target.value)}
-                error={errors.model.hasError}
-                helperText={errors.model.hasError ? errors.model.value : 'The specific model to use'}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
+              <FormControl fullWidth>
+                <InputLabel id="model-label">Model</InputLabel>
+                <Select
+                  labelId="model-label"
+                  value={container.model}
+                  label="Model"
+                  onChange={(e) => onChange(index, 'model', e.target.value)}
+                  error={errors.model.hasError}
+                  sx={{
                     borderRadius: '8px',
                     transition: 'all 0.2s',
                     '&:hover': {
@@ -313,9 +325,23 @@ const ContainerComponent: React.FC<ContainerProps> = ({
                     '&.Mui-focused': {
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }
-                  }
-                }}
-              />
+                  }}
+                >
+                  <MenuItem value="gpt-4">GPT-4</MenuItem>
+                  <MenuItem value="gpt-4-turbo">GPT-4 Turbo</MenuItem>
+                  <MenuItem value="gpt-3.5-turbo">GPT-3.5 Turbo</MenuItem>
+                  <MenuItem value="claude-3-opus">Claude 3 Opus</MenuItem>
+                  <MenuItem value="claude-3-sonnet">Claude 3 Sonnet</MenuItem>
+                  <MenuItem value="claude-3-haiku">Claude 3 Haiku</MenuItem>
+                  <MenuItem value="claude-3.5-sonnet">Claude 3.5 Sonnet</MenuItem>
+                  <MenuItem value="anthropic/claude-3.5-sonnet">Anthropic/Claude-3.5-Sonnet</MenuItem>
+                  <MenuItem value="gemini-pro">Gemini Pro</MenuItem>
+                  <MenuItem value="gemini-ultra">Gemini Ultra</MenuItem>
+                </Select>
+                <FormHelperText error={errors.model.hasError}>
+                  {errors.model.hasError ? errors.model.value : 'The specific model to use'}
+                </FormHelperText>
+              </FormControl>
             </Paper>
           </Grid>
           

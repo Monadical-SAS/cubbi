@@ -67,11 +67,11 @@ const Home: React.FC = () => {
   const [activeStep, setActiveStep] = useState<number>(0);
 
   const [containers, setContainers] = useState<Container[]>([
-    { name: '', provider: '', model: '', provider_params: '' }
+    { navigator: '', provider: '', model: '', provider_params: '' }
   ]);
 
   const [exercises, setExercises] = useState<Exercise[]>([
-    { name: '', path: '', instruction: '', input_file: '' }
+    { path: '', instruction: '', input_file: '' }
   ]);
 
   const [outputDir, setOutputDir] = useState<string>('');
@@ -98,14 +98,13 @@ const Home: React.FC = () => {
 
   // State for validation errors
   const [containerErrors, setContainerErrors] = useState<ContainerErrors[]>([{
-    name: { hasError: false, value: '' },
+    navigator: { hasError: false, value: '' },
     provider: { hasError: false, value: '' },
     model: { hasError: false, value: '' },
     provider_params: { hasError: false, value: '' }
   }]);
 
   const [exerciseErrors, setExerciseErrors] = useState<ExerciseErrors[]>([{
-    name: { hasError: false, value: '' },
     path: { hasError: false, value: '' },
     instruction: { hasError: false, value: '' },
     input_file: { hasError: false, value: '' }
@@ -155,9 +154,9 @@ const Home: React.FC = () => {
   }, [fetchSavedConfigs]);
 
   const addContainer = (): void => {
-    setContainers([...containers, { name: '', provider: '', model: '', provider_params: '' }]);
+    setContainers([...containers, { navigator: '', provider: '', model: '', provider_params: '' }]);
     setContainerErrors([...containerErrors, {
-      name: { hasError: false, value: '' },
+      navigator: { hasError: false, value: '' },
       provider: { hasError: false, value: '' },
       model: { hasError: false, value: '' },
       provider_params: { hasError: false, value: '' }
@@ -167,9 +166,8 @@ const Home: React.FC = () => {
   };
 
   const addExercise = (): void => {
-    setExercises([...exercises, { name: '', path: '', instruction: '', input_file: '' }]);
+    setExercises([...exercises, { path: '', instruction: '', input_file: '' }]);
     setExerciseErrors([...exerciseErrors, {
-      name: { hasError: false, value: '' },
       path: { hasError: false, value: '' },
       instruction: { hasError: false, value: '' },
       input_file: { hasError: false, value: '' }
@@ -207,13 +205,10 @@ const Home: React.FC = () => {
     const error: ValidationError = { hasError: false, value: '' };
 
     switch (field) {
-      case 'name':
+      case 'navigator':
         if (!value.trim()) {
           error.hasError = true;
-          error.value = 'Container name is required';
-        } else if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-          error.hasError = true;
-          error.value = 'Name should only contain letters, numbers, hyphens and underscores';
+          error.value = 'Navigator is required';
         }
         break;
       case 'provider':
@@ -243,15 +238,6 @@ const Home: React.FC = () => {
     const error: ValidationError = { hasError: false, value: '' };
 
     switch (field) {
-      case 'name':
-        if (!value.trim()) {
-          error.hasError = true;
-          error.value = 'Exercise name is required';
-        } else if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-          error.hasError = true;
-          error.value = 'Name should only contain letters, numbers, hyphens and underscores';
-        }
-        break;
       case 'path':
         if (!value.trim()) {
           error.hasError = true;
@@ -320,12 +306,16 @@ const Home: React.FC = () => {
 
   const handleDirectorySelection = (index: number, e: ChangeEvent<HTMLInputElement>): void => {
     if (e.target.files && e.target.files.length > 0) {
-      // Use the path of the first file and get its directory
-      const filePath = e.target.files[0].webkitRelativePath;
-      const folderPath = filePath.split('/')[0];
-
+      // Use the path of the first file to determine the full directory path
+      const relativePath = e.target.files[0].webkitRelativePath;
+      
+      // Get the full path by removing the file name from the relative path
+      const pathParts = relativePath.split('/');
+      // Join all parts except the last one (file name) to get the full folder path
+      const fullFolderPath = pathParts.slice(0, -1).join('/');
+      
       // Update the path value and validate
-      handleExerciseChange(index, 'path', folderPath);
+      handleExerciseChange(index, 'path', fullFolderPath);
     }
   };
 
@@ -543,7 +533,7 @@ const Home: React.FC = () => {
         setContainers(data.containers);
         // Initialize validation errors for containers
         setContainerErrors(data.containers.map(() => ({
-          name: { hasError: false, value: '' },
+          navigator: { hasError: false, value: '' },
           provider: { hasError: false, value: '' },
           model: { hasError: false, value: '' },
           provider_params: { hasError: false, value: '' }
@@ -554,7 +544,6 @@ const Home: React.FC = () => {
         setExercises(data.exercises);
         // Initialize validation errors for exercises
         setExerciseErrors(data.exercises.map(() => ({
-          name: { hasError: false, value: '' },
           path: { hasError: false, value: '' },
           instruction: { hasError: false, value: '' },
           input_file: { hasError: false, value: '' }
@@ -580,6 +569,13 @@ const Home: React.FC = () => {
       console.error('Error loading configuration:', error);
       showSnackbar('Failed to load configuration: ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
     }
+  };
+  
+  // Function to run a configuration in a new page
+  const runConfig = (configPath: string): void => {
+    // Open the configuration in a new tab
+    window.open(`/run?config=${encodeURIComponent(configPath)}`, '_blank');
+    showSnackbar('Running configuration in new window', 'info');
   };
 
 
@@ -851,13 +847,24 @@ const Home: React.FC = () => {
                   <ListItem
                     key={config.filename}
                     secondaryAction={
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => loadSavedConfig(config.path)}
-                      >
-                        Load
-                      </Button>
+                      <Stack direction="row" spacing={1}>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          onClick={() => runConfig(config.path)}
+                          startIcon={<PlayArrowIcon />}
+                        >
+                          Run
+                        </Button>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => loadSavedConfig(config.path)}
+                        >
+                          Load
+                        </Button>
+                      </Stack>
                     }
                     sx={{
                       mb: 1,

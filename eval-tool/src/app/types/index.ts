@@ -1,14 +1,13 @@
 
 // types/index.ts
 export interface Container {
-    name: string;
+    navigator: string;
     provider: string;
     model: string;
     provider_params: string;
 }
 
 export interface Exercise {
-    name: string;
     path: string;
     instruction: string;
     input_file: string;
@@ -26,14 +25,13 @@ export interface ValidationError {
 }
 
 export interface ContainerErrors {
-    name: ValidationError;
+    navigator: ValidationError;
     provider: ValidationError;
     model: ValidationError;
     provider_params: ValidationError;
 }
 
 export interface ExerciseErrors {
-    name: ValidationError;
     path: ValidationError;
     instruction: ValidationError;
     input_file: ValidationError;

@@ -30,7 +30,6 @@ const MDEditor = dynamic(() => import('@uiw/react-md-editor'), { ssr: false });
 const MDPreview = dynamic(() => import('@uiw/react-md-editor').then((mod) => mod.default.Markdown), { ssr: false });
 
 interface Exercise {
-  name: string;
   path: string;
   instruction: string;
   input_file: string;
@@ -42,7 +41,6 @@ interface ValidationError {
 }
 
 interface ExerciseErrors {
-  name: ValidationError;
   path: ValidationError;
   instruction: ValidationError;
   input_file: ValidationError;
@@ -220,38 +218,6 @@ const ExerciseComponent: React.FC<ExerciseProps> = ({
         <Grid container spacing={4}>
           <Grid item xs={12}>
             <SectionTitle variant="subtitle1" gutterBottom>
-              <EditIcon fontSize="small" />
-              Exercise Name
-            </SectionTitle>
-            <Paper sx={{ p: 3, borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-              <TextField
-                fullWidth
-                label="Name"
-                variant="outlined"
-                placeholder="Enter a descriptive name for this exercise"
-                value={exercise.name}
-                onChange={(e) => onChange(index, 'name', e.target.value)}
-                error={errors.name.hasError}
-                helperText={errors.name.hasError ? errors.name.value : 'Give your exercise a unique, descriptive name'}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '8px',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-                    },
-                    '&.Mui-focused': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                    }
-                  }
-                }}
-              />
-            </Paper>
-          </Grid>
-          
-          <Grid item xs={12}>
-            <SectionTitle variant="subtitle1" gutterBottom>
               <FolderIcon fontSize="small" />
               Exercise Directory
             </SectionTitle>
@@ -280,9 +246,20 @@ const ExerciseComponent: React.FC<ExerciseProps> = ({
                     <SelectedItem sx={{ width: '100%', mt: 2 }}>
                       <FolderIcon color="primary" sx={{ mr: 1 }} />
                       <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{exercise.path}</Typography>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            fontWeight: 500,
+                            textOverflow: 'ellipsis',
+                            overflow: 'hidden',
+                            whiteSpace: 'nowrap'
+                          }}
+                          title={exercise.path}
+                        >
+                          {exercise.path}
+                        </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Selected directory
+                          Selected directory (full path)
                         </Typography>
                       </Box>
                     </SelectedItem>
@@ -298,12 +275,13 @@ const ExerciseComponent: React.FC<ExerciseProps> = ({
                 <Box>
                   <TextField
                     fullWidth
+                    label="Full Directory Path"
                     placeholder="/path/to/exercise/folder"
                     variant="outlined"
                     value={exercise.path}
                     onChange={(e) => onChange(index, 'path', e.target.value)}
                     error={errors.path.hasError}
-                    helperText={errors.path.hasError ? errors.path.value : 'Directory where exercise files are located'}
+                    helperText={errors.path.hasError ? errors.path.value : 'Enter the full directory path where exercise files are located'}
                     InputLabelProps={{ shrink: true }}
                     sx={{
                       '& .MuiOutlinedInput-root': {
@@ -337,7 +315,16 @@ const ExerciseComponent: React.FC<ExerciseProps> = ({
                   }
                 }}
               >
-                <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    fontWeight: 500,
+                    textOverflow: 'ellipsis', 
+                    overflow: 'hidden', 
+                    whiteSpace: 'nowrap' 
+                  }}
+                  title={exercise.path}
+                >
                   <strong>Directory selected:</strong> {exercise.path}
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>

@@ -24,10 +24,10 @@ export async function POST(request: NextRequest) {
       await fs.mkdir(uploadsDir, { recursive: true });
     }
 
-    // Create a unique filename based on timestamp and first container name
+    // Create a unique filename based on timestamp and first container navigator
     const timestamp = new Date().toISOString().replace(/[:.-]/g, '_');
-    const firstContainerName = data.containers[0]?.name || 'config';
-    const sanitizedName = firstContainerName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const firstContainerNavigator = data.containers[0]?.navigator || 'config';
+    const sanitizedName = firstContainerNavigator.replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${sanitizedName}_${timestamp}.json`;
     const filePath = path.join(uploadsDir, filename);
 

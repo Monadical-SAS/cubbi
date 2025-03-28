@@ -11,7 +11,7 @@ from rich.table import Table
 
 from .config import ConfigManager
 from .container import ContainerManager
-from .models import SessionStatus
+from .models import Session, SessionStatus
 from .user_config import UserConfigManager
 from .session import SessionManager
 from .mcp import MCPManager
@@ -19,8 +19,8 @@ from .mcp import MCPManager
 # Configure logging - will only show logs if --verbose flag is used
 logging.basicConfig(
     level=logging.WARNING,  # Default to WARNING level
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
 )
 
 app = typer.Typer(help="Monadical Container Tool")
@@ -43,16 +43,20 @@ mcp_manager = MCPManager(config_manager=user_config)
 
 @app.callback(invoke_without_command=True)
 def main(
-        ctx: typer.Context,
-        verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
-        model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
-        provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Provider to use"),
-    ) -> None:
+    ctx: typer.Context,
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose logging"
+    ),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
+    provider: Optional[str] = typer.Option(
+        None, "--provider", "-p", help="Provider to use"
+    ),
+) -> None:
     """Monadical Container Tool"""
     # Set log level based on verbose flag
     if verbose:
         logging.getLogger().setLevel(logging.INFO)
-    
+
     # If no command is specified, create a session
     if ctx.invoked_subcommand is None:
         create_session(
@@ -65,7 +69,7 @@ def main(
             no_connect=False,
             no_mount=False,
             model=model,
-            provider=provider
+            provider=provider,
         )
 
 
@@ -79,6 +83,88 @@ def version() -> None:
         console.print(f"MC - Monadical Container Tool v{version_str}")
     except Exception:
         console.print("MC - Monadical Container Tool (development version)")
+
+
+@app.command()
+def eval(
+    config_file: str = typer.Option(
+        ..., "--config-file", "-c", help="Path to config file to evaluate"
+    ),
+) -> None:
+    """Evaluate a configuration file and print to console"""
+    import json
+    import yaml
+    from pathlib import Path
+
+    file_path = Path(config_file)
+    if not file_path.exists():
+        console.print(f"[red]Error: Config file not found: {config_file}[/red]")
+        return
+
+    try:
+        with open(file_path, "r") as f:
+            # Try to load as YAML first
+            try:
+                config = yaml.safe_load(f)
+            except yaml.YAMLError:
+                # If YAML fails, try JSON
+                f.seek(0)
+                try:
+                    config = json.load(f)
+                except json.JSONDecodeError:
+                    console.print(
+                        f"[red]Error: Could not parse {config_file} as YAML or JSON[/red]"
+                    )
+                    return
+
+        # Print the configuration in a pretty format
+        console.print("[bold]Configuration:[/bold]")
+
+        # Create table
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Key", style="cyan")
+        table.add_column("Value")
+
+        # Helper function to flatten nested dictionaries
+        def flatten_dict(d, parent_key=""):
+            items = []
+            for k, v in d.items():
+                new_key = f"{parent_key}.{k}" if parent_key else k
+                if isinstance(v, dict):
+                    items.extend(flatten_dict(v, new_key).items())
+                else:
+                    items.append((new_key, v))
+            return dict(items)
+
+        # Flatten the config and add to table
+        flattened = flatten_dict(config)
+        for key, value in flattened.items():
+            # Format the value for display
+            if isinstance(value, (list, dict)):
+                value_str = json.dumps(value)
+            else:
+                value_str = str(value)
+            table.add_row(key, value_str)
+
+        console.print(table)
+        session = create_session(
+            driver=config.get("navigator"),
+            project=None,
+            env=[],
+            volume=[],
+            network=[],
+            name=None,
+            no_connect=False,
+            no_mount=False,
+            model=config.get("model"),
+            provider=config.get("provider"),
+            auto_connect=False
+        )
+        console.print(str(session))
+        container_manager.create_eval_files(session, config)
+
+    except Exception as e:
+        console.print(f"[red]Error reading config file: {e}[/red]")
 
 
 @session_app.command("list")
@@ -167,18 +253,19 @@ def create_session(
         help="Attach MCP servers to the session (can be specified multiple times)",
     ),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
-    provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Provider to use"),
-) -> None:
+    provider: Optional[str] = typer.Option(
+        None, "--provider", "-p", help="Provider to use"
+    ),
+    auto_connect: Optional[bool] = typer.Option(True, "--auto-connects", help="Auto connect to container"),
+) -> None | Session:
     """Create a new MC session"""
     # Use default driver from user configuration
     if not driver:
         driver = user_config.get(
             "defaults.driver", config_manager.config.defaults.get("driver", "goose")
         )
-
     # Start with environment variables from user configuration
     environment = user_config.get_environment_variables()
-    
     # Override with environment variables from command line
     for var in env:
         if "=" in var:
@@ -230,7 +317,7 @@ def create_session(
     if not all_mcps:
         default_mcps = user_config.get("defaults.mcps", [])
         all_mcps = default_mcps
-        
+
         if default_mcps:
             console.print(f"Using default MCP servers: {', '.join(default_mcps)}")
 
@@ -244,7 +331,6 @@ def create_session(
             console.print(f"  {host_path} -> {mount_info['bind']}")
 
     with console.status(f"Creating session with driver '{driver}'..."):
-    
         session = container_manager.create_session(
             driver_name=driver,
             project=project,
@@ -255,7 +341,7 @@ def create_session(
             networks=all_networks,
             mcp=all_mcps,
             model=model,
-            provider=provider
+            provider=provider,
         )
 
     if session:
@@ -269,18 +355,15 @@ def create_session(
                 console.print(f"  {container_port} -> {host_port}")
 
         # Auto-connect based on user config, unless overridden by --no-connect flag
-        auto_connect = user_config.get("defaults.connect", True)
         if not no_connect and auto_connect:
             container_manager.connect_session(session.id)
         else:
             console.print(
                 f"\nConnect to the session with:\n  mc session connect {session.id}"
             )
+        return session
     else:
         console.print("[red]Failed to create session[/red]")
-        
-        
-    
 
 
 @session_app.command("close")
@@ -423,7 +506,7 @@ def quick_create(
     # Use user config for defaults if not specified
     if not driver:
         driver = user_config.get("defaults.driver")
-    
+
     # Get default MCPs if none specified
     all_mcps = mcp if isinstance(mcp, list) else []
     if not all_mcps:
@@ -564,6 +647,7 @@ config_app.add_typer(volume_app, name="volume", no_args_is_help=True)
 config_mcp_app = typer.Typer(help="Manage default MCP servers")
 config_app.add_typer(config_mcp_app, name="mcp", no_args_is_help=True)
 
+
 # MCP configuration commands
 @config_mcp_app.command("list")
 def list_default_mcps() -> None:
@@ -581,6 +665,7 @@ def list_default_mcps() -> None:
         table.add_row(mcp)
 
     console.print(table)
+
 
 @config_mcp_app.command("add")
 def add_default_mcp(
@@ -602,6 +687,7 @@ def add_default_mcp(
     default_mcps.append(name)
     user_config.set("defaults.mcps", default_mcps)
     console.print(f"[green]Added MCP server '{name}' to defaults[/green]")
+
 
 @config_mcp_app.command("remove")
 def remove_default_mcp(
@@ -1044,13 +1130,15 @@ def mcp_status(name: str = typer.Argument(..., help="MCP server name")) -> None:
 def start_mcp(
     name: Optional[str] = typer.Argument(None, help="MCP server name"),
     all_servers: bool = typer.Option(False, "--all", help="Start all MCP servers"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose logging"
+    ),
 ) -> None:
     """Start an MCP server or all servers"""
     # Set log level based on verbose flag
     if verbose:
         logging.getLogger().setLevel(logging.INFO)
-        
+
     # Check if we need to start all servers
     if all_servers:
         # Get all configured MCP servers
@@ -1316,18 +1404,22 @@ def remove_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
         # Check if any active sessions might be using this MCP
         active_sessions = container_manager.list_sessions()
         affected_sessions = []
-        
+
         for session in active_sessions:
             if session.mcps and name in session.mcps:
                 affected_sessions.append(session)
-                
+
         # Just warn users about affected sessions
         if affected_sessions:
-            console.print(f"[yellow]Warning: Found {len(affected_sessions)} active sessions using MCP '{name}'[/yellow]")
-            console.print("[yellow]You may need to restart these sessions for changes to take effect:[/yellow]")
+            console.print(
+                f"[yellow]Warning: Found {len(affected_sessions)} active sessions using MCP '{name}'[/yellow]"
+            )
+            console.print(
+                "[yellow]You may need to restart these sessions for changes to take effect:[/yellow]"
+            )
             for session in affected_sessions:
                 console.print(f"  - Session: {session.id} ({session.name})")
-        
+
         # Remove the MCP from configuration
         with console.status(f"Removing MCP server '{name}'..."):
             result = mcp_manager.remove_mcp(name)
@@ -1413,7 +1505,7 @@ def add_mcp(
             console.print(
                 f"Container port {sse_port} will be bound to host port {assigned_port}"
             )
-            
+
         if not no_default:
             console.print(f"MCP server '{name}' added to defaults")
         else:
@@ -1448,10 +1540,12 @@ def add_remote_mcp(
 
     try:
         with console.status(f"Adding remote MCP server '{name}'..."):
-            mcp_manager.add_remote_mcp(name, url, headers, add_as_default=not no_default)
+            mcp_manager.add_remote_mcp(
+                name, url, headers, add_as_default=not no_default
+            )
 
         console.print(f"[green]Added remote MCP server '{name}'[/green]")
-        
+
         if not no_default:
             console.print(f"MCP server '{name}' added to defaults")
         else:

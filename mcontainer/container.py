@@ -317,9 +317,11 @@ class ContainerManager:
                     try:
                         print(f"Ensuring MCP server '{mcp_name}' is running...")
                         self.mcp_manager.start_mcp(mcp_name)
-                        
+
                         # Store container name for later network connection
-                        container_name = self.mcp_manager.get_mcp_container_name(mcp_name)
+                        container_name = self.mcp_manager.get_mcp_container_name(
+                            mcp_name
+                        )
                         mcp_container_names.append(container_name)
 
                         # Get MCP status to extract endpoint information
@@ -401,6 +403,7 @@ class ContainerManager:
                         network_list.append(network)
                         print(f"Adding network {network} to session")
             # Create container
+            
             container = self.client.containers.create(
                 image=driver.image,
                 name=session_name,
@@ -426,12 +429,15 @@ class ContainerManager:
             # Start container
             container.start()
             config_content = get_goose_config(model=model, provider=provider)
-            container.exec_run('mkdir -p /root/.config/goose', user='root')
-            container.exec_run([
-                "/bin/sh", 
-                "-c", 
-                f"cat > /root/.config/goose/config.yaml << 'EOL'\n{config_content}EOL"
-            ], user='root')
+            container.exec_run("mkdir -p /root/.config/goose", user="root")
+            container.exec_run(
+                [
+                    "/bin/sh",
+                    "-c",
+                    f"cat > /root/.config/goose/config.yaml << 'EOL'\n{config_content}EOL",
+                ],
+                user="root",
+            )
 
             # Connect to additional networks (after the first one in network_list)
             if len(network_list) > 1:
@@ -453,25 +459,29 @@ class ContainerManager:
                         )
                     except DockerException as e:
                         print(f"Error connecting to network {network_name}: {e}")
-            
+
             # Reload the container to get updated network information
             container.reload()
-            
+
             # Connect directly to each MCP's dedicated network
             for mcp_name in mcp_names:
                 try:
                     # Get the dedicated network for this MCP
                     dedicated_network_name = f"mc-mcp-{mcp_name}-network"
-                    
+
                     try:
                         network = self.client.networks.get(dedicated_network_name)
-                        
+
                         # Connect the session container to the MCP's dedicated network
                         network.connect(container, aliases=[session_name])
-                        print(f"Connected session to MCP '{mcp_name}' via dedicated network: {dedicated_network_name}")
+                        print(
+                            f"Connected session to MCP '{mcp_name}' via dedicated network: {dedicated_network_name}"
+                        )
                     except DockerException as e:
-                        print(f"Error connecting to MCP dedicated network '{dedicated_network_name}': {e}")
-                        
+                        print(
+                            f"Error connecting to MCP dedicated network '{dedicated_network_name}': {e}"
+                        )
+
                 except Exception as e:
                     print(f"Error connecting session to MCP '{mcp_name}': {e}")
 
@@ -479,7 +489,12 @@ class ContainerManager:
             if networks:
                 for network_name in networks:
                     # Check if already connected to this network
-                    if network_name not in [net.name for net in container.attrs.get("NetworkSettings", {}).get("Networks", {}).values()]:
+                    if network_name not in [
+                        net.name
+                        for net in container.attrs.get("NetworkSettings", {})
+                        .get("Networks", {})
+                        .values()
+                    ]:
                         try:
                             # Get or create the network
                             try:
@@ -525,7 +540,7 @@ class ContainerManager:
                 ports=ports,
                 mcps=mcp_names,
                 model=model,
-                provider=provider
+                provider=provider,
             )
 
             # Save session to the session manager as JSON-compatible dict
@@ -574,6 +589,164 @@ class ContainerManager:
 
         except DockerException as e:
             print(f"Error connecting to session: {e}")
+            return False
+
+    def create_eval_files(self, session: Session, config_obj):
+        """Process evaluation configuration and set up exercise files in the container
+
+        Args:
+            session: The session to use for evaluation
+            config_obj: The configuration object containing exercise specifications
+
+        Returns:
+            bool: Whether the process was successful
+        """
+        print(f"Setting up evaluation for session {session.id}")
+
+        # Check if the session is running
+        if session.status != SessionStatus.RUNNING:
+            print(f"Session '{session.id}' is not running")
+            return False
+
+        # Get the container
+        try:
+            container = self.client.containers.get(session.container_id)
+
+            # Create benchmark directory in container if it doesn't exist
+            container.exec_run("mkdir -p /app/benchmark")
+
+            # Get exercises from configuration
+            exercises = config_obj.get("exercises", [])
+            if not exercises:
+                print("No exercises found in configuration")
+                return False
+
+            # Process each exercise
+            for exercise in exercises:
+                exercise_path = exercise.get("path")
+
+                # Search for the exercise folder in the exercises directory
+                base_exercises_path = pathlib.Path(__file__).parent / "exercises"
+                found_exercise_paths = []
+
+                # If path is specified, use it directly
+                if exercise_path:
+                    potential_path = base_exercises_path / exercise_path
+                    if potential_path.exists() and potential_path.is_dir():
+                        found_exercise_paths.append(potential_path)
+                else:
+                    # Otherwise search for the exercise by name
+                    for root, dirs, _ in os.walk(base_exercises_path):
+                        root_path = pathlib.Path(root)
+                        for dir_name in dirs:
+                            if dir_name == exercise_path:
+                                exercise_dir = root_path / dir_name
+                                found_exercise_paths.append(exercise_dir)
+
+                if not found_exercise_paths:
+                    print(
+                        f"Warning: Exercise '{exercise_path}' not found in exercises directory"
+                    )
+                    continue
+
+                # Use the first found exercise path
+                exercise_dir = found_exercise_paths[0]
+                print(f"Found exercise '{exercise_path}' at {exercise_dir}")
+
+                # Create a tar archive of the exercise directory
+                with tempfile.NamedTemporaryFile(suffix=".tar") as tar_file:
+                    # Create tar archive
+                    with tarfile.open(tar_file.name, "w") as tar:
+                        # Add all files in the directory
+                        tar.add(exercise_dir, arcname=exercise_path)
+
+                    # Read the tar file
+                    tar_file.seek(0)
+                    tar_data = tar_file.read()
+
+                    # Copy the tar file to the container
+                    container.put_archive("/app/benchmark", tar_data)
+                    print(
+                        f"Copied exercise '{exercise_path}' to /benchmark in the container"
+                    )
+
+            # Copy the appropriate evaluation script based on the provider
+            navigator = config_obj.get("navigator", "").lower()
+            if navigator:
+                # Determine which script to use
+                script_name = None
+                if navigator == "goose":
+                    script_name = "goose.py"
+                elif navigator == "aider":
+                    script_name = "aider.py"
+                else:
+                    print(
+                        f"Warning: Unsupported provider '{navigator}'. No evaluation script will be copied."
+                    )
+
+                if script_name:
+                    # Path to evaluation script
+                    eval_script_path = (
+                        pathlib.Path(__file__).parent / "eval-scripts" / script_name
+                    )
+
+                    if eval_script_path.exists():
+                        # Read the script content
+                        script_content = eval_script_path.read_text()
+
+                        # Write the script to the container
+                        container.exec_run(
+                            [
+                                "/bin/sh",
+                                "-c",
+                                f"cat > /app/benchmark/run.py << 'EOF'\n{script_content}",
+                            ]
+                        )
+                        print(
+                            f"Copied evaluation script '{script_name}' to /benchmark/run.py in the container"
+                        )
+
+                        # Make the run.py script executable
+                        container.exec_run("chmod +x /benchmark/run.py")
+                    else:
+                        print(
+                            f"Error: Evaluation script '{script_name}' not found at {eval_script_path}"
+                        )
+                        return False
+            else:
+                print(
+                    "Warning: No provider specified in configuration. No evaluation script will be copied."
+                )
+
+            # List the contents of the benchmark directory
+            exit_code, output = container.exec_run("ls -la /app/benchmark")
+            if exit_code == 0:
+                print("Successfully set up evaluation environment in container:")
+                print(output.decode())
+                self.run_eval(session)
+                return True
+            else:
+                print("Error listing benchmark directory in container:")
+                print(output.decode())
+                return False
+            
+        except DockerException as e:
+            print(f"Error setting up evaluation for session {session.id}: {e}")
+            return False
+        
+    def run_eval(self, session: Session):
+        print(f"Running evaluation for {session.id}")
+
+        # Check if the session is running
+        if session.status != SessionStatus.RUNNING:
+            print(f"Session '{session.id}' is not running")
+            return False
+
+        # Get the container
+        try:  
+            os.system(f"docker exec -it {session.container_id} python3 ./benchmark/run.py")    
+        except DockerException as e:
+            print(f"Error runnning evaluation for {session.id}: {e}")
             return False
 
     def _close_single_session(self, session: Session) -> bool:

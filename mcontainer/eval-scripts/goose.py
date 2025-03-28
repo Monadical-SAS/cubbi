@@ -15,7 +15,7 @@ def create_benchmark_folder():
     
     # Get the current working directory
     cwd = os.getcwd()
-    exercises_dir = os.path.join(cwd, "exercises")
+    exercises_dir = os.path.join(cwd, "benchmark")
     benchmark_path = os.path.join(cwd, benchmark_dir)
     
     print(f"Creating benchmark directory: {benchmark_path}")
@@ -24,7 +24,7 @@ def create_benchmark_folder():
     os.makedirs(benchmark_path, exist_ok=True)
     
     # Copy the exercises folder to the benchmark directory
-    shutil.copytree(exercises_dir, os.path.join(benchmark_path, "exercises"))
+    shutil.copytree(exercises_dir, os.path.join(benchmark_path, "benchmark"))
     
     print(f"Successfully copied exercises to {benchmark_path}")
     return benchmark_path
@@ -37,7 +37,7 @@ def create_goose_instructions_in_docs(root_dir):
     Args:
         root_dir: The root directory to start the search from
     """
-    exercises_dir = os.path.join(root_dir, "exercises")
+    exercises_dir = os.path.join(root_dir, "benchmark")
     count = 0
     
     print(f"Starting search from: {exercises_dir}")
@@ -93,7 +93,7 @@ def execute_goose_instructions(root_dir):
     """
     Executes the goose-instructions.md files in the .docs directories
     """
-    exercises_dir = os.path.join(root_dir, "exercises")
+    exercises_dir = os.path.join(root_dir, "benchmark")
     
     print(f"Starting search from: {exercises_dir}")
     

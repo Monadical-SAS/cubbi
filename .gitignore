@@ -9,3 +9,4 @@ wheels/
 # Virtual environments
 .venv
 .benchmark*
+eval-tool/public/uploads/*
