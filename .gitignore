@@ -10,3 +10,4 @@ wheels/
 .venv
 .benchmark*
 eval-tool/public/uploads/*
+eval-tool/tmp/*
