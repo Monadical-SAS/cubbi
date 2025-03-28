@@ -230,7 +230,7 @@ const ContainerComponent: React.FC<ContainerProps> = ({
           <Grid item xs={12}>
             <SectionTitle variant="subtitle1" gutterBottom>
               <EditIcon fontSize="small" />
-              Container Identification
+              Navigator
             </SectionTitle>
             <Paper sx={{ p: 3, borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
               <FormControl fullWidth>
