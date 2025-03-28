@@ -658,7 +658,9 @@ const RunPage: React.FC = () => {
                         p: 2, 
                         bgcolor: 'grey.50', 
                         borderRadius: 1,
-                        minHeight: '100px'
+                        minHeight: '100px',
+                        maxHeight: '500px',
+                        overflow: 'auto'
                       }}
                       data-color-mode="light"
                     >
