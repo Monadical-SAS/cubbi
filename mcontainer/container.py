@@ -145,6 +145,7 @@ class ContainerManager:
         volumes: Optional[Dict[str, Dict[str, str]]] = None,
         networks: Optional[List[str]] = None,
         mcp: Optional[List[str]] = None,
+        run_command: Optional[str] = None,
         uid: Optional[int] = None,
         gid: Optional[int] = None,
     ) -> Optional[Session]:
@@ -157,6 +158,7 @@ class ContainerManager:
             session_name: Optional session name
             mount_local: Whether to mount the specified local directory to /app (ignored if project is None)
             volumes: Optional additional volumes to mount (dict of {host_path: {"bind": container_path, "mode": mode}})
+            run_command: Optional command to execute before starting the shell
             networks: Optional list of additional Docker networks to connect to
             mcp: Optional list of MCP server names to attach to the session
             uid: Optional user ID for the container process
@@ -412,11 +414,50 @@ class ContainerManager:
                 env_vars["MCP_NAMES"] = json.dumps(mcp_names)
 
             # Add user-specified networks
+            # Default MC network
+            default_network = self.config_manager.config.docker.get(
+                "network", "mc-network"
+            )
+
+            # Get network list, ensuring default is first and no duplicates
+            network_list_set = {default_network}
+            if networks:
+                network_list_set.update(networks)
+            network_list = (
+                [default_network] + [n for n in networks if n != default_network]
+                if networks
+                else [default_network]
+            )
+
             if networks:
                 for network in networks:
                     if network not in network_list:
+                        # This check is slightly redundant now but harmless
                         network_list.append(network)
                         print(f"Adding network {network} to session")
+
+            # Determine container command and entrypoint
+            container_command = None
+            entrypoint = None  # Keep this initially None to mean "use Dockerfile default unless overridden"
+            target_shell = "/bin/bash"  # Default final shell
+
+            if run_command:
+                # Set environment variable for mc-init.sh to pick up
+                env_vars["MC_RUN_COMMAND"] = run_command
+                # Set the container's command to be the final shell
+                container_command = [target_shell]
+                logger.info(
+                    f"Setting MC_RUN_COMMAND and targeting shell {target_shell}"
+                )
+            else:
+                # Use default behavior (often defined by image's ENTRYPOINT/CMD)
+                # Set the container's command to be the final shell if none specified by Dockerfile CMD
+                # Note: Dockerfile CMD is ["tail", "-f", "/dev/null"], so this might need adjustment
+                # if we want interactive shell by default without --run. Let's default to bash for now.
+                container_command = [target_shell]
+                logger.info(
+                    "Using default container entrypoint/command for interactive shell."
+                )
 
             # Create container
             container = self.client.containers.create(
@@ -437,6 +478,8 @@ class ContainerManager:
                     "mc.mcps": ",".join(mcp_names) if mcp_names else "",
                 },
                 network=network_list[0],  # Connect to the first network initially
+                command=container_command,  # Set the command
+                entrypoint=entrypoint,  # Set the entrypoint (might be None)
                 ports={f"{port}/tcp": None for port in driver.ports},
             )
 
@@ -544,16 +587,15 @@ class ContainerManager:
                 created_at=container.attrs["Created"],
                 ports=ports,
                 mcps=mcp_names,
-                # Assuming Session model has uid and gid fields
+                run_command=run_command,  # Store the command
                 uid=uid,
                 gid=gid,
             )
 
-            # Save session to the session manager as JSON-compatible dict
+            # Save session to the session manager
             # Assuming Session model has uid and gid fields added to its definition
             session_data_to_save = session.model_dump(mode="json")
-            session_data_to_save["uid"] = uid
-            session_data_to_save["gid"] = gid
+            # uid and gid are already part of the model dump now
             self.session_manager.add_session(session_id, session_data_to_save)
 
             return session
@@ -591,10 +633,8 @@ class ContainerManager:
                 print(f"Session '{session_id}' not found via Docker either.")
                 return False
             container_id = session_obj.container_id
-            # Cannot determine user if session data is missing
-            user_spec = None
             print(
-                f"[yellow]Warning: Session data missing for {session_id}. Connecting as default container user.[/yellow]"
+                f"[yellow]Warning: Session data missing for {session_id}. Attaching as default container user.[/yellow]"
             )
         else:
             container_id = session_data.get("container_id")
@@ -619,23 +659,18 @@ class ContainerManager:
                 print(f"Error checking container status for session {session_id}: {e}")
                 return False
 
-            # Determine user spec from stored session data
-            uid = session_data.get("uid")
-            gid = session_data.get("gid")
-            user_spec = f"{uid}:{gid}" if uid is not None and gid is not None else None
-
         try:
-            # Execute interactive shell in container
-            cmd = ["docker", "exec", "-it"]
-            if user_spec:
-                cmd.extend(["--user", user_spec])
-                print(f"Connecting as user {user_spec}...")
-            else:
-                print("Connecting as default container user...")
+            # Attach to the container's main process TTY
+            # This allows seeing the output of --run command followed by the shell
+            # The user context (UID/GID) is determined when the container is created,
+            # attach respects that context.
+            print(
+                f"Attaching to session {session_id} (container: {container_id[:12]})..."
+            )
+            print("Type 'exit' or Ctrl+P, Ctrl+Q (by default) to detach.")
+            cmd = ["docker", "attach", container_id]
 
-            cmd.extend([container_id, "/bin/bash"])
-
-            # Use execvp to replace the current process with docker exec
+            # Use execvp to replace the current process with docker attach
             # This provides a more seamless shell experience
             os.execvp("docker", cmd)
             # execvp does not return if successful
