@@ -163,8 +163,8 @@ def create_session(
     gid: Optional[int] = typer.Option(
         None, "--gid", help="Group ID to run the container as (defaults to host user)"
     ),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
-    provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Provider to use"),
+    model: Optional[str] = typer.Option("anthropic/claude-3.5-sonnet", "--model", "-m", help="Model to use"),
+    provider: Optional[str] = typer.Option("openrouter", "--provider", "-p", help="Provider to use"),
 ) -> None:
     """Create a new MC session
 
