@@ -8,7 +8,7 @@ Docker-in-Docker (DinD) environment. MC also supports connecting to MCP (Model C
 ## Quick Reference
 
 - `mc session create` - Create a new session
-- `mcx` - Shortcut for `mc session create` (mount directories or clone repos)
+- `mcx` - Shortcut for `mc session create`
 - `mcx .` - Mount the current directory
 - `mcx /path/to/dir` - Mount a specific directory
 - `mcx https://github.com/user/repo` - Clone a repository
@@ -38,11 +38,11 @@ mc --help
 # Show help message (displays available commands)
 mc
 
-# Create a new session with the default driver
-mc session create
+# Create a new session with the default driver (using mcx alias)
+mcx
 
 # Create a session and run an initial command before the shell starts
-mc session create --run "echo 'Setup complete'; ls -l"
+mcx --run "echo 'Setup complete'; ls -l"
 
 # List all active sessions
 mc session list
@@ -54,27 +54,27 @@ mc session connect SESSION_ID
 mc session close SESSION_ID
 
 # Create a session with a specific driver
-mc session create --driver goose
+mcx --driver goose
 
 # Create a session with environment variables
-mc session create -e VAR1=value1 -e VAR2=value2
+mcx -e VAR1=value1 -e VAR2=value2
 
 # Mount custom volumes (similar to Docker's -v flag)
-mc session create -v /local/path:/container/path
-mc session create -v ~/data:/data -v ./configs:/etc/app/config
+mcx -v /local/path:/container/path
+mcx -v ~/data:/data -v ./configs:/etc/app/config
 
 # Mount a local directory (current directory or specific path)
-mc session create .
-mc session create /path/to/project
+mcx .
+mcx /path/to/project
 
 # Connect to external Docker networks
-mc session create --network teamnet --network dbnet
+mcx --network teamnet --network dbnet
 
 # Connect to MCP servers for extended capabilities
-mc session create --mcp github --mcp jira
+mcx --mcp github --mcp jira
 
 # Clone a Git repository
-mc session create https://github.com/username/repo
+mcx https://github.com/username/repo
 
 # Using the mcx shortcut (equivalent to mc session create)
 mcx                        # Creates a session without mounting anything
