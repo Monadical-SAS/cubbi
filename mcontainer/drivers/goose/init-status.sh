@@ -1,6 +1,11 @@
 #!/bin/bash
 # Script to check and display initialization status - optimized version
 
+# Only proceed if running as root
+if [ "$(id -u)" != "0" ]; then
+    exit 0
+fi
+
 # Quick check instead of full logic
 if grep -q "INIT_COMPLETE=true" "/init.status" 2>/dev/null; then
     echo "MC initialization has completed."
@@ -12,7 +17,7 @@ else
         echo "----------------------------------------"
         tail -f /init.log &
         tail_pid=$!
-        
+
         # Check every second if initialization has completed
         while true; do
             if grep -q "INIT_COMPLETE=true" "/init.status" 2>/dev/null; then
@@ -27,3 +32,5 @@ else
         echo "No initialization logs found."
     fi
 fi
+
+exec gosu mcuser /bin/bash -il

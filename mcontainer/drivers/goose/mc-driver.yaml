@@ -57,7 +57,7 @@ persistent_configs:
     target: "/mc-config/goose-app"
     type: "directory"
     description: "Goose memory"
-  - source: "/root/.config/goose"
+  - source: "/home/mcuser/.config/goose"
     target: "/mc-config/goose-config"
     type: "directory"
     description: "Goose configuration"
