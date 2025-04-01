@@ -6,6 +6,53 @@ exec > >(tee -a /init.log) 2>&1
 
 # Mark initialization as started
 echo "=== MC Initialization started at $(date) ==="
+
+# --- START INSERTED BLOCK ---
+
+# Default UID/GID if not provided (should be passed by mc tool)
+MC_USER_ID=${MC_USER_ID:-1000}
+MC_GROUP_ID=${MC_GROUP_ID:-1000}
+
+echo "Using UID: $MC_USER_ID, GID: $MC_GROUP_ID"
+
+# Create group if it doesn't exist
+if ! getent group mcuser > /dev/null; then
+    groupadd -g $MC_GROUP_ID mcuser
+else
+    # If group exists but has different GID, modify it
+    EXISTING_GID=$(getent group mcuser | cut -d: -f3)
+    if [ "$EXISTING_GID" != "$MC_GROUP_ID" ]; then
+        groupmod -g $MC_GROUP_ID mcuser
+    fi
+fi
+
+# Create user if it doesn't exist
+if ! getent passwd mcuser > /dev/null; then
+    useradd --shell /bin/bash --uid $MC_USER_ID --gid $MC_GROUP_ID --no-create-home mcuser
+else
+    # If user exists but has different UID/GID, modify it
+    EXISTING_UID=$(getent passwd mcuser | cut -d: -f3)
+    EXISTING_GID=$(getent passwd mcuser | cut -d: -f4)
+    if [ "$EXISTING_UID" != "$MC_USER_ID" ] || [ "$EXISTING_GID" != "$MC_GROUP_ID" ]; then
+        usermod --uid $MC_USER_ID --gid $MC_GROUP_ID mcuser
+    fi
+fi
+
+# Create home directory and set permissions if it doesn't exist
+if [ ! -d "/home/mcuser" ]; then
+    mkdir -p /home/mcuser
+    chown $MC_USER_ID:$MC_GROUP_ID /home/mcuser
+fi
+# Ensure /app exists and has correct ownership (important for volume mounts)
+mkdir -p /app
+chown $MC_USER_ID:$MC_GROUP_ID /app
+
+# Start SSH server as root before switching user
+echo "Starting SSH server..."
+/usr/sbin/sshd
+
+# --- END INSERTED BLOCK ---
+
 echo "INIT_COMPLETE=false" > /init.status
 
 # Project initialization
@@ -70,3 +117,6 @@ echo "MC driver initialization complete"
 # Mark initialization as complete
 echo "=== MC Initialization completed at $(date) ==="
 echo "INIT_COMPLETE=true" > /init.status
+
+# Switch to the non-root user and execute the container's CMD
+exec gosu mcuser "$@"

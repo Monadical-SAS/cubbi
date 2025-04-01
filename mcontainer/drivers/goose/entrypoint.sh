@@ -1,17 +1,7 @@
 #!/bin/bash
 # Entrypoint script for Goose driver
+# Executes the standard initialization script, which handles user setup,
+# service startup (like sshd), and switching to the non-root user
+# before running the container's command (CMD).
 
-# Run the standard initialization script
-/mc-init.sh
-
-# Start SSH server in the background
-/usr/sbin/sshd
-
-# Print welcome message
-echo "==============================================="
-echo "Goose driver container started"
-echo "SSH server running on port 22"
-echo "==============================================="
-
-# Keep container running
-exec tail -f /dev/null
+exec /mc-init.sh "$@"

@@ -145,6 +145,8 @@ class ContainerManager:
         volumes: Optional[Dict[str, Dict[str, str]]] = None,
         networks: Optional[List[str]] = None,
         mcp: Optional[List[str]] = None,
+        uid: Optional[int] = None,
+        gid: Optional[int] = None,
     ) -> Optional[Session]:
         """Create a new MC session
 
@@ -157,6 +159,8 @@ class ContainerManager:
             volumes: Optional additional volumes to mount (dict of {host_path: {"bind": container_path, "mode": mode}})
             networks: Optional list of additional Docker networks to connect to
             mcp: Optional list of MCP server names to attach to the session
+            uid: Optional user ID for the container process
+            gid: Optional group ID for the container process
         """
         try:
             # Validate driver exists
@@ -175,6 +179,12 @@ class ContainerManager:
 
             # Prepare environment variables
             env_vars = environment or {}
+
+            # Add TARGET_UID and TARGET_GID for entrypoint script
+            if uid is not None:
+                env_vars["TARGET_UID"] = str(uid)
+            if gid is not None:
+                env_vars["TARGET_GID"] = str(gid)
 
             # Add project URL to environment if provided
             if project:
@@ -534,12 +544,17 @@ class ContainerManager:
                 created_at=container.attrs["Created"],
                 ports=ports,
                 mcps=mcp_names,
+                # Assuming Session model has uid and gid fields
+                uid=uid,
+                gid=gid,
             )
 
             # Save session to the session manager as JSON-compatible dict
-            self.session_manager.add_session(
-                session_id, session.model_dump(mode="json")
-            )
+            # Assuming Session model has uid and gid fields added to its definition
+            session_data_to_save = session.model_dump(mode="json")
+            session_data_to_save["uid"] = uid
+            session_data_to_save["gid"] = gid
+            self.session_manager.add_session(session_id, session_data_to_save)
 
             return session
 
@@ -564,20 +579,72 @@ class ContainerManager:
 
     def connect_session(self, session_id: str) -> bool:
         """Connect to a running MC session"""
-        try:
+        # Retrieve full session data which should include uid/gid
+        session_data = self.session_manager.get_session(session_id)
+
+        if not session_data:
+            print(f"Session '{session_id}' not found in session manager.")
+            # Fallback: try listing via Docker labels if session data is missing
             sessions = self.list_sessions()
-            for session in sessions:
-                if session.id == session_id and session.container_id:
-                    if session.status != SessionStatus.RUNNING:
-                        print(f"Session '{session_id}' is not running")
-                        return False
+            session_obj = next((s for s in sessions if s.id == session_id), None)
+            if not session_obj or not session_obj.container_id:
+                print(f"Session '{session_id}' not found via Docker either.")
+                return False
+            container_id = session_obj.container_id
+            # Cannot determine user if session data is missing
+            user_spec = None
+            print(
+                f"[yellow]Warning: Session data missing for {session_id}. Connecting as default container user.[/yellow]"
+            )
+        else:
+            container_id = session_data.get("container_id")
+            if not container_id:
+                print(f"Container ID not found for session {session_id}.")
+                return False
 
-                    # Execute interactive shell in container
-                    # The init-status.sh script will automatically show logs if needed
-                    os.system(f"docker exec -it {session.container_id} /bin/bash")
-                    return True
+            # Check status from Docker directly
+            try:
+                container = self.client.containers.get(container_id)
+                if container.status != "running":
+                    print(
+                        f"Session '{session_id}' container is not running (status: {container.status})."
+                    )
+                    return False
+            except docker.errors.NotFound:
+                print(f"Container {container_id} for session {session_id} not found.")
+                # Clean up potentially stale session data
+                self.session_manager.remove_session(session_id)
+                return False
+            except DockerException as e:
+                print(f"Error checking container status for session {session_id}: {e}")
+                return False
 
-            print(f"Session '{session_id}' not found")
+            # Determine user spec from stored session data
+            uid = session_data.get("uid")
+            gid = session_data.get("gid")
+            user_spec = f"{uid}:{gid}" if uid is not None and gid is not None else None
+
+        try:
+            # Execute interactive shell in container
+            cmd = ["docker", "exec", "-it"]
+            if user_spec:
+                cmd.extend(["--user", user_spec])
+                print(f"Connecting as user {user_spec}...")
+            else:
+                print("Connecting as default container user...")
+
+            cmd.extend([container_id, "/bin/bash"])
+
+            # Use execvp to replace the current process with docker exec
+            # This provides a more seamless shell experience
+            os.execvp("docker", cmd)
+            # execvp does not return if successful
+            return True  # Should not be reached if execvp succeeds
+
+        except FileNotFoundError:
+            print(
+                "[red]Error: 'docker' command not found. Is Docker installed and in your PATH?[/red]"
+            )
             return False
 
         except DockerException as e:
