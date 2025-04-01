@@ -35,6 +35,9 @@ mc --help
 ## Basic Usage
 
 ```bash
+# Show help message (displays available commands)
+mc
+
 # Create a new session with the default driver
 mc session create
 

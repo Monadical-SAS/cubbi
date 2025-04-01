@@ -23,11 +23,11 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()],
 )
 
-app = typer.Typer(help="Monadical Container Tool")
-session_app = typer.Typer(help="Manage MC sessions")
+app = typer.Typer(help="Monadical Container Tool", no_args_is_help=True)
+session_app = typer.Typer(help="Manage MC sessions", no_args_is_help=True)
 driver_app = typer.Typer(help="Manage MC drivers", no_args_is_help=True)
-config_app = typer.Typer(help="Manage MC configuration")
-mcp_app = typer.Typer(help="Manage MCP servers")
+config_app = typer.Typer(help="Manage MC configuration", no_args_is_help=True)
+mcp_app = typer.Typer(help="Manage MCP servers", no_args_is_help=True)
 app.add_typer(session_app, name="session", no_args_is_help=True)
 app.add_typer(driver_app, name="driver", no_args_is_help=True)
 app.add_typer(config_app, name="config", no_args_is_help=True)
