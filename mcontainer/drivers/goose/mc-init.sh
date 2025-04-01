@@ -118,5 +118,29 @@ echo "MC driver initialization complete"
 echo "=== MC Initialization completed at $(date) ==="
 echo "INIT_COMPLETE=true" > /init.status
 
-# Switch to the non-root user and execute the container's CMD
-exec gosu mcuser "$@"
+# Run the user command first, if set, as mcuser
+if [ -n "$MC_RUN_COMMAND" ]; then
+    echo '--- Executing initial command: $MC_RUN_COMMAND ---';
+    gosu mcuser sh -c "$MC_RUN_COMMAND"; # Run user command as mcuser
+    COMMAND_EXIT_CODE=$?;
+    echo "--- Initial command finished (exit code: $COMMAND_EXIT_CODE) ---";
+fi;
+
+# Determine the final command (the interactive shell)
+FINAL_CMD=("$@")
+if [ ${#FINAL_CMD[@]} -eq 0 ]; then
+    # Default to /bin/bash if CMD wasn't passed or was empty
+    FINAL_CMD=("/bin/bash")
+fi
+
+# If the final command is bash, ensure it runs interactively
+# Check if the first argument is /bin/bash and -i is not already present
+if [ "${FINAL_CMD[0]}" = "/bin/bash" ] && [[ ! " ${FINAL_CMD[@]} " =~ " -i " ]]; then
+    # Add the -i flag to the command array
+    FINAL_CMD+=("-i")
+fi
+
+echo "--- Starting interactive shell (${FINAL_CMD[*]}) ---";
+# Now exec gosu directly into the final command, replacing this script process
+# "${FINAL_CMD[@]}" ensures arguments are passed correctly (e.g., /bin/bash -i)
+exec gosu mcuser "${FINAL_CMD[@]}"

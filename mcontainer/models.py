@@ -105,6 +105,9 @@ class Session(BaseModel):
     created_at: str
     ports: Dict[int, int] = Field(default_factory=dict)
     mcps: List[str] = Field(default_factory=list)  # List of MCP server names
+    run_command: Optional[str] = None  # Command executed on start
+    uid: Optional[int] = None  # Store UID used
+    gid: Optional[int] = None  # Store GID used
 
 
 class Config(BaseModel):

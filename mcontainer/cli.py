@@ -143,6 +143,11 @@ def create_session(
         [], "--network", "-N", help="Connect to additional Docker networks"
     ),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Session name"),
+    run_command: Optional[str] = typer.Option(
+        None,
+        "--run",
+        help="Command to execute inside the container before starting the shell",
+    ),
     no_connect: bool = typer.Option(
         False, "--no-connect", help="Don't automatically connect to the session"
     ),
@@ -259,6 +264,7 @@ def create_session(
             volumes=volume_mounts,
             networks=all_networks,
             mcp=all_mcps,
+            run_command=run_command,
             uid=target_uid,
             gid=target_gid,
         )
@@ -275,12 +281,22 @@ def create_session(
 
         # Auto-connect based on user config, unless overridden by --no-connect flag
         auto_connect = user_config.get("defaults.connect", True)
-        if not no_connect and auto_connect:
+        # Connect if auto_connect is enabled and --no-connect wasn't used.
+        # The --run command no longer prevents connection.
+        should_connect = not no_connect and auto_connect
+        if should_connect:
             container_manager.connect_session(session.id)
         else:
-            console.print(
-                f"\nConnect to the session with:\n  mc session connect {session.id}"
-            )
+            # Explain why connection was skipped
+            if no_connect:
+                console.print("\nConnection skipped due to --no-connect.")
+                console.print(
+                    f"Connect manually with:\n  mc session connect {session.id}"
+                )
+            elif not auto_connect:
+                console.print(
+                    f"\nAuto-connect disabled. Connect with:\n  mc session connect {session.id}"
+                )
     else:
         console.print("[red]Failed to create session[/red]")
 
