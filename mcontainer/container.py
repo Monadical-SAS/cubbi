@@ -9,6 +9,8 @@ import logging
 from typing import Dict, List, Optional, Tuple
 from docker.errors import DockerException, ImageNotFound
 
+from mcontainer.utils.goose import get_goose_config
+
 from .models import Session, SessionStatus
 from .config import ConfigManager
 from .session import SessionManager
@@ -148,6 +150,8 @@ class ContainerManager:
         run_command: Optional[str] = None,
         uid: Optional[int] = None,
         gid: Optional[int] = None,
+        model: Optional[str] = None,
+        provider: Optional[str] = None,
     ) -> Optional[Session]:
         """Create a new MC session
 
@@ -474,6 +478,8 @@ class ContainerManager:
                     "mc.session.id": session_id,
                     "mc.session.name": session_name,
                     "mc.driver": driver_name,
+                    "mc.model": model,
+                    "mc.provider": provider,
                     "mc.project": project or "",
                     "mc.mcps": ",".join(mcp_names) if mcp_names else "",
                 },
@@ -485,6 +491,13 @@ class ContainerManager:
 
             # Start container
             container.start()
+            config_content = get_goose_config(model=model, provider=provider)
+            container.exec_run('mkdir -p /root/.config/goose', user='root')
+            container.exec_run([
+                "/bin/sh", 
+                "-c", 
+                f"cat > /root/.config/goose/config.yaml << 'EOL'\n{config_content}EOL"
+            ], user='root')
 
             # Connect to additional networks (after the first one in network_list)
             if len(network_list) > 1:
@@ -590,6 +603,8 @@ class ContainerManager:
                 run_command=run_command,  # Store the command
                 uid=uid,
                 gid=gid,
+                model=model,
+                provider=provider
             )
 
             # Save session to the session manager

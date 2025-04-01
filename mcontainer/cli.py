@@ -163,6 +163,8 @@ def create_session(
     gid: Optional[int] = typer.Option(
         None, "--gid", help="Group ID to run the container as (defaults to host user)"
     ),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
+    provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Provider to use"),
 ) -> None:
     """Create a new MC session
 
@@ -267,6 +269,8 @@ def create_session(
             run_command=run_command,
             uid=target_uid,
             gid=target_gid,
+            model=model,
+            provider=provider
         )
 
     if session:

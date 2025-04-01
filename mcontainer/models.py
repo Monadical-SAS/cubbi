@@ -108,6 +108,8 @@ class Session(BaseModel):
     run_command: Optional[str] = None  # Command executed on start
     uid: Optional[int] = None  # Store UID used
     gid: Optional[int] = None  # Store GID used
+    model: Optional[str] = None # Model used in this session
+    provider: Optional[str] = None # Model used in this session
 
 
 class Config(BaseModel):
