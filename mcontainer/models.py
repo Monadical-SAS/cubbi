@@ -108,6 +108,7 @@ class Session(BaseModel):
     run_command: Optional[str] = None  # Command executed on start
     uid: Optional[int] = None  # Store UID used
     gid: Optional[int] = None  # Store GID used
+    ssh: bool = False  # Whether SSH server is enabled
 
 
 class Config(BaseModel):

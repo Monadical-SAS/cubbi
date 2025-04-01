@@ -163,6 +163,7 @@ def create_session(
     gid: Optional[int] = typer.Option(
         None, "--gid", help="Group ID to run the container as (defaults to host user)"
     ),
+    ssh: bool = typer.Option(False, "--ssh", help="Start SSH server in the container"),
 ) -> None:
     """Create a new MC session
 
@@ -267,6 +268,7 @@ def create_session(
             run_command=run_command,
             uid=target_uid,
             gid=target_gid,
+            ssh=ssh,
         )
 
     if session:

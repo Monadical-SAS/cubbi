@@ -148,6 +148,7 @@ class ContainerManager:
         run_command: Optional[str] = None,
         uid: Optional[int] = None,
         gid: Optional[int] = None,
+        ssh: bool = False,
     ) -> Optional[Session]:
         """Create a new MC session
 
@@ -163,6 +164,7 @@ class ContainerManager:
             mcp: Optional list of MCP server names to attach to the session
             uid: Optional user ID for the container process
             gid: Optional group ID for the container process
+            ssh: Whether to start the SSH server in the container (default: False)
         """
         try:
             # Validate driver exists
@@ -187,6 +189,9 @@ class ContainerManager:
                 env_vars["TARGET_UID"] = str(uid)
             if gid is not None:
                 env_vars["TARGET_GID"] = str(gid)
+
+            # Set SSH environment variable
+            env_vars["MC_SSH_ENABLED"] = "true" if ssh else "false"
 
             # Pass API keys from host environment to container for local development
             api_keys = [
@@ -596,6 +601,7 @@ class ContainerManager:
                 run_command=run_command,  # Store the command
                 uid=uid,
                 gid=gid,
+                ssh=ssh,  # Store SSH setting
             )
 
             # Save session to the session manager
