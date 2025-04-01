@@ -7,13 +7,9 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # Quick check instead of full logic
-if grep -q "INIT_COMPLETE=true" "/init.status" 2>/dev/null; then
-    echo "MC initialization has completed."
-else
-    echo "MC initialization is still in progress."
+if ! grep -q "INIT_COMPLETE=true" "/init.status" 2>/dev/null; then
     # Only follow logs if initialization is incomplete
     if [ -f "/init.log" ]; then
-        echo "Initialization is still in progress. Showing logs:"
         echo "----------------------------------------"
         tail -f /init.log &
         tail_pid=$!
@@ -23,7 +19,6 @@ else
             if grep -q "INIT_COMPLETE=true" "/init.status" 2>/dev/null; then
                 kill $tail_pid 2>/dev/null
                 echo "----------------------------------------"
-                echo "Initialization completed."
                 break
             fi
             sleep 1
