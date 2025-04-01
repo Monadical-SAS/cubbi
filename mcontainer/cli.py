@@ -152,6 +152,12 @@ def create_session(
         "-m",
         help="Attach MCP servers to the session (can be specified multiple times)",
     ),
+    uid: Optional[int] = typer.Option(
+        None, "--uid", help="User ID to run the container as (defaults to host user)"
+    ),
+    gid: Optional[int] = typer.Option(
+        None, "--gid", help="Group ID to run the container as (defaults to host user)"
+    ),
 ) -> None:
     """Create a new MC session
 
@@ -159,6 +165,11 @@ def create_session(
     If a repository URL is provided, it will be cloned into /app during initialization.
     If no path or URL is provided, no local volume will be mounted.
     """
+    # Determine UID/GID
+    target_uid = uid if uid is not None else os.getuid()
+    target_gid = gid if gid is not None else os.getgid()
+    console.print(f"Using UID: {target_uid}, GID: {target_gid}")
+
     # Use default driver from user configuration
     if not driver:
         driver = user_config.get(
@@ -248,6 +259,8 @@ def create_session(
             volumes=volume_mounts,
             networks=all_networks,
             mcp=all_mcps,
+            uid=target_uid,
+            gid=target_gid,
         )
 
     if session:
