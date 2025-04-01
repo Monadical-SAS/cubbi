@@ -41,6 +41,9 @@ mc
 # Create a new session with the default driver
 mc session create
 
+# Create a session and run an initial command before the shell starts
+mc session create --run "echo 'Setup complete'; ls -l"
+
 # List all active sessions
 mc session list
 
@@ -81,6 +84,9 @@ mcx https://github.com/username/repo  # Clones the repository
 
 # Shorthand with MCP servers
 mcx https://github.com/username/repo --mcp github
+
+# Shorthand with an initial command
+mcx . --run "apt-get update && apt-get install -y my-package"
 ```
 
 ## Driver Management
