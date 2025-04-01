@@ -45,9 +45,13 @@ chown $MC_USER_ID:$MC_GROUP_ID /home/mcuser
 mkdir -p /app
 chown $MC_USER_ID:$MC_GROUP_ID /app
 
-# Start SSH server as root before switching user
-echo "Starting SSH server..."
-/usr/sbin/sshd
+# Start SSH server only if explicitly enabled
+if [ "$MC_SSH_ENABLED" = "true" ]; then
+  echo "Starting SSH server..."
+  /usr/sbin/sshd
+else
+  echo "SSH server disabled (use --ssh flag to enable)"
+fi
 
 # --- END INSERTED BLOCK ---
 

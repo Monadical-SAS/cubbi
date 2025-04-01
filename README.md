@@ -87,6 +87,9 @@ mcx https://github.com/username/repo --mcp github
 
 # Shorthand with an initial command
 mcx . --run "apt-get update && apt-get install -y my-package"
+
+# Enable SSH server in the container
+mcx --ssh
 ```
 
 ## Driver Management
