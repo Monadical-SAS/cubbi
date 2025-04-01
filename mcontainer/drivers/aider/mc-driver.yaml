@@ -1,0 +1,72 @@
+name: aider
+description: Aider AI programming assistant environment
+version: 1.0.0
+maintainer: team@monadical.com
+image: monadical/mc-aider:latest
+
+init:
+  pre_command: /mc-init.sh
+  command: /entrypoint.sh
+
+environment:
+  - name: OPENAI_API_KEY
+    description: OpenAI API key for aider
+    required: true
+    sensitive: true
+
+  - name: OPENAI_API_BASE
+    description: Custom OpenAI API base URL (for Azure, etc.)
+    required: false
+    sensitive: false
+
+  - name: OPENAI_MODEL
+    description: OpenAI model to use (default is GPT-4)
+    required: false
+    default: gpt-4
+
+  - name: AIDER_EDITOR
+    description: Editor to use (vim, nano, emacs, code)
+    required: false
+    default: vim
+
+  - name: AIDER_CHAT_HISTORY_DIR
+    description: Directory to store chat history
+    required: false
+    default: /app/.aider/chats
+
+  - name: MC_PROJECT_URL
+    description: Project repository URL
+    required: false
+
+  - name: MC_PROJECT_TYPE
+    description: Project repository type (git, svn, etc.)
+    required: false
+    default: git
+
+  - name: MC_GIT_SSH_KEY
+    description: SSH key for Git authentication
+    required: false
+    sensitive: true
+
+  - name: MC_GIT_TOKEN
+    description: Token for Git authentication
+    required: false
+    sensitive: true
+
+ports:
+  - 8080 # For web-based editor integration
+  - 22   # SSH server
+
+volumes:
+  - mountPath: /app
+    description: Application directory
+
+persistent_configs:
+  - source: "/app/.aider"
+    target: "/mc-config/aider-app"
+    type: "directory"
+    description: "Aider configuration and history"
+  - source: "/root/.config/aider"
+    target: "/mc-config/aider-config"
+    type: "directory"
+    description: "Aider global configuration"
