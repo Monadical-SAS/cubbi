@@ -30,15 +30,12 @@ RUN curl -fsSL https://astral.sh/uv/install.sh -o install.sh && \
     sh install.sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     mv /root/.local/bin/uvx /usr/local/bin/uvx && \
-    mv /root/.local/bin/env /usr/local/bin/env && \
     rm install.sh
 RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh -o download_cli.sh && \
     chmod +x download_cli.sh && \
     ./download_cli.sh && \
-    # Move goose to a system-wide location
     mv /root/.local/bin/goose /usr/local/bin/goose && \
-    # Clean up
-    rm -rf /root/.local download_cli.sh /tmp/goose-*
+    rm -rf download_cli.sh /tmp/goose-*
 
 # Create app directory
 WORKDIR /app
