@@ -41,9 +41,16 @@ fi
 # Create home directory and set permissions
 mkdir -p /home/mcuser
 chown $MC_USER_ID:$MC_GROUP_ID /home/mcuser
-# Ensure /app exists and has correct ownership (important for volume mounts)
 mkdir -p /app
 chown $MC_USER_ID:$MC_GROUP_ID /app
+
+# Copy /root/.local/bin to the user's home directory
+if [ -d /root/.local/bin ]; then
+    echo "Copying /root/.local/bin to /home/mcuser/.local/bin..."
+    mkdir -p /home/mcuser/.local/bin
+    cp -r /root/.local/bin/* /home/mcuser/.local/bin/
+    chown -R $MC_USER_ID:$MC_GROUP_ID /home/mcuser/.local/bin
+fi
 
 # Start SSH server only if explicitly enabled
 if [ "$MC_SSH_ENABLED" = "true" ]; then
@@ -141,14 +148,14 @@ if [ -n "$MC_PERSISTENT_LINKS" ]; then
 fi
 
 # Update Goose configuration with available MCP servers (run as mcuser after symlinks are created)
-if [ -f "/usr/local/bin/update-goose-config.sh" ]; then
+if [ -f "/usr/local/bin/update-goose-config.py" ]; then
     echo "Updating Goose configuration with MCP servers as mcuser..."
-    gosu mcuser bash /usr/local/bin/update-goose-config.sh
-elif [ -f "$(dirname "$0")/update-goose-config.sh" ]; then
+    gosu mcuser /usr/local/bin/update-goose-config.py
+elif [ -f "$(dirname "$0")/update-goose-config.py" ]; then
     echo "Updating Goose configuration with MCP servers as mcuser..."
-    gosu mcuser bash "$(dirname "$0")/update-goose-config.sh"
+    gosu mcuser "$(dirname "$0")/update-goose-config.py"
 else
-    echo "Warning: update-goose-config.sh script not found. Goose configuration will not be updated."
+    echo "Warning: update-goose-config.py script not found. Goose configuration will not be updated."
 fi
 
 # Mark initialization as complete

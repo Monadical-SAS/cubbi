@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to check and display initialization status - optimized version
+# Script to check and display initialization status
 
 # Only proceed if running as root
 if [ "$(id -u)" != "0" ]; then
