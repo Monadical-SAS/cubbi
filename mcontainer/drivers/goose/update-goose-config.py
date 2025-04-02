@@ -30,6 +30,26 @@ def update_config():
             if "extensions" not in config_data:
                 config_data["extensions"] = {}
 
+    # Add default developer extension
+    config_data["extensions"]["developer"] = {
+        "enabled": True,
+        "name": "developer",
+        "timeout": 300,
+        "type": "builtin",
+    }
+
+    # Update goose configuration with model and provider from environment variables
+    goose_model = os.environ.get("MC_MODEL")
+    goose_provider = os.environ.get("MC_PROVIDER")
+
+    if goose_model:
+        config_data["GOOSE_MODEL"] = goose_model
+        print(f"Set GOOSE_MODEL to {goose_model}")
+
+    if goose_provider:
+        config_data["GOOSE_PROVIDER"] = goose_provider
+        print(f"Set GOOSE_PROVIDER to {goose_provider}")
+
     # Get MCP information from environment variables
     mcp_count = int(os.environ.get("MCP_COUNT", "0"))
     mcp_names_str = os.environ.get("MCP_NAMES", "[]")

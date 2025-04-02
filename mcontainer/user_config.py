@@ -94,6 +94,8 @@ class UserConfigManager:
                 "networks": [],  # Default networks to connect to (besides mc-network)
                 "volumes": [],  # Default volumes to mount, format: "source:dest"
                 "mcps": [],  # Default MCP servers to connect to
+                "model": "claude-3-5-sonnet-latest",  # Default LLM model to use
+                "provider": "anthropic",  # Default LLM provider to use
             },
             "services": {
                 "langfuse": {},
