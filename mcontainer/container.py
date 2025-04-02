@@ -394,9 +394,16 @@ class ContainerManager:
 
                     except Exception as e:
                         print(f"Warning: Failed to start MCP server '{mcp_name}': {e}")
-                        # Remove from the container names list if failed
-                        if container_name in mcp_container_names:
-                            mcp_container_names.remove(container_name)
+                        # Get the container name before trying to remove it from the list
+                        try:
+                            container_name = self.mcp_manager.get_mcp_container_name(
+                                mcp_name
+                            )
+                            if container_name in mcp_container_names:
+                                mcp_container_names.remove(container_name)
+                        except Exception:
+                            # If we can't get the container name, just continue
+                            pass
 
                 elif mcp_config.get("type") == "remote":
                     # For remote MCP, just set environment variables
