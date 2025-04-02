@@ -24,10 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p /var/run/sshd && chmod 0755 /var/run/sshd
 # Do NOT enable root login or set root password here
 
-# Install python dependencies
-# This is done before copying scripts for better cache management
-# Consider moving this WORKDIR /tmp section if goose CLI isn't strictly needed for base image setup
+# Install deps
 WORKDIR /tmp
+RUN curl -fsSL https://astral.sh/uv/install.sh -o install.sh && \
+    sh install.sh && \
+    mv /root/.local/bin/uv /usr/local/bin/uv && \
+    mv /root/.local/bin/uvx /usr/local/bin/uvx && \
+    mv /root/.local/bin/env /usr/local/bin/env && \
+    rm install.sh
 RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh -o download_cli.sh && \
     chmod +x download_cli.sh && \
     ./download_cli.sh && \
@@ -44,13 +48,13 @@ COPY mc-init.sh /mc-init.sh
 COPY entrypoint.sh /entrypoint.sh
 COPY mc-driver.yaml /mc-driver.yaml
 COPY init-status.sh /init-status.sh
-COPY update-goose-config.sh /usr/local/bin/update-goose-config.sh
+COPY update-goose-config.py /usr/local/bin/update-goose-config.py
 
 # Extend env via bashrc
 
 # Make scripts executable
 RUN chmod +x /mc-init.sh /entrypoint.sh /init-status.sh \
-    /usr/local/bin/update-goose-config.sh
+    /usr/local/bin/update-goose-config.py
 
 # Set up initialization status check on login
 RUN echo '[ -x /init-status.sh ] && /init-status.sh' >> /etc/bash.bashrc
