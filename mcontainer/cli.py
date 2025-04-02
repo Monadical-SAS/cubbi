@@ -1037,6 +1037,9 @@ def start_mcp(
 
         console.print(f"Starting {len(mcps)} MCP servers...")
 
+        # Keep track of MCP container names that were successfully started
+        mcp_container_names = []
+
         for mcp in mcps:
             mcp_name = mcp.get("name")
             if not mcp_name:
@@ -1045,6 +1048,8 @@ def start_mcp(
             try:
                 with console.status(f"Starting MCP server '{mcp_name}'..."):
                     result = mcp_manager.start_mcp(mcp_name)
+                    container_name = mcp_manager.get_mcp_container_name(mcp_name)
+                    mcp_container_names.append(container_name)
 
                 if result.get("status") == "running":
                     console.print(f"[green]Started MCP server '{mcp_name}'[/green]")
@@ -1061,6 +1066,9 @@ def start_mcp(
                     failed_count += 1
             except Exception as e:
                 console.print(f"[red]Error starting MCP server '{mcp_name}': {e}[/red]")
+                # Remove from the container names list if failed
+                if container_name in mcp_container_names:
+                    mcp_container_names.remove(container_name)
                 failed_count += 1
 
         # Show a summary
