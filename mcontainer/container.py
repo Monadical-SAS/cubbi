@@ -188,11 +188,9 @@ class ContainerManager:
             # Prepare environment variables
             env_vars = environment or {}
 
-            # Add TARGET_UID and TARGET_GID for entrypoint script
-            if uid is not None:
-                env_vars["TARGET_UID"] = str(uid)
-            if gid is not None:
-                env_vars["TARGET_GID"] = str(gid)
+            # Add MC_USER_ID and MC_GROUP_ID for entrypoint script
+            env_vars["MC_USER_ID"] = str(uid) if uid is not None else "1000"
+            env_vars["MC_GROUP_ID"] = str(gid) if gid is not None else "1000"
 
             # Set SSH environment variable
             env_vars["MC_SSH_ENABLED"] = "true" if ssh else "false"
