@@ -464,15 +464,15 @@ class ContainerManager:
                 logger.info(
                     "Using default container entrypoint/command for interactive shell."
                 )
-            # WE HAVE TO ADD THIS BEFORE THE CREATE BC IT'S NOT IN THE ENTRYPOINT
-            config_content = get_goose_config(model=model, provider=provider)
+                
+            # WE HAVE TO DO THIS FIRST BC OF THE --RUN COMMAND
+            # config_content = get_goose_config(model=model, provider=provider)
             # container.exec_run('mkdir -p /root/.config/goose', user='root')
             # container.exec_run([
             #     "/bin/sh", 
             #     "-c", 
             #     f"cat > /root/.config/goose/config.yaml << 'EOL'\n{config_content}EOL"
             # ], user='root')
-
             # Create container
             container = self.client.containers.create(
                 image=driver.image,
@@ -502,6 +502,7 @@ class ContainerManager:
             # Start container
             container.start()
             
+
             # Connect to additional networks (after the first one in network_list)
             if len(network_list) > 1:
                 for network_name in network_list[1:]:
