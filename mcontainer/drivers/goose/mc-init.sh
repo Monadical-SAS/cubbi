@@ -103,17 +103,6 @@ if [ -n "$LANGFUSE_INIT_PROJECT_SECRET_KEY" ] && [ -n "$LANGFUSE_INIT_PROJECT_PU
     export LANGFUSE_URL="${LANGFUSE_URL:-https://cloud.langfuse.com}"
 fi
 
-# Update Goose configuration with available MCP servers
-if [ -f "/usr/local/bin/update-goose-config.sh" ]; then
-    echo "Updating Goose configuration with MCP servers..."
-    bash /usr/local/bin/update-goose-config.sh
-elif [ -f "$(dirname "$0")/update-goose-config.sh" ]; then
-    echo "Updating Goose configuration with MCP servers..."
-    bash "$(dirname "$0")/update-goose-config.sh"
-else
-    echo "Warning: update-goose-config.sh script not found. Goose configuration will not be updated."
-fi
-
 # Create symlinks for persistent configurations defined in the driver
 if [ -n "$MC_PERSISTENT_LINKS" ]; then
     echo "Creating persistent configuration symlinks..."
@@ -149,6 +138,17 @@ if [ -n "$MC_PERSISTENT_LINKS" ]; then
 
     done
     echo "Persistent configuration symlinks created."
+fi
+
+# Update Goose configuration with available MCP servers (run as mcuser after symlinks are created)
+if [ -f "/usr/local/bin/update-goose-config.sh" ]; then
+    echo "Updating Goose configuration with MCP servers as mcuser..."
+    gosu mcuser bash /usr/local/bin/update-goose-config.sh
+elif [ -f "$(dirname "$0")/update-goose-config.sh" ]; then
+    echo "Updating Goose configuration with MCP servers as mcuser..."
+    gosu mcuser bash "$(dirname "$0")/update-goose-config.sh"
+else
+    echo "Warning: update-goose-config.sh script not found. Goose configuration will not be updated."
 fi
 
 # Mark initialization as complete
