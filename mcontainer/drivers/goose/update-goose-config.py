@@ -103,12 +103,4 @@ def update_config():
 
 
 if __name__ == "__main__":
-    mcp_count_str = os.environ.get("MCP_COUNT", "0")
-    mcp_count = int(mcp_count_str)
-
-    if mcp_count > 0:
-        print("Updating Goose configuration with MCP servers...")
-        update_config()
-        print("Goose configuration updated successfully!")
-    else:
-        print("No MCP servers found, using default Goose configuration.")
+    update_config()
