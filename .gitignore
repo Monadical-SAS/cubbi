@@ -9,3 +9,7 @@ wheels/
 # Virtual environments
 .venv
 .benchmark-*
+
+# Aider
+.aider*
+.goose

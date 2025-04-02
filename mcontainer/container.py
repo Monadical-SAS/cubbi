@@ -154,6 +154,7 @@ class ContainerManager:
         gid: Optional[int] = None,
         model: Optional[str] = None,
         provider: Optional[str] = None,
+        ssh: bool = False,
     ) -> Optional[Session]:
         """Create a new MC session
 
@@ -169,6 +170,7 @@ class ContainerManager:
             mcp: Optional list of MCP server names to attach to the session
             uid: Optional user ID for the container process
             gid: Optional group ID for the container process
+            ssh: Whether to start the SSH server in the container (default: False)
         """
         try:
             # Validate driver exists
@@ -194,9 +196,8 @@ class ContainerManager:
             if gid is not None:
                 env_vars["TARGET_GID"] = str(gid)
 
-            # Add project URL to environment if provided
-            if project:
-                env_vars["MC_PROJECT_URL"] = project
+            # Set SSH environment variable
+            env_vars["MC_SSH_ENABLED"] = "true" if ssh else "false"
 
             # Pass API keys from host environment to container for local development
             api_keys = [
@@ -242,6 +243,7 @@ class ContainerManager:
                 # Clear project for container environment since we're mounting
                 project = None
             elif is_git_repo:
+                env_vars["MC_PROJECT_URL"] = project
                 print(
                     f"Git repository URL provided - container will clone {project} into /app during initialization"
                 )
@@ -279,6 +281,7 @@ class ContainerManager:
 
             # Create driver-specific config directories and set up direct volume mounts
             if driver.persistent_configs:
+                persistent_links_data = []  # To store "source:target" pairs for symlinks
                 print("Setting up persistent configuration directories:")
                 for config in driver.persistent_configs:
                     # Get target directory path on host
@@ -297,13 +300,21 @@ class ContainerManager:
                         target_dir.parent.mkdir(parents=True, exist_ok=True)
                         # File will be created by the container if needed
 
-                    # Mount persistent config directly to container path
-                    session_volumes[str(target_dir)] = {
-                        "bind": config.source,
-                        "mode": "rw",
-                    }
+                    # --- REMOVED adding to session_volumes ---
+                    # We will create symlinks inside the container instead of direct mounts
+
+                    # Store the source and target paths for the init script
+                    # Note: config.target is the path *within* /mc-config
+                    persistent_links_data.append(f"{config.source}:{config.target}")
+
                     print(
-                        f"  - Created direct volume mount: {target_dir} -> {config.source}"
+                        f"  - Prepared host path {target_dir} for symlink target {config.target}"
+                    )
+                # Set environment variable with semicolon-separated link pairs
+                if persistent_links_data:
+                    env_vars["MC_PERSISTENT_LINKS"] = ";".join(persistent_links_data)
+                    print(
+                        f"Setting MC_PERSISTENT_LINKS={env_vars['MC_PERSISTENT_LINKS']}"
                     )
 
             # Default MC network
@@ -389,9 +400,16 @@ class ContainerManager:
 
                     except Exception as e:
                         print(f"Warning: Failed to start MCP server '{mcp_name}': {e}")
-                        # Remove from the container names list if failed
-                        if container_name in mcp_container_names:
-                            mcp_container_names.remove(container_name)
+                        # Get the container name before trying to remove it from the list
+                        try:
+                            container_name = self.mcp_manager.get_mcp_container_name(
+                                mcp_name
+                            )
+                            if container_name in mcp_container_names:
+                                mcp_container_names.remove(container_name)
+                        except Exception:
+                            # If we can't get the container name, just continue
+                            pass
 
                 elif mcp_config.get("type") == "remote":
                     # For remote MCP, just set environment variables
@@ -609,6 +627,7 @@ class ContainerManager:
                 gid=gid,
                 model=model,
                 provider=provider
+                ssh=ssh,  # Store SSH setting
             )
 
             # Save session to the session manager
@@ -653,7 +672,7 @@ class ContainerManager:
                 return False
             container_id = session_obj.container_id
             print(
-                f"[yellow]Warning: Session data missing for {session_id}. Attaching as default container user.[/yellow]"
+                f"[yellow]Warning: Session data missing for {session_id}. Connecting as default container user.[/yellow]"
             )
         else:
             container_id = session_data.get("container_id")
@@ -679,18 +698,19 @@ class ContainerManager:
                 return False
 
         try:
-            # Attach to the container's main process TTY
-            # This allows seeing the output of --run command followed by the shell
-            # The user context (UID/GID) is determined when the container is created,
-            # attach respects that context.
+            # Use exec instead of attach to avoid container exit on Ctrl+C
             print(
-                f"Attaching to session {session_id} (container: {container_id[:12]})..."
+                f"Connecting to session {session_id} (container: {container_id[:12]})..."
             )
-            print("Type 'exit' or Ctrl+P, Ctrl+Q (by default) to detach.")
-            cmd = ["docker", "attach", container_id]
+            print("Type 'exit' to detach from the session.")
 
-            # Use execvp to replace the current process with docker attach
-            # This provides a more seamless shell experience
+            # Use docker exec to start a new bash process in the container
+            # This leverages the init-status.sh script in bash.bashrc
+            # which will check initialization status
+            cmd = ["docker", "exec", "-it", container_id, "bash", "-l"]
+
+            # Use execvp to replace the current process with docker exec
+            # This provides a seamless shell experience
             os.execvp("docker", cmd)
             # execvp does not return if successful
             return True  # Should not be reached if execvp succeeds

@@ -38,18 +38,20 @@ else
     fi
 fi
 
-# Create home directory and set permissions if it doesn't exist
-if [ ! -d "/home/mcuser" ]; then
-    mkdir -p /home/mcuser
-    chown $MC_USER_ID:$MC_GROUP_ID /home/mcuser
-fi
+# Create home directory and set permissions
+mkdir -p /home/mcuser
+chown $MC_USER_ID:$MC_GROUP_ID /home/mcuser
 # Ensure /app exists and has correct ownership (important for volume mounts)
 mkdir -p /app
 chown $MC_USER_ID:$MC_GROUP_ID /app
 
-# Start SSH server as root before switching user
-echo "Starting SSH server..."
-/usr/sbin/sshd
+# Start SSH server only if explicitly enabled
+if [ "$MC_SSH_ENABLED" = "true" ]; then
+  echo "Starting SSH server..."
+  /usr/sbin/sshd
+else
+  echo "SSH server disabled (use --ssh flag to enable)"
+fi
 
 # --- END INSERTED BLOCK ---
 
@@ -101,18 +103,53 @@ if [ -n "$LANGFUSE_INIT_PROJECT_SECRET_KEY" ] && [ -n "$LANGFUSE_INIT_PROJECT_PU
     export LANGFUSE_URL="${LANGFUSE_URL:-https://cloud.langfuse.com}"
 fi
 
-# Update Goose configuration with available MCP servers
+# Create symlinks for persistent configurations defined in the driver
+if [ -n "$MC_PERSISTENT_LINKS" ]; then
+    echo "Creating persistent configuration symlinks..."
+    # Split by semicolon
+    IFS=';' read -ra LINKS <<< "$MC_PERSISTENT_LINKS"
+    for link_pair in "${LINKS[@]}"; do
+        # Split by colon
+        IFS=':' read -r source_path target_path <<< "$link_pair"
+
+        if [ -z "$source_path" ] || [ -z "$target_path" ]; then
+            echo "Warning: Invalid link pair format '$link_pair', skipping."
+            continue
+        fi
+
+        echo "Processing link: $source_path -> $target_path"
+        parent_dir=$(dirname "$source_path")
+
+        # Ensure parent directory of the link source exists and is owned by mcuser
+        if [ ! -d "$parent_dir" ]; then
+             echo "Creating parent directory: $parent_dir"
+             mkdir -p "$parent_dir"
+             echo "Changing ownership of parent $parent_dir to $MC_USER_ID:$MC_GROUP_ID"
+             chown "$MC_USER_ID:$MC_GROUP_ID" "$parent_dir" || echo "Warning: Could not chown parent $parent_dir"
+        fi
+
+        # Create the symlink (force, no-dereference)
+        echo "Creating symlink: ln -sfn $target_path $source_path"
+        ln -sfn "$target_path" "$source_path"
+
+        # Optionally, change ownership of the symlink itself
+        echo "Changing ownership of symlink $source_path to $MC_USER_ID:$MC_GROUP_ID"
+        chown -h "$MC_USER_ID:$MC_GROUP_ID" "$source_path" || echo "Warning: Could not chown symlink $source_path"
+
+    done
+    echo "Persistent configuration symlinks created."
+fi
+
+# Update Goose configuration with available MCP servers (run as mcuser after symlinks are created)
 if [ -f "/usr/local/bin/update-goose-config.sh" ]; then
-    echo "Updating Goose configuration with MCP servers..."
-    bash /usr/local/bin/update-goose-config.sh
+    echo "Updating Goose configuration with MCP servers as mcuser..."
+    gosu mcuser bash /usr/local/bin/update-goose-config.sh
 elif [ -f "$(dirname "$0")/update-goose-config.sh" ]; then
-    echo "Updating Goose configuration with MCP servers..."
-    bash "$(dirname "$0")/update-goose-config.sh"
+    echo "Updating Goose configuration with MCP servers as mcuser..."
+    gosu mcuser bash "$(dirname "$0")/update-goose-config.sh"
 else
     echo "Warning: update-goose-config.sh script not found. Goose configuration will not be updated."
 fi
-
-echo "MC driver initialization complete"
 
 # Mark initialization as complete
 echo "=== MC Initialization completed at $(date) ==="
@@ -126,21 +163,4 @@ if [ -n "$MC_RUN_COMMAND" ]; then
     echo "--- Initial command finished (exit code: $COMMAND_EXIT_CODE) ---";
 fi;
 
-# Determine the final command (the interactive shell)
-FINAL_CMD=("$@")
-if [ ${#FINAL_CMD[@]} -eq 0 ]; then
-    # Default to /bin/bash if CMD wasn't passed or was empty
-    FINAL_CMD=("/bin/bash")
-fi
-
-# If the final command is bash, ensure it runs interactively
-# Check if the first argument is /bin/bash and -i is not already present
-if [ "${FINAL_CMD[0]}" = "/bin/bash" ] && [[ ! " ${FINAL_CMD[@]} " =~ " -i " ]]; then
-    # Add the -i flag to the command array
-    FINAL_CMD+=("-i")
-fi
-
-echo "--- Starting interactive shell (${FINAL_CMD[*]}) ---";
-# Now exec gosu directly into the final command, replacing this script process
-# "${FINAL_CMD[@]}" ensures arguments are passed correctly (e.g., /bin/bash -i)
-exec gosu mcuser "${FINAL_CMD[@]}"
+exec gosu mcuser "$@"

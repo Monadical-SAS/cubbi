@@ -110,6 +110,7 @@ class Session(BaseModel):
     gid: Optional[int] = None  # Store GID used
     model: Optional[str] = None # Model used in this session
     provider: Optional[str] = None # Model used in this session
+    ssh: bool = False  # Whether SSH server is enabled
 
 
 class Config(BaseModel):

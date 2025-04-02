@@ -165,6 +165,7 @@ def create_session(
     ),
     model: Optional[str] = typer.Option("anthropic/claude-3.5-sonnet", "--model", "-m", help="Model to use"),
     provider: Optional[str] = typer.Option("openrouter", "--provider", "-p", help="Provider to use"),
+    ssh: bool = typer.Option(False, "--ssh", help="Start SSH server in the container"),
 ) -> None:
     """Create a new MC session
 
@@ -271,6 +272,7 @@ def create_session(
             gid=target_gid,
             model=model,
             provider=provider
+            ssh=ssh,
         )
 
     if session:
@@ -1039,6 +1041,9 @@ def start_mcp(
 
         console.print(f"Starting {len(mcps)} MCP servers...")
 
+        # Keep track of MCP container names that were successfully started
+        mcp_container_names = []
+
         for mcp in mcps:
             mcp_name = mcp.get("name")
             if not mcp_name:
@@ -1047,6 +1052,8 @@ def start_mcp(
             try:
                 with console.status(f"Starting MCP server '{mcp_name}'..."):
                     result = mcp_manager.start_mcp(mcp_name)
+                    container_name = mcp_manager.get_mcp_container_name(mcp_name)
+                    mcp_container_names.append(container_name)
 
                 if result.get("status") == "running":
                     console.print(f"[green]Started MCP server '{mcp_name}'[/green]")
@@ -1063,6 +1070,9 @@ def start_mcp(
                     failed_count += 1
             except Exception as e:
                 console.print(f"[red]Error starting MCP server '{mcp_name}': {e}[/red]")
+                # Remove from the container names list if failed
+                if container_name in mcp_container_names:
+                    mcp_container_names.remove(container_name)
                 failed_count += 1
 
         # Show a summary

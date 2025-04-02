@@ -93,7 +93,7 @@ class UserConfigManager:
                 "mount_local": True,
                 "networks": [],  # Default networks to connect to (besides mc-network)
                 "volumes": [],  # Default volumes to mount, format: "source:dest"
-                "mcps": [],     # Default MCP servers to connect to
+                "mcps": [],  # Default MCP servers to connect to
             },
             "services": {
                 "langfuse": {},
