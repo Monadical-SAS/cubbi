@@ -49,7 +49,7 @@ if [ -d /root/.local/bin ]; then
     echo "Copying /root/.local/bin to /home/mcuser/.local/bin..."
     mkdir -p /home/mcuser/.local/bin
     cp -r /root/.local/bin/* /home/mcuser/.local/bin/
-    chown -R $MC_USER_ID:$MC_GROUP_ID /home/mcuser/.local/bin
+    chown -R $MC_USER_ID:$MC_GROUP_ID /home/mcuser/.local
 fi
 
 # Start SSH server only if explicitly enabled
@@ -158,16 +158,16 @@ else
     echo "Warning: update-goose-config.py script not found. Goose configuration will not be updated."
 fi
 
-# Mark initialization as complete
-echo "=== MC Initialization completed at $(date) ==="
-echo "INIT_COMPLETE=true" > /init.status
-
 # Run the user command first, if set, as mcuser
 if [ -n "$MC_RUN_COMMAND" ]; then
-    echo '--- Executing initial command: $MC_RUN_COMMAND ---';
+    echo "--- Executing initial command: $MC_RUN_COMMAND ---";
     gosu mcuser sh -c "$MC_RUN_COMMAND"; # Run user command as mcuser
     COMMAND_EXIT_CODE=$?;
     echo "--- Initial command finished (exit code: $COMMAND_EXIT_CODE) ---";
 fi;
+
+# Mark initialization as complete
+echo "=== MC Initialization completed at $(date) ==="
+echo "INIT_COMPLETE=true" > /init.status
 
 exec gosu mcuser "$@"

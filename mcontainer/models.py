@@ -104,11 +104,13 @@ class Session(BaseModel):
     project: Optional[str] = None
     created_at: str
     ports: Dict[int, int] = Field(default_factory=dict)
-    mcps: List[str] = Field(default_factory=list)  # List of MCP server names
-    run_command: Optional[str] = None  # Command executed on start
-    uid: Optional[int] = None  # Store UID used
-    gid: Optional[int] = None  # Store GID used
-    ssh: bool = False  # Whether SSH server is enabled
+    mcps: List[str] = Field(default_factory=list)
+    run_command: Optional[str] = None
+    uid: Optional[int] = None
+    gid: Optional[int] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+    ssh: bool = False
 
 
 class Config(BaseModel):
