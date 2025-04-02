@@ -113,6 +113,8 @@ class ContainerManager:
                     container_id=container_id,
                     created_at=container.attrs["Created"],
                     project=labels.get("mc.project"),
+                    model=labels.get("mc.model"),
+                    provider=labels.get("mc.provider"),
                 )
 
                 # Get port mappings
@@ -148,6 +150,8 @@ class ContainerManager:
         run_command: Optional[str] = None,
         uid: Optional[int] = None,
         gid: Optional[int] = None,
+        model: Optional[str] = None,
+        provider: Optional[str] = None,
         ssh: bool = False,
     ) -> Optional[Session]:
         """Create a new MC session
@@ -456,8 +460,8 @@ class ContainerManager:
 
             # Determine container command and entrypoint
             container_command = None
-            entrypoint = None  # Keep this initially None to mean "use Dockerfile default unless overridden"
-            target_shell = "/bin/bash"  # Default final shell
+            entrypoint = None
+            target_shell = "/bin/bash"
 
             if run_command:
                 # Set environment variable for mc-init.sh to pick up
@@ -476,6 +480,14 @@ class ContainerManager:
                 logger.info(
                     "Using default container entrypoint/command for interactive shell."
                 )
+
+            # Set default model/provider from user config if not explicitly provided
+            env_vars["MC_MODEL"] = model or self.user_config_manager.get(
+                "defaults.model", ""
+            )
+            env_vars["MC_PROVIDER"] = provider or self.user_config_manager.get(
+                "defaults.provider", ""
+            )
 
             # Create container
             container = self.client.containers.create(
@@ -605,10 +617,12 @@ class ContainerManager:
                 created_at=container.attrs["Created"],
                 ports=ports,
                 mcps=mcp_names,
-                run_command=run_command,  # Store the command
+                run_command=run_command,
                 uid=uid,
                 gid=gid,
-                ssh=ssh,  # Store SSH setting
+                model=model,
+                provider=provider,
+                ssh=ssh,
             )
 
             # Save session to the session manager
