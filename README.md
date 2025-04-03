@@ -261,6 +261,7 @@ Service credentials like API keys configured in `~/.config/mc/config.yaml` are a
 | `openai.api_key` | `OPENAI_API_KEY` |
 | `anthropic.api_key` | `ANTHROPIC_API_KEY` |
 | `openrouter.api_key` | `OPENROUTER_API_KEY` |
+| `google.api_key` | `GOOGLE_API_KEY` |
 
 ## MCP Server Management
 
