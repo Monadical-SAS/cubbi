@@ -15,6 +15,7 @@ ENV_MAPPINGS = {
     "services.openai.api_key": "OPENAI_API_KEY",
     "services.anthropic.api_key": "ANTHROPIC_API_KEY",
     "services.openrouter.api_key": "OPENROUTER_API_KEY",
+    "services.google.api_key": "GOOGLE_API_KEY",
 }
 
 
@@ -102,6 +103,7 @@ class UserConfigManager:
                 "openai": {},
                 "anthropic": {},
                 "openrouter": {},
+                "google": {},
             },
             "docker": {
                 "network": "mc-network",

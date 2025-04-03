@@ -200,6 +200,7 @@ class ContainerManager:
                 "OPENAI_API_KEY",
                 "ANTHROPIC_API_KEY",
                 "OPENROUTER_API_KEY",
+                "GOOGLE_API_KEY",
                 "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
                 "LANGFUSE_INIT_PROJECT_SECRET_KEY",
                 "LANGFUSE_URL",
