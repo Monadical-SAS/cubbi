@@ -51,37 +51,38 @@ class ContainerManager:
         """Generate a unique session ID"""
         return str(uuid.uuid4())[:8]
 
-    def _get_project_config_path(self, project: Optional[str] = None) -> pathlib.Path:
+    def _get_project_config_path(
+        self, project: Optional[str] = None, project_name: Optional[str] = None
+    ) -> Optional[pathlib.Path]:
         """Get the path to the project configuration directory
 
         Args:
-            project: Optional project repository URL. If None, uses current directory.
+            project: Optional project repository URL or path (only used for mounting).
+            project_name: Optional explicit project name. Only used if specified.
 
         Returns:
-            Path to the project configuration directory
+            Path to the project configuration directory, or None if no project_name is provided
         """
         # Get home directory for the MC config
         mc_home = pathlib.Path.home() / ".mc"
 
-        # If no project URL is provided, use the current directory path
-        if not project:
-            # Use current working directory as project identifier
-            project_id = os.getcwd()
+        # Only use project_name if explicitly provided
+        if project_name:
+            # Create a hash of the project name to use as directory name
+            project_hash = hashlib.md5(project_name.encode()).hexdigest()
+
+            # Create the project config directory path
+            config_path = mc_home / "projects" / project_hash / "config"
+
+            # Create the directory if it doesn't exist
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.mkdir(exist_ok=True)
+
+            return config_path
         else:
-            # Use project URL as identifier
-            project_id = project
-
-        # Create a hash of the project ID to use as directory name
-        project_hash = hashlib.md5(project_id.encode()).hexdigest()
-
-        # Create the project config directory path
-        config_path = mc_home / "projects" / project_hash / "config"
-
-        # Create the directory if it doesn't exist
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.mkdir(exist_ok=True)
-
-        return config_path
+            # If no project_name is provided, don't create any config directory
+            # This ensures we don't mount the /mc-config volume for project-less sessions
+            return None
 
     def list_sessions(self) -> List[Session]:
         """List all active MC sessions"""
@@ -113,6 +114,7 @@ class ContainerManager:
                     container_id=container_id,
                     created_at=container.attrs["Created"],
                     project=labels.get("mc.project"),
+                    project_name=labels.get("mc.project_name"),
                     model=labels.get("mc.model"),
                     provider=labels.get("mc.provider"),
                 )
@@ -141,6 +143,7 @@ class ContainerManager:
         self,
         driver_name: str,
         project: Optional[str] = None,
+        project_name: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         session_name: Optional[str] = None,
         mount_local: bool = False,
@@ -159,6 +162,7 @@ class ContainerManager:
         Args:
             driver_name: The name of the driver to use
             project: Optional project repository URL or local directory path
+            project_name: Optional explicit project name for configuration persistence
             environment: Optional environment variables
             session_name: Optional session name
             mount_local: Whether to mount the specified local directory to /app (ignored if project is None)
@@ -262,57 +266,62 @@ class ContainerManager:
                     session_volumes[host_path] = mount_spec
                     print(f"Mounting volume: {host_path} -> {container_path}")
 
-            # Set up persistent project configuration
-            project_config_path = self._get_project_config_path(project)
-            print(f"Using project configuration directory: {project_config_path}")
+            # Set up persistent project configuration if project_name is provided
+            project_config_path = self._get_project_config_path(project, project_name)
+            if project_config_path:
+                print(f"Using project configuration directory: {project_config_path}")
 
-            # Mount the project configuration directory
-            session_volumes[str(project_config_path)] = {
-                "bind": "/mc-config",
-                "mode": "rw",
-            }
+                # Mount the project configuration directory
+                session_volumes[str(project_config_path)] = {
+                    "bind": "/mc-config",
+                    "mode": "rw",
+                }
 
-            # Add environment variables for config path
-            env_vars["MC_CONFIG_DIR"] = "/mc-config"
-            env_vars["MC_DRIVER_CONFIG_DIR"] = f"/mc-config/{driver_name}"
+                # Add environment variables for config path
+                env_vars["MC_CONFIG_DIR"] = "/mc-config"
+                env_vars["MC_DRIVER_CONFIG_DIR"] = f"/mc-config/{driver_name}"
 
-            # Create driver-specific config directories and set up direct volume mounts
-            if driver.persistent_configs:
-                persistent_links_data = []  # To store "source:target" pairs for symlinks
-                print("Setting up persistent configuration directories:")
-                for config in driver.persistent_configs:
-                    # Get target directory path on host
-                    target_dir = project_config_path / config.target.removeprefix(
-                        "/mc-config/"
-                    )
+                # Create driver-specific config directories and set up direct volume mounts
+                if driver.persistent_configs:
+                    persistent_links_data = []  # To store "source:target" pairs for symlinks
+                    print("Setting up persistent configuration directories:")
+                    for config in driver.persistent_configs:
+                        # Get target directory path on host
+                        target_dir = project_config_path / config.target.removeprefix(
+                            "/mc-config/"
+                        )
 
-                    # Create directory if it's a directory type config
-                    if config.type == "directory":
-                        dir_existed = target_dir.exists()
-                        target_dir.mkdir(parents=True, exist_ok=True)
-                        if not dir_existed:
-                            print(f"  - Created directory: {target_dir}")
-                    # For files, make sure parent directory exists
-                    elif config.type == "file":
-                        target_dir.parent.mkdir(parents=True, exist_ok=True)
-                        # File will be created by the container if needed
+                        # Create directory if it's a directory type config
+                        if config.type == "directory":
+                            dir_existed = target_dir.exists()
+                            target_dir.mkdir(parents=True, exist_ok=True)
+                            if not dir_existed:
+                                print(f"  - Created directory: {target_dir}")
+                        # For files, make sure parent directory exists
+                        elif config.type == "file":
+                            target_dir.parent.mkdir(parents=True, exist_ok=True)
+                            # File will be created by the container if needed
 
-                    # --- REMOVED adding to session_volumes ---
-                    # We will create symlinks inside the container instead of direct mounts
+                        # Store the source and target paths for the init script
+                        # Note: config.target is the path *within* /mc-config
+                        persistent_links_data.append(f"{config.source}:{config.target}")
 
-                    # Store the source and target paths for the init script
-                    # Note: config.target is the path *within* /mc-config
-                    persistent_links_data.append(f"{config.source}:{config.target}")
+                        print(
+                            f"  - Prepared host path {target_dir} for symlink target {config.target}"
+                        )
 
-                    print(
-                        f"  - Prepared host path {target_dir} for symlink target {config.target}"
-                    )
-                # Set environment variable with semicolon-separated link pairs
-                if persistent_links_data:
-                    env_vars["MC_PERSISTENT_LINKS"] = ";".join(persistent_links_data)
-                    print(
-                        f"Setting MC_PERSISTENT_LINKS={env_vars['MC_PERSISTENT_LINKS']}"
-                    )
+                    # Set up persistent links
+                    if persistent_links_data:
+                        env_vars["MC_PERSISTENT_LINKS"] = ";".join(
+                            persistent_links_data
+                        )
+                        print(
+                            f"Setting MC_PERSISTENT_LINKS={env_vars['MC_PERSISTENT_LINKS']}"
+                        )
+            else:
+                print(
+                    "No project_name provided - skipping configuration directory setup."
+                )
 
             # Default MC network
             default_network = self.config_manager.config.docker.get(
@@ -504,6 +513,7 @@ class ContainerManager:
                     "mc.session.name": session_name,
                     "mc.driver": driver_name,
                     "mc.project": project or "",
+                    "mc.project_name": project_name or "",
                     "mc.mcps": ",".join(mcp_names) if mcp_names else "",
                 },
                 network=network_list[0],  # Connect to the first network initially
@@ -613,6 +623,7 @@ class ContainerManager:
                 container_id=container.id,
                 environment=env_vars,
                 project=project,
+                project_name=project_name,
                 created_at=container.attrs["Created"],
                 ports=ports,
                 mcps=mcp_names,
