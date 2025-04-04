@@ -110,6 +110,13 @@ if [ -n "$LANGFUSE_INIT_PROJECT_SECRET_KEY" ] && [ -n "$LANGFUSE_INIT_PROJECT_PU
     export LANGFUSE_URL="${LANGFUSE_URL:-https://cloud.langfuse.com}"
 fi
 
+# Ensure /mc-config directory exists (required for symlinks)
+if [ ! -d "/mc-config" ]; then
+    echo "Creating /mc-config directory since it doesn't exist"
+    mkdir -p /mc-config
+    chown $MC_USER_ID:$MC_GROUP_ID /mc-config
+fi
+
 # Create symlinks for persistent configurations defined in the driver
 if [ -n "$MC_PERSISTENT_LINKS" ]; then
     echo "Creating persistent configuration symlinks..."

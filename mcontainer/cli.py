@@ -86,6 +86,7 @@ def list_sessions() -> None:
     table.add_column("Status")
     table.add_column("Ports")
     table.add_column("Project")
+    table.add_column("Project Name")
     table.add_column("MCPs")
 
     for session in sessions:
@@ -119,6 +120,7 @@ def list_sessions() -> None:
             f"[{status_color}]{status_name}[/{status_color}]",
             ports_str,
             session.project or "",
+            session.project_name or "",
             mcps_str,
         )
 
@@ -128,10 +130,15 @@ def list_sessions() -> None:
 @session_app.command("create")
 def create_session(
     driver: Optional[str] = typer.Option(None, "--driver", "-d", help="Driver to use"),
-    project: Optional[str] = typer.Argument(
+    path_or_url: Optional[str] = typer.Argument(
         None,
         help="Local directory path to mount or repository URL to clone",
         show_default=False,
+    ),
+    project: Optional[str] = typer.Option(
+        None,
+        "--project",
+        help="Project name for configuration persistence (if not specified, no persistent configuration will be used)",
     ),
     env: List[str] = typer.Option(
         [], "--env", "-e", help="Environment variables (KEY=VALUE)"
@@ -174,6 +181,9 @@ def create_session(
     If a local directory path is provided, it will be mounted at /app in the container.
     If a repository URL is provided, it will be cloned into /app during initialization.
     If no path or URL is provided, no local volume will be mounted.
+
+    Use --project to specify a project name for configuration persistence.
+    If --project is not specified, no persistent configuration will be used.
     """
     # Determine UID/GID
     target_uid = uid if uid is not None else os.getuid()
@@ -254,15 +264,16 @@ def create_session(
             console.print(f"  {host_path} -> {mount_info['bind']}")
 
     with console.status(f"Creating session with driver '{driver}'..."):
-        # If project is a local directory, we should mount it
+        # If path_or_url is a local directory, we should mount it
         # If it's a Git URL or doesn't exist, handle accordingly
         mount_local = False
-        if project and os.path.isdir(os.path.expanduser(project)):
+        if path_or_url and os.path.isdir(os.path.expanduser(path_or_url)):
             mount_local = True
 
         session = container_manager.create_session(
             driver_name=driver,
-            project=project,
+            project=path_or_url,
+            project_name=project,
             environment=environment,
             session_name=name,
             mount_local=mount_local,

@@ -102,6 +102,7 @@ class Session(BaseModel):
     container_id: Optional[str] = None
     environment: Dict[str, str] = Field(default_factory=dict)
     project: Optional[str] = None
+    project_name: Optional[str] = None
     created_at: str
     ports: Dict[int, int] = Field(default_factory=dict)
     mcps: List[str] = Field(default_factory=list)
