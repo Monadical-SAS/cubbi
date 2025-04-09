@@ -195,8 +195,6 @@ mc session close <id>
 # Connect to an existing session
 mc session connect <id>
 
-# Stop the current session (from inside the container)
-mc stop
 ```
 
 ### Remote Management

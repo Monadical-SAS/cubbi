@@ -411,21 +411,6 @@ def session_logs(
                 console.print(logs)
 
 
-@app.command()
-def stop() -> None:
-    """Stop the current MC session (from inside the container)"""
-    # Check if running inside a container
-    if not os.path.exists("/.dockerenv"):
-        console.print(
-            "[red]This command can only be run from inside a MC container[/red]"
-        )
-        return
-
-    # Stop the container from inside
-    console.print("Stopping the current session...")
-    os.system("kill 1")  # Send SIGTERM to PID 1 (container's init process)
-
-
 @driver_app.command("list")
 def list_drivers() -> None:
     """List available MC drivers"""
