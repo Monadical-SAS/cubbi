@@ -112,11 +112,6 @@ class ContainerManager:
                     driver=labels.get("mc.driver", "unknown"),
                     status=status,
                     container_id=container_id,
-                    created_at=container.attrs["Created"],
-                    project=labels.get("mc.project"),
-                    project_name=labels.get("mc.project_name"),
-                    model=labels.get("mc.model"),
-                    provider=labels.get("mc.provider"),
                 )
 
                 # Get port mappings
@@ -621,18 +616,7 @@ class ContainerManager:
                 driver=driver_name,
                 status=SessionStatus.RUNNING,
                 container_id=container.id,
-                environment=env_vars,
-                project=project,
-                project_name=project_name,
-                created_at=container.attrs["Created"],
                 ports=ports,
-                mcps=mcp_names,
-                run_command=run_command,
-                uid=uid,
-                gid=gid,
-                model=model,
-                provider=provider,
-                ssh=ssh,
             )
 
             # Save session to the session manager

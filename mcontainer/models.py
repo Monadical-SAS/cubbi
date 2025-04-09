@@ -100,18 +100,7 @@ class Session(BaseModel):
     driver: str
     status: SessionStatus
     container_id: Optional[str] = None
-    environment: Dict[str, str] = Field(default_factory=dict)
-    project: Optional[str] = None
-    project_name: Optional[str] = None
-    created_at: str
     ports: Dict[int, int] = Field(default_factory=dict)
-    mcps: List[str] = Field(default_factory=list)
-    run_command: Optional[str] = None
-    uid: Optional[int] = None
-    gid: Optional[int] = None
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    ssh: bool = False
 
 
 class Config(BaseModel):

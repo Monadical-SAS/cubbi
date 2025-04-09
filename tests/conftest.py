@@ -88,16 +88,12 @@ def mock_session_manager():
 @pytest.fixture
 def mock_container_manager():
     """Mock the ContainerManager class with proper initialization."""
-    timestamp = "2023-01-01T00:00:00Z"  # Use fixed timestamp for reproducibility
     mock_session = Session(
         id="test-session-id",
         name="test-session",
         driver="goose",
         status=SessionStatus.RUNNING,
         ports={"8080": "8080"},
-        project=None,
-        created_at=timestamp,
-        mcps=[],
     )
 
     with patch("mcontainer.cli.container_manager") as mock_manager:
