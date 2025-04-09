@@ -85,9 +85,6 @@ def list_sessions() -> None:
     table.add_column("Driver")
     table.add_column("Status")
     table.add_column("Ports")
-    table.add_column("Project")
-    table.add_column("Project Name")
-    table.add_column("MCPs")
 
     for session in sessions:
         ports_str = ", ".join(
@@ -110,18 +107,12 @@ def list_sessions() -> None:
             else str(session.status)
         )
 
-        # Format MCPs as a comma-separated list
-        mcps_str = ", ".join(session.mcps) if session.mcps else ""
-
         table.add_row(
             session.id,
             session.name,
             session.driver,
             f"[{status_color}]{status_name}[/{status_color}]",
             ports_str,
-            session.project or "",
-            session.project_name or "",
-            mcps_str,
         )
 
     console.print(table)
