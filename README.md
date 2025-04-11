@@ -3,7 +3,7 @@
 MC (Monadical Container) is a command-line tool for managing ephemeral
 containers that run AI tools and development environments. It works with both
 local Docker and a dedicated remote web service that manages containers in a
-Docker-in-Docker (DinD) environment. MC also supports connecting to MCP (Model Control Protocol) servers to extend AI tools with additional capabilities.
+Docker-in-Docker (DinD) environment. MC also supports connecting to MCP (Model Context Protocol) servers to extend AI tools with additional capabilities.
 
 ## Quick Reference
 
@@ -265,7 +265,7 @@ Service credentials like API keys configured in `~/.config/mc/config.yaml` are a
 
 ## MCP Server Management
 
-MCP (Model Control Protocol) servers provide tool-calling capabilities to AI models, enhancing their ability to interact with external services, databases, and systems. MC supports multiple types of MCP servers:
+MCP (Model Context Protocol) servers provide tool-calling capabilities to AI models, enhancing their ability to interact with external services, databases, and systems. MC supports multiple types of MCP servers:
 
 1. **Remote HTTP SSE servers** - External MCP servers accessed over HTTP
 2. **Docker-based MCP servers** - Local MCP servers running in Docker containers
