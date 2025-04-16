@@ -179,6 +179,7 @@ class MCPManager:
         proxy_options: Dict[str, Any] = None,
         env: Dict[str, str] = None,
         host_port: Optional[int] = None,
+        docker_host: Optional[str] = None,
         add_as_default: bool = True,
     ) -> Dict[str, Any]:
         """Add a proxy-based MCP server.
@@ -191,6 +192,7 @@ class MCPManager:
             proxy_options: Options for the MCP proxy
             env: Environment variables to set in the container
             host_port: Host port to bind the MCP server to (auto-assigned if not specified)
+            docker_host: Docker host socket file that should be mounted on the MCP container
             add_as_default: Whether to add this MCP to the default MCPs list
 
         Returns:
@@ -223,6 +225,7 @@ class MCPManager:
             proxy_options=proxy_options or {},
             env=env or {},
             host_port=host_port,
+            docker_host=docker_host or "/var/run/docker.sock",
         )
 
         # Add to the configuration
@@ -570,7 +573,7 @@ ENTRYPOINT ["/entrypoint.sh"]
                     detach=True,
                     network=None,  # Start without network, we'll add it with aliases
                     volumes={
-                        "/var/run/docker.sock": {
+                        mcp_config.get("docker_host", "/var/run/docker.sock"): {
                             "bind": "/var/run/docker.sock",
                             "mode": "rw",
                         }

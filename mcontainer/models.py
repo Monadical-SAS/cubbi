@@ -79,6 +79,7 @@ class ProxyMCP(BaseModel):
     proxy_options: Dict[str, Any] = Field(default_factory=dict)
     env: Dict[str, str] = Field(default_factory=dict)
     host_port: Optional[int] = None  # External port to bind the SSE port to on the host
+    docker_host: Optional[str] = None  # Docker host to use for the proxy container
 
 
 MCP = Union[RemoteMCP, DockerMCP, ProxyMCP]

@@ -28,6 +28,7 @@ class ContainerManager:
     ):
         self.config_manager = config_manager or ConfigManager()
         self.session_manager = session_manager or SessionManager()
+
         self.user_config_manager = user_config_manager or UserConfigManager()
         self.mcp_manager = MCPManager(config_manager=self.user_config_manager)
 

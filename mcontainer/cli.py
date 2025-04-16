@@ -1347,6 +1347,9 @@ def add_mcp(
     env: List[str] = typer.Option(
         [], "--env", "-e", help="Environment variables (format: KEY=VALUE)"
     ),
+    docker_host: Optional[str] = typer.Option(
+        None, "--docker-host", help="Docker host socket file that should be mounted on the MCP container",
+    ),
     no_default: bool = typer.Option(
         False, "--no-default", help="Don't add MCP server to defaults"
     ),
@@ -1380,6 +1383,7 @@ def add_mcp(
                 proxy_options,
                 environment,
                 host_port,
+                docker_host,
                 add_as_default=not no_default,
             )
 
