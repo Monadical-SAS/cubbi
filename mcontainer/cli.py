@@ -1282,14 +1282,17 @@ def mcp_logs(
 
 @mcp_app.command("remove")
 def remove_mcp(name: str = typer.Argument(..., help="MCP server name")) -> None:
-    """Remove an MCP server configuration"""
+    """Remove an MCP server configuration.
+
+    It does not stop the server nor remove it from docker.
+    """
     try:
         # Check if any active sessions might be using this MCP
         active_sessions = container_manager.list_sessions()
         affected_sessions = []
 
         for session in active_sessions:
-            if session.mcps and name in session.mcps:
+            if getattr(session, 'mcps', []) and name in session.mcps:
                 affected_sessions.append(session)
 
         # Just warn users about affected sessions
