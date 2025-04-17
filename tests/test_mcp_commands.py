@@ -78,8 +78,6 @@ def test_mcp_add(cli_runner, patched_config_manager):
     assert "mcp/github:la" in result.stdout  # Truncated in table view
 
 
-
-
 def test_mcp_remove(cli_runner, patched_config_manager):
     """Test removing an MCP server."""
     # Add a remote MCP server
@@ -107,7 +105,7 @@ def test_mcp_remove(cli_runner, patched_config_manager):
 
         # Remove the MCP server
         result = cli_runner.invoke(app, ["mcp", "remove", "test-mcp"])
-        
+
         # Just check it ran successfully with exit code 0
         assert result.exit_code == 0
 
@@ -292,16 +290,14 @@ def test_session_with_mcp(cli_runner, patched_config_manager, mock_container_man
     # Mock the session creation with MCP
     from mcontainer.models import Session, SessionStatus
 
-    timestamp = "2023-01-01T00:00:00Z"
+    # timestamp no longer needed since we don't use created_at in Session
     mock_container_manager.create_session.return_value = Session(
         id="test-session-id",
         name="test-session",
-        driver="goose",
+        image="goose",
         status=SessionStatus.RUNNING,
         container_id="test-container-id",
-        created_at=timestamp,
         ports={},
-        mcps=["test-mcp"],
     )
 
     # Create a session with MCP

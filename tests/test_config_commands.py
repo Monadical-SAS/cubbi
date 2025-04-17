@@ -14,7 +14,7 @@ def test_config_list(cli_runner, patched_config_manager):
     assert "Value" in result.stdout
 
     # Check for default configurations
-    assert "defaults.driver" in result.stdout
+    assert "defaults.image" in result.stdout
     assert "defaults.connect" in result.stdout
     assert "defaults.mount_local" in result.stdout
 
@@ -22,10 +22,10 @@ def test_config_list(cli_runner, patched_config_manager):
 def test_config_get(cli_runner, patched_config_manager):
     """Test the 'mc config get' command."""
     # Test getting an existing value
-    result = cli_runner.invoke(app, ["config", "get", "defaults.driver"])
+    result = cli_runner.invoke(app, ["config", "get", "defaults.image"])
 
     assert result.exit_code == 0
-    assert "defaults.driver" in result.stdout
+    assert "defaults.image" in result.stdout
     assert "goose" in result.stdout
 
     # Test getting a non-existent value
@@ -38,11 +38,11 @@ def test_config_get(cli_runner, patched_config_manager):
 def test_config_set(cli_runner, patched_config_manager):
     """Test the 'mc config set' command."""
     # Test setting a string value
-    result = cli_runner.invoke(app, ["config", "set", "defaults.driver", "claude"])
+    result = cli_runner.invoke(app, ["config", "set", "defaults.image", "claude"])
 
     assert result.exit_code == 0
     assert "Configuration updated" in result.stdout
-    assert patched_config_manager.get("defaults.driver") == "claude"
+    assert patched_config_manager.get("defaults.image") == "claude"
 
     # Test setting a boolean value
     result = cli_runner.invoke(app, ["config", "set", "defaults.connect", "false"])
@@ -174,7 +174,7 @@ def test_network_remove(cli_runner, patched_config_manager):
 def test_config_reset(cli_runner, patched_config_manager, monkeypatch):
     """Test resetting the configuration."""
     # Set a custom value first
-    patched_config_manager.set("defaults.driver", "custom-driver")
+    patched_config_manager.set("defaults.image", "custom-image")
 
     # Mock typer.confirm to return True
     monkeypatch.setattr("typer.confirm", lambda message: True)
@@ -186,7 +186,7 @@ def test_config_reset(cli_runner, patched_config_manager, monkeypatch):
     assert "Configuration reset to defaults" in result.stdout
 
     # Verify it was reset
-    assert patched_config_manager.get("defaults.driver") == "goose"
+    assert patched_config_manager.get("defaults.image") == "goose"
 
 
 # patched_config_manager fixture is now in conftest.py

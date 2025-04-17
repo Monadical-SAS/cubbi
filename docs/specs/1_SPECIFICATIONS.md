@@ -28,7 +28,7 @@ Docker-in-Docker (DinD) environment.
 
 1. **CLI Tool (`mc`)**: The command-line interface users interact with
 2. **MC Service**: A web service that handles remote container execution
-3. **Container Drivers**: Predefined container templates for various AI tools
+3. **Container Images**: Predefined container templates for various AI tools
 
 ### Architecture Diagram
 
@@ -61,8 +61,8 @@ Docker-in-Docker (DinD) environment.
 
 ## Core Concepts
 
-- **Session**: An active container instance with a specific driver
-- **Driver**: A predefined container template with specific AI tools installed
+- **Session**: An active container instance with a specific image
+- **Image**: A predefined container template with specific AI tools installed
 - **Remote**: A configured MC service instance
 
 ## User Configuration
@@ -74,7 +74,7 @@ MC supports user-specific configuration via a YAML file located at `~/.config/mc
 ```yaml
 # ~/.config/mc/config.yaml
 defaults:
-  driver: "goose"  # Default driver to use
+  image: "goose"  # Default image to use
   connect: true    # Automatically connect after creating session
   mount_local: true  # Mount local directory by default
   networks: []  # Default networks to connect to (besides mc-network)
@@ -177,11 +177,11 @@ mc session list
 # Create a new session locally
 mc session create [OPTIONS]
 
-# Create a session with a specific driver
-mc session create --driver goose
+# Create a session with a specific image
+mc session create --image goose
 
 # Create a session with a specific project repository
-mc session create --driver goose --project github.com/hello/private
+mc session create --image goose --project github.com/hello/private
 
 # Create a session with external networks
 mc session create --network teamnet --network othernetwork
@@ -289,11 +289,11 @@ POST /sessions/{id}/connect - Establish connection to session
 GET /sessions/{id}/logs - Stream session logs
 ```
 
-#### Drivers
+#### Images
 
 ```
-GET /drivers - List available drivers
-GET /drivers/{name} - Get driver details
+GET /images - List available images
+GET /images/{name} - Get image details
 ```
 
 #### Projects
@@ -332,7 +332,7 @@ logging:
       public_key: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY}
       secret_key: ${LANGFUSE_INIT_PROJECT_SECRET_KEY}
 
-drivers:
+images:
   - name: goose
     image: monadical/mc-goose:latest
   - name: aider
@@ -385,10 +385,10 @@ MC provides persistent storage for project-specific configurations that need to 
    - For local projects, the hash is derived from the absolute path of the local directory
    - This directory is mounted into the container at `/mc-config`
 
-2. **Driver Configuration**:
-   - Each driver can specify configuration files/directories that should persist across sessions
-   - These are defined in the driver's `mc-driver.yaml` file in the `persistent_configs` section
-   - Example for Goose driver:
+2. **Image Configuration**:
+   - Each image can specify configuration files/directories that should persist across sessions
+   - These are defined in the image's `mc-image.yaml` file in the `persistent_configs` section
+   - Example for Goose image:
      ```yaml
      persistent_configs:
        - source: "/app/.goose"         # Path in container
@@ -407,7 +407,7 @@ MC provides persistent storage for project-specific configurations that need to 
    - Container has access to configuration location via environment variables:
      ```
      MC_CONFIG_DIR=/mc-config
-     MC_DRIVER_CONFIG_DIR=/mc-config/<driver-name>
+     MC_IMAGE_CONFIG_DIR=/mc-config/<image-name>
      ```
 
 This ensures that important configurations like Goose's memory store, authentication tokens, and other state information persist between container sessions while maintaining isolation between different projects.
@@ -448,25 +448,24 @@ auth:
   public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI...
 ```
 
-## Driver Implementation
+## Image Implementation
 
-### Driver Structure
+### Image Structure
 
-Each driver is a Docker image with a standardized structure:
+Each image is a Docker container with a standardized structure:
 
 ```
 /
 ├── entrypoint.sh      # Container initialization
 ├── mc-init.sh         # Standardized initialization script
-├── mc-driver.yaml     # Driver metadata and configuration
+├── mc-image.yaml      # Image metadata and configuration
 ├── tool/              # AI tool installation
 └── ssh/               # SSH server configuration
 ```
 
 ### Standardized Initialization Script
 
-All drivers include a standardized `mc-init.sh` script that handles common initialization tasks:
-
+All images include a standardized `mc-init.sh` script that handles common initialization tasks:
 ```bash
 #!/bin/bash
 
@@ -498,10 +497,10 @@ if [ -n "$MC_PROJECT_URL" ]; then
     fi
 fi
 
-# Driver-specific initialization continues...
+# Image-specific initialization continues...
 ```
 
-### Driver Configuration (mc-driver.yaml)
+### Image Configuration (mc-image.yaml)
 
 ```yaml
 name: goose
@@ -558,7 +557,7 @@ persistent_configs:
     description: "Goose memory and configuration"
 ```
 
-### Example Built-in Drivers
+### Example Built-in images
 
 1. **goose**: Goose with MCP servers
 2. **aider**: Aider coding assistant
@@ -677,7 +676,7 @@ networks:
 2. **Phase 2**: MC Service REST API with basic container management
 3. **Phase 3**: Authentication and secure connections
 4. **Phase 4**: Project management functionality
-5. **Phase 5**: Driver implementation (Goose, Aider, Claude Code)
+5. **Phase 5**: Image implementation (Goose, Aider, Claude Code)
 6. **Phase 6**: Logging integration with Fluentd and Langfuse
 7. **Phase 7**: CLI remote connectivity improvements
-8. **Phase 8**: Additional drivers and extensibility features
+8. **Phase 8**: Additional images and extensibility features

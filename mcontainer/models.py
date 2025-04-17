@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
 
@@ -17,7 +18,7 @@ class MCPStatus(str, Enum):
     FAILED = "failed"
 
 
-class DriverEnvironmentVariable(BaseModel):
+class ImageEnvironmentVariable(BaseModel):
     name: str
     description: str
     required: bool = False
@@ -37,19 +38,19 @@ class VolumeMount(BaseModel):
     description: str = ""
 
 
-class DriverInit(BaseModel):
+class ImageInit(BaseModel):
     pre_command: Optional[str] = None
     command: str
 
 
-class Driver(BaseModel):
+class Image(BaseModel):
     name: str
     description: str
     version: str
     maintainer: str
     image: str
-    init: Optional[DriverInit] = None
-    environment: List[DriverEnvironmentVariable] = []
+    init: Optional[ImageInit] = None
+    environment: List[ImageEnvironmentVariable] = []
     ports: List[int] = []
     volumes: List[VolumeMount] = []
     persistent_configs: List[PersistentConfig] = []
@@ -97,7 +98,7 @@ class MCPContainer(BaseModel):
 class Session(BaseModel):
     id: str
     name: str
-    driver: str
+    image: str
     status: SessionStatus
     container_id: Optional[str] = None
     ports: Dict[int, int] = Field(default_factory=dict)
@@ -105,7 +106,7 @@ class Session(BaseModel):
 
 class Config(BaseModel):
     docker: Dict[str, str] = Field(default_factory=dict)
-    drivers: Dict[str, Driver] = Field(default_factory=dict)
+    images: Dict[str, Image] = Field(default_factory=dict)
     defaults: Dict[str, object] = Field(
         default_factory=dict
     )  # Can store strings, booleans, or other values

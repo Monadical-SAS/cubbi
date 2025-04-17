@@ -30,7 +30,7 @@ def test_integration_session_create_with_volumes(container_manager, test_file_co
     try:
         # Create a session with a volume mount
         session = container_manager.create_session(
-            driver_name="goose",
+            image_name="goose",
             session_name=f"mc-test-volume-{uuid.uuid4().hex[:8]}",
             mount_local=False,  # Don't mount current directory
             volumes={str(test_file): {"bind": "/test/volume_test.txt", "mode": "ro"}},
@@ -65,7 +65,7 @@ def test_integration_session_create_with_networks(
     try:
         # Create a session with the test network
         session = container_manager.create_session(
-            driver_name="goose",
+            image_name="goose",
             session_name=f"mc-test-network-{uuid.uuid4().hex[:8]}",
             mount_local=False,  # Don't mount current directory
             networks=[docker_test_network],

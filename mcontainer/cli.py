@@ -2,19 +2,20 @@
 CLI for Monadical Container Tool.
 """
 
-import os
 import logging
+import os
 from typing import List, Optional
+
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from .config import ConfigManager
 from .container import ContainerManager
-from .models import SessionStatus
-from .user_config import UserConfigManager
-from .session import SessionManager
 from .mcp import MCPManager
+from .models import SessionStatus
+from .session import SessionManager
+from .user_config import UserConfigManager
 
 # Configure logging - will only show logs if --verbose flag is used
 logging.basicConfig(
@@ -25,11 +26,11 @@ logging.basicConfig(
 
 app = typer.Typer(help="Monadical Container Tool", no_args_is_help=True)
 session_app = typer.Typer(help="Manage MC sessions", no_args_is_help=True)
-driver_app = typer.Typer(help="Manage MC drivers", no_args_is_help=True)
+image_app = typer.Typer(help="Manage MC images", no_args_is_help=True)
 config_app = typer.Typer(help="Manage MC configuration", no_args_is_help=True)
 mcp_app = typer.Typer(help="Manage MCP servers", no_args_is_help=True)
 app.add_typer(session_app, name="session", no_args_is_help=True)
-app.add_typer(driver_app, name="driver", no_args_is_help=True)
+app.add_typer(image_app, name="image", no_args_is_help=True)
 app.add_typer(config_app, name="config", no_args_is_help=True)
 app.add_typer(mcp_app, name="mcp", no_args_is_help=True)
 
@@ -82,7 +83,7 @@ def list_sessions() -> None:
     table = Table(show_header=True, header_style="bold")
     table.add_column("ID")
     table.add_column("Name")
-    table.add_column("Driver")
+    table.add_column("Image")
     table.add_column("Status")
     table.add_column("Ports")
 
@@ -110,7 +111,7 @@ def list_sessions() -> None:
         table.add_row(
             session.id,
             session.name,
-            session.driver,
+            session.image,
             f"[{status_color}]{status_name}[/{status_color}]",
             ports_str,
         )
@@ -120,7 +121,7 @@ def list_sessions() -> None:
 
 @session_app.command("create")
 def create_session(
-    driver: Optional[str] = typer.Option(None, "--driver", "-d", help="Driver to use"),
+    image: Optional[str] = typer.Option(None, "--image", "-i", help="Image to use"),
     path_or_url: Optional[str] = typer.Argument(
         None,
         help="Local directory path to mount or repository URL to clone",
@@ -181,11 +182,13 @@ def create_session(
     target_gid = gid if gid is not None else os.getgid()
     console.print(f"Using UID: {target_uid}, GID: {target_gid}")
 
-    # Use default driver from user configuration
-    if not driver:
-        driver = user_config.get(
-            "defaults.driver", config_manager.config.defaults.get("driver", "goose")
+    # Use default image from user configuration
+    if not image:
+        image_name = user_config.get(
+            "defaults.image", config_manager.config.defaults.get("image", "goose")
         )
+    else:
+        image_name = image
 
     # Start with environment variables from user configuration
     environment = user_config.get_environment_variables()
@@ -254,7 +257,7 @@ def create_session(
         for host_path, mount_info in volume_mounts.items():
             console.print(f"  {host_path} -> {mount_info['bind']}")
 
-    with console.status(f"Creating session with driver '{driver}'..."):
+    with console.status(f"Creating session with image '{image_name}'..."):
         # If path_or_url is a local directory, we should mount it
         # If it's a Git URL or doesn't exist, handle accordingly
         mount_local = False
@@ -262,7 +265,7 @@ def create_session(
             mount_local = True
 
         session = container_manager.create_session(
-            driver_name=driver,
+            image_name=image_name,
             project=path_or_url,
             project_name=project,
             environment=environment,
@@ -282,7 +285,7 @@ def create_session(
     if session:
         console.print("[green]Session created successfully![/green]")
         console.print(f"Session ID: {session.id}")
-        console.print(f"Driver: {session.driver}")
+        console.print(f"Image: {session.image}")
 
         if session.ports:
             console.print("Ports:")
@@ -402,13 +405,13 @@ def session_logs(
                 console.print(logs)
 
 
-@driver_app.command("list")
-def list_drivers() -> None:
-    """List available MC drivers"""
-    drivers = config_manager.list_drivers()
+@image_app.command("list")
+def list_images() -> None:
+    """List available MC images"""
+    images = config_manager.list_images()
 
-    if not drivers:
-        console.print("No drivers found")
+    if not images:
+        console.print("No images found")
         return
 
     table = Table(show_header=True, header_style="bold")
@@ -418,92 +421,92 @@ def list_drivers() -> None:
     table.add_column("Maintainer")
     table.add_column("Image")
 
-    for name, driver in drivers.items():
+    for name, image in images.items():
         table.add_row(
-            driver.name,
-            driver.description,
-            driver.version,
-            driver.maintainer,
-            driver.image,
+            image.name,
+            image.description,
+            image.version,
+            image.maintainer,
+            image.image,
         )
 
     console.print(table)
 
 
-@driver_app.command("build")
-def build_driver(
-    driver_name: str = typer.Argument(..., help="Driver name to build"),
+@image_app.command("build")
+def build_image(
+    image_name: str = typer.Argument(..., help="Image name to build"),
     tag: str = typer.Option("latest", "--tag", "-t", help="Image tag"),
     push: bool = typer.Option(
         False, "--push", "-p", help="Push image to registry after building"
     ),
 ) -> None:
-    """Build a driver Docker image"""
-    # Get driver path
-    driver_path = config_manager.get_driver_path(driver_name)
-    if not driver_path:
-        console.print(f"[red]Driver '{driver_name}' not found[/red]")
+    """Build an image Docker image"""
+    # Get image path
+    image_path = config_manager.get_image_path(image_name)
+    if not image_path:
+        console.print(f"[red]Image '{image_name}' not found[/red]")
         return
 
     # Check if Dockerfile exists
-    dockerfile_path = driver_path / "Dockerfile"
+    dockerfile_path = image_path / "Dockerfile"
     if not dockerfile_path.exists():
-        console.print(f"[red]Dockerfile not found in {driver_path}[/red]")
+        console.print(f"[red]Dockerfile not found in {image_path}[/red]")
         return
 
     # Build image name
-    image_name = f"monadical/mc-{driver_name}:{tag}"
+    docker_image_name = f"monadical/mc-{image_name}:{tag}"
 
     # Build the image
-    with console.status(f"Building image {image_name}..."):
-        result = os.system(f"cd {driver_path} && docker build -t {image_name} .")
+    with console.status(f"Building image {docker_image_name}..."):
+        result = os.system(f"cd {image_path} && docker build -t {docker_image_name} .")
 
     if result != 0:
-        console.print("[red]Failed to build driver image[/red]")
+        console.print("[red]Failed to build image[/red]")
         return
 
-    console.print(f"[green]Successfully built image: {image_name}[/green]")
+    console.print(f"[green]Successfully built image: {docker_image_name}[/green]")
 
     # Push if requested
     if push:
-        with console.status(f"Pushing image {image_name}..."):
-            result = os.system(f"docker push {image_name}")
+        with console.status(f"Pushing image {docker_image_name}..."):
+            result = os.system(f"docker push {docker_image_name}")
 
         if result != 0:
-            console.print("[red]Failed to push driver image[/red]")
+            console.print("[red]Failed to push image[/red]")
             return
 
-        console.print(f"[green]Successfully pushed image: {image_name}[/green]")
+        console.print(f"[green]Successfully pushed image: {docker_image_name}[/green]")
 
 
-@driver_app.command("info")
-def driver_info(
-    driver_name: str = typer.Argument(..., help="Driver name to get info for"),
+@image_app.command("info")
+def image_info(
+    image_name: str = typer.Argument(..., help="Image name to get info for"),
 ) -> None:
-    """Show detailed information about a driver"""
-    driver = config_manager.get_driver(driver_name)
-    if not driver:
-        console.print(f"[red]Driver '{driver_name}' not found[/red]")
+    """Show detailed information about an image"""
+    image = config_manager.get_image(image_name)
+    if not image:
+        console.print(f"[red]Image '{image_name}' not found[/red]")
         return
 
-    console.print(f"[bold]Driver: {driver.name}[/bold]")
-    console.print(f"Description: {driver.description}")
-    console.print(f"Version: {driver.version}")
-    console.print(f"Maintainer: {driver.maintainer}")
-    console.print(f"Image: {driver.image}")
+    console.print(f"[bold]Image: {image.name}[/bold]")
+    console.print(f"Description: {image.description}")
+    console.print(f"Version: {image.version}")
+    console.print(f"Maintainer: {image.maintainer}")
+    console.print(f"Docker Image: {image.image}")
 
-    if driver.ports:
+    if image.ports:
         console.print("\n[bold]Ports:[/bold]")
-        for port in driver.ports:
+        for port in image.ports:
             console.print(f"  {port}")
 
-    # Get driver path
-    driver_path = config_manager.get_driver_path(driver_name)
-    if driver_path:
-        console.print(f"\n[bold]Path:[/bold] {driver_path}")
+    # Get image path
+    image_path = config_manager.get_image_path(image_name)
+    if image_path:
+        console.print(f"\n[bold]Path:[/bold] {image_path}")
 
         # Check for README
-        readme_path = driver_path / "README.md"
+        readme_path = image_path / "README.md"
         if readme_path.exists():
             console.print("\n[bold]README:[/bold]")
             with open(readme_path, "r") as f:

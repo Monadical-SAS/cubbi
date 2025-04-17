@@ -26,12 +26,9 @@ def test_session_list_with_sessions(cli_runner, mock_container_manager):
     mock_session = Session(
         id="test-session-id",
         name="test-session",
-        driver="goose",
+        image="goose",
         status=SessionStatus.RUNNING,
         ports={"8080": "8080"},
-        project=None,
-        created_at="2023-01-01T00:00:00Z",
-        mcps=[],
     )
     mock_container_manager.list_sessions.return_value = [mock_session]
 
@@ -48,7 +45,7 @@ def test_session_create_basic(cli_runner, mock_container_manager):
     with patch("mcontainer.cli.user_config") as mock_user_config:
         # Handle different key requests appropriately
         def mock_get_side_effect(key, default=None):
-            if key == "defaults.driver":
+            if key == "defaults.image":
                 return "goose"
             elif key == "defaults.volumes":
                 return []  # Return empty list for volumes
@@ -71,10 +68,10 @@ def test_session_create_basic(cli_runner, mock_container_manager):
         assert result.exit_code == 0
         assert "Session created successfully" in result.stdout
 
-        # Verify container_manager was called with the expected driver
+        # Verify container_manager was called with the expected image
         mock_container_manager.create_session.assert_called_once()
         assert (
-            mock_container_manager.create_session.call_args[1]["driver_name"] == "goose"
+            mock_container_manager.create_session.call_args[1]["image_name"] == "goose"
         )
 
 
@@ -94,16 +91,14 @@ def test_session_close_all(cli_runner, mock_container_manager):
     # Set up mock sessions
     from mcontainer.models import Session, SessionStatus
 
-    timestamp = "2023-01-01T00:00:00Z"
+    # timestamp no longer needed since we don't use created_at in Session
     mock_sessions = [
         Session(
             id=f"session-{i}",
             name=f"Session {i}",
-            driver="goose",
+            image="goose",
             status=SessionStatus.RUNNING,
             ports={},
-            project=None,
-            created_at=timestamp,
         )
         for i in range(3)
     ]

@@ -1,6 +1,6 @@
-# Goose Driver for MC
+# Goose Image for MC
 
-This driver provides a containerized environment for running [Goose](https://goose.ai).
+This image provides a containerized environment for running [Goose](https://goose.ai).
 
 ## Features
 
@@ -23,7 +23,7 @@ This driver provides a containerized environment for running [Goose](https://goo
 
 ## Build
 
-To build this driver:
+To build this image:
 
 ```bash
 cd drivers/goose
@@ -33,7 +33,7 @@ docker build -t monadical/mc-goose:latest .
 ## Usage
 
 ```bash
-# Create a new session with this driver
+# Create a new session with this image
 mc session create --driver goose
 
 # Create with project repository

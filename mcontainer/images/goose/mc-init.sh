@@ -1,5 +1,5 @@
 #!/bin/bash
-# Standardized initialization script for MC drivers
+# Standardized initialization script for MC images
 
 # Redirect all output to both stdout and the log file
 exec > >(tee -a /init.log) 2>&1
@@ -117,7 +117,7 @@ if [ ! -d "/mc-config" ]; then
     chown $MC_USER_ID:$MC_GROUP_ID /mc-config
 fi
 
-# Create symlinks for persistent configurations defined in the driver
+# Create symlinks for persistent configurations defined in the image
 if [ -n "$MC_PERSISTENT_LINKS" ]; then
     echo "Creating persistent configuration symlinks..."
     # Split by semicolon

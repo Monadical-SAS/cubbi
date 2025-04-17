@@ -1,18 +1,19 @@
+import concurrent.futures
+import hashlib
+import logging
 import os
+import pathlib
 import sys
 import uuid
-import docker
-import hashlib
-import pathlib
-import concurrent.futures
-import logging
 from typing import Dict, List, Optional, Tuple
+
+import docker
 from docker.errors import DockerException, ImageNotFound
 
-from .models import Session, SessionStatus
 from .config import ConfigManager
-from .session import SessionManager
 from .mcp import MCPManager
+from .models import Session, SessionStatus
+from .session import SessionManager
 from .user_config import UserConfigManager
 
 # Configure logging
@@ -109,7 +110,7 @@ class ContainerManager:
                 session = Session(
                     id=session_id,
                     name=labels.get("mc.session.name", f"mc-{session_id}"),
-                    driver=labels.get("mc.driver", "unknown"),
+                    image=labels.get("mc.image", "unknown"),
                     status=status,
                     container_id=container_id,
                 )
@@ -136,7 +137,7 @@ class ContainerManager:
 
     def create_session(
         self,
-        driver_name: str,
+        image_name: str,
         project: Optional[str] = None,
         project_name: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
@@ -155,7 +156,7 @@ class ContainerManager:
         """Create a new MC session
 
         Args:
-            driver_name: The name of the driver to use
+            image_name: The name of the image to use
             project: Optional project repository URL or local directory path
             project_name: Optional explicit project name for configuration persistence
             environment: Optional environment variables
@@ -170,10 +171,10 @@ class ContainerManager:
             ssh: Whether to start the SSH server in the container (default: False)
         """
         try:
-            # Validate driver exists
-            driver = self.config_manager.get_driver(driver_name)
-            if not driver:
-                print(f"Driver '{driver_name}' not found")
+            # Validate image exists
+            image = self.config_manager.get_image(image_name)
+            if not image:
+                print(f"Image '{image_name}' not found")
                 return None
 
             # Generate session ID and name
@@ -210,10 +211,10 @@ class ContainerManager:
 
             # Pull image if needed
             try:
-                self.client.images.get(driver.image)
+                self.client.images.get(image.image)
             except ImageNotFound:
-                print(f"Pulling image {driver.image}...")
-                self.client.images.pull(driver.image)
+                print(f"Pulling image {image.image}...")
+                self.client.images.pull(image.image)
 
             # Set up volume mounts
             session_volumes = {}
@@ -274,13 +275,13 @@ class ContainerManager:
 
                 # Add environment variables for config path
                 env_vars["MC_CONFIG_DIR"] = "/mc-config"
-                env_vars["MC_DRIVER_CONFIG_DIR"] = f"/mc-config/{driver_name}"
+                env_vars["MC_IMAGE_CONFIG_DIR"] = f"/mc-config/{image_name}"
 
-                # Create driver-specific config directories and set up direct volume mounts
-                if driver.persistent_configs:
+                # Create image-specific config directories and set up direct volume mounts
+                if image.persistent_configs:
                     persistent_links_data = []  # To store "source:target" pairs for symlinks
                     print("Setting up persistent configuration directories:")
-                    for config in driver.persistent_configs:
+                    for config in image.persistent_configs:
                         # Get target directory path on host
                         target_dir = project_config_path / config.target.removeprefix(
                             "/mc-config/"
@@ -494,7 +495,7 @@ class ContainerManager:
 
             # Create container
             container = self.client.containers.create(
-                image=driver.image,
+                image=image.image,
                 name=session_name,
                 hostname=session_name,
                 detach=True,
@@ -506,7 +507,7 @@ class ContainerManager:
                     "mc.session": "true",
                     "mc.session.id": session_id,
                     "mc.session.name": session_name,
-                    "mc.driver": driver_name,
+                    "mc.image": image_name,
                     "mc.project": project or "",
                     "mc.project_name": project_name or "",
                     "mc.mcps": ",".join(mcp_names) if mcp_names else "",
@@ -514,7 +515,7 @@ class ContainerManager:
                 network=network_list[0],  # Connect to the first network initially
                 command=container_command,  # Set the command
                 entrypoint=entrypoint,  # Set the entrypoint (might be None)
-                ports={f"{port}/tcp": None for port in driver.ports},
+                ports={f"{port}/tcp": None for port in image.ports},
             )
 
             # Start container
@@ -613,7 +614,7 @@ class ContainerManager:
             session = Session(
                 id=session_id,
                 name=session_name,
-                driver=driver_name,
+                image=image_name,
                 status=SessionStatus.RUNNING,
                 container_id=container.id,
                 ports=ports,

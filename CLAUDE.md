@@ -5,9 +5,6 @@
 # Install dependencies using uv (Astral)
 uv sync
 
-# Run MC service
-uv run -m mcontainer.service
-
 # Run MC CLI
 uv run -m mcontainer.cli
 ```

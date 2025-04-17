@@ -74,7 +74,7 @@ def isolated_session_manager(temp_config_dir):
 def isolated_config_manager():
     """Create an isolated config manager for testing."""
     config_manager = ConfigManager()
-    # Ensure we're using the built-in drivers, not trying to load from user config
+    # Ensure we're using the built-in images, not trying to load from user config
     return config_manager
 
 
@@ -91,7 +91,7 @@ def mock_container_manager():
     mock_session = Session(
         id="test-session-id",
         name="test-session",
-        driver="goose",
+        image="goose",
         status=SessionStatus.RUNNING,
         ports={"8080": "8080"},
     )

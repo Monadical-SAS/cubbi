@@ -3,9 +3,10 @@ User configuration manager for Monadical Container Tool.
 """
 
 import os
-import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+import yaml
 
 # Define the environment variable mappings
 ENV_MAPPINGS = {
@@ -89,7 +90,7 @@ class UserConfigManager:
         """Get the default configuration."""
         return {
             "defaults": {
-                "driver": "goose",
+                "image": "goose",
                 "connect": True,
                 "mount_local": True,
                 "networks": [],  # Default networks to connect to (besides mc-network)
@@ -133,7 +134,7 @@ class UserConfigManager:
         """Get a configuration value by dot-notation path.
 
         Args:
-            key_path: The configuration path (e.g., "defaults.driver")
+            key_path: The configuration path (e.g., "defaults.image")
             default: The default value to return if not found
 
         Returns:
@@ -165,7 +166,7 @@ class UserConfigManager:
         """Set a configuration value by dot-notation path.
 
         Args:
-            key_path: The configuration path (e.g., "defaults.driver")
+            key_path: The configuration path (e.g., "defaults.image")
             value: The value to set
         """
         # Handle shorthand service paths (e.g., "langfuse.url")

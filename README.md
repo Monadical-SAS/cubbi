@@ -38,7 +38,7 @@ mc --help
 # Show help message (displays available commands)
 mc
 
-# Create a new session with the default driver (using mcx alias)
+# Create a new session with the default image (using mcx alias)
 mcx
 
 # Create a session and run an initial command before the shell starts
@@ -53,8 +53,8 @@ mc session connect SESSION_ID
 # Close a session when done
 mc session close SESSION_ID
 
-# Create a session with a specific driver
-mcx --driver goose
+# Create a session with a specific image
+mcx --image goose
 
 # Create a session with environment variables
 mcx -e VAR1=value1 -e VAR2=value2
@@ -92,33 +92,34 @@ mcx . --run "apt-get update && apt-get install -y my-package"
 mcx --ssh
 ```
 
-## Driver Management
+## Image Management
 
-MC includes a driver management system that allows you to build, manage, and use Docker images for different AI tools:
+MC includes a image management system that allows you to build, manage, and use Docker images for different AI tools:
 
 ```bash
-# List available drivers
-mc driver list
+# List available images
+mc image list
 
-# Get detailed information about a driver
-mc driver info goose
+# Get detailed information about an image
+mc image info goose
 
-# Build a driver image
-mc driver build goose
+# Build an image
+mc image build goose
 
-# Build and push a driver image
-mc driver build goose --push
+# Build and push an image
+mc image build goose --push
 ```
 
-Drivers are defined in the `mcontainer/drivers/` directory, with each subdirectory containing:
+Images are defined in the `mcontainer/images/` directory, with each subdirectory containing:
 
 - `Dockerfile`: Docker image definition
 - `entrypoint.sh`: Container entrypoint script
 - `mc-init.sh`: Standardized initialization script
-- `mc-driver.yaml`: Driver metadata and configuration
-- `README.md`: Driver documentation
+- `mc-image.yaml`: Image metadata and configuration
+- `README.md`: Image documentation
 
-MC automatically discovers and loads driver definitions from the YAML files.
+MC automatically discovers and loads image definitions from the YAML files.
+```
 
 ## Development
 

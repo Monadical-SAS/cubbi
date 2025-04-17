@@ -3,9 +3,10 @@ Session storage management for Monadical Container Tool.
 """
 
 import os
-import yaml
 from pathlib import Path
 from typing import Dict, Optional
+
+import yaml
 
 DEFAULT_SESSIONS_FILE = Path.home() / ".config" / "mc" / "sessions.yaml"
 

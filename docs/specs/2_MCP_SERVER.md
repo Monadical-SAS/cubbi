@@ -4,7 +4,7 @@
 
 This document specifies the implementation for Model Control Protocol (MCP) server support in the Monadical Container (MC) system. The MCP server feature allows users to connect, build, and manage external MCP servers that can be attached to MC sessions.
 
-An MCP server is a service that can be accessed by a driver (such as Goose or Claude Code) to extend the LLM's capabilities through tool calls. It can be either:
+An MCP server is a service that can be accessed by a image (such as Goose or Claude Code) to extend the LLM's capabilities through tool calls. It can be either:
 - A local stdio-based MCP server running in a container (accessed via an SSE proxy)
 - A remote HTTP SSE server accessed directly via its URL
 
