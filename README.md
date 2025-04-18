@@ -21,27 +21,37 @@ Cubbi is a command-line tool for managing ephemeral containers that run AI tools
 
 ## 📋 Requirements
 
-- [uv](https://docs.astral.sh/uv/)
+- [Docker](https://www.docker.com/)
+- [uv](https://astral.sh/uv)
 
 ## 📥 Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/monadical/cubbi.git
+# Via pip
+pip install cubbi
 
-# Install the tool locally
-# (with editable, so you can update the code and work with it)
-cd cubbi
-uv tool install --with-editable . .
+# Via uv
+uv tool install cubbi
 
-# Then you could use the tool as `cubbi`
-cubbi --help
+# Without installation
+uvx cubbi
 ```
 
-Important: compile your first image
+Then compile your first image:
 
 ```bash
 cubbi image build goose
+```
+
+### For Developers
+
+If you are looking to contribute to the development, you will need to use `uv` as well:
+
+```bash
+git clone https://github.com/monadical/cubbi.git
+cd cubbi
+uv tool install --with-editable . .
+# You'll have cubbi and cubbix executable files in your PATH, pointing to the local installation.
 ```
 
 ## 📚 Basic Usage
@@ -54,7 +64,7 @@ cubbi
 cubbix
 
 # Create a session and run an initial command before the shell starts
-cubbix --run "echo 'Setup complete'; ls -l"
+cubbix --run "ls -l"
 
 # List all active sessions
 cubbi session list
@@ -142,9 +152,6 @@ uv run -m pytest
 # Run linting
 uvx ruff check .
 
-# Run type checking
-uvx mypy .
-
 # Format code
 uvx ruff format .
 ```
@@ -225,9 +232,7 @@ cubbi config mcp remove github
 When adding new MCP servers, they are added to defaults by default. Use the `--no-default` flag to prevent this:
 
 ```bash
-# Add an MCP server without adding it to defaults
-cubbi mcp add github ghcr.io/mcp/github:latest --no-default
-cubbi mcp add-remote jira https://jira-mcp.example.com/sse --no-default
+cubbi mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=xxxx github mcp/github --no-default
 ```
 
 When creating sessions, if no MCP server is specified with `--mcp`, the default MCP servers will be used automatically.
@@ -281,8 +286,7 @@ Service credentials like API keys configured in `~/.config/cubbi/config.yaml` ar
 MCP (Model Control Protocol) servers provide tool-calling capabilities to AI models, enhancing their ability to interact with external services, databases, and systems. Cubbi supports multiple types of MCP servers:
 
 1. **Remote HTTP SSE servers** - External MCP servers accessed over HTTP
-2. **Docker-based MCP servers** - Local MCP servers running in Docker containers
-3. **Proxy-based MCP servers** - Local MCP servers with an SSE proxy for stdio-to-SSE conversion
+2. **Docker-based MCP servers** - Local MCP servers running in Docker containers, with a SSE proxy for stdio-to-SSE conversion
 
 ### Managing MCP Servers
 
@@ -330,14 +334,12 @@ cubbi mcp remove github
 Cubbi supports different types of MCP servers:
 
 ```bash
-# Add a remote HTTP SSE MCP server
-cubbi mcp remote add github http://my-mcp-server.example.com/sse --header "Authorization=Bearer token123"
+# Example of docker-based MCP server
+cubbi mcp add fetch mcp/fetch
+cubbi mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=xxxx github mcp/github
 
-# Add a Docker-based MCP server
-cubbi mcp docker add github mcp/github:latest --command "github-mcp" --env GITHUB_TOKEN=ghp_123456
-
-# Add a proxy-based MCP server (for stdio-to-SSE conversion)
-cubbi mcp add github ghcr.io/mcp/github:latest --proxy-image ghcr.io/sparfenyuk/mcp-proxy:latest --command "github-mcp" --sse-port 8080 --no-default
+# Example of SSE-based MCP server
+cubbi mcp add myserver https://myssemcp.com
 ```
 
 ### Using MCP Servers with Sessions
@@ -350,9 +352,6 @@ cubbi session create --mcp github
 
 # Create a session with multiple MCP servers
 cubbi session create --mcp github --mcp jira
-
-# Using MCP with a project repository
-cubbi github.com/username/repo --mcp github
 ```
 
 MCP servers are persistent and can be shared between sessions. They continue running even when sessions are closed, allowing for efficient reuse across multiple sessions.
