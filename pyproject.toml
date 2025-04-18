@@ -15,6 +15,16 @@ dependencies = [
     "rich>=13.6.0",
     "pydantic>=2.5.0",
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
 
 [build-system]
 requires = ["hatchling"]
