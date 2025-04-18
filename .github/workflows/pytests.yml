@@ -30,6 +30,11 @@ jobs:
       - name: Install all dependencies
         run: uv sync --frozen --all-extras --all-groups
 
+      - name: Build goose image
+        run: |
+          uv tool install --with-editable . .
+          cubbi image build goose
+
       - name: Tests
         run: |
           uv run --frozen -m pytest -v
