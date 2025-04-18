@@ -1,22 +1,22 @@
-# MC - Monadical AI Container Tool
+# Cubbi - Container Tool
 
 ## Overview
 
-MC (Monadical Container) is a command-line tool for managing ephemeral
+Cubbi is a command-line tool for managing ephemeral
 containers that run AI tools and development environments. It works with both
 local Docker and a dedicated remote web service that manages containers in a
 Docker-in-Docker (DinD) environment.
 
 ## Technology Stack
 
-### MC Service
+### Cubbi Service
 - **Web Framework**: FastAPI for high-performance, async API endpoints
 - **Package Management**: uv (Astral) for dependency management
 - **Database**: SQLite for development, PostgreSQL for production
 - **Container Management**: Docker SDK for Python
 - **Authentication**: OAuth 2.0 integration with Authentik
 
-### MC CLI
+### Cubbi CLI
 - **Language**: Python
 - **Package Management**: uv for dependency management
 - **Distribution**: Standalone binary via PyInstaller or similar
@@ -26,8 +26,8 @@ Docker-in-Docker (DinD) environment.
 
 ### Components
 
-1. **CLI Tool (`mc`)**: The command-line interface users interact with
-2. **MC Service**: A web service that handles remote container execution
+1. **CLI Tool (`cubbi`)**: The command-line interface users interact with
+2. **Cubbi Service**: A web service that handles remote container execution
 3. **Container Images**: Predefined container templates for various AI tools
 
 ### Architecture Diagram
@@ -35,8 +35,8 @@ Docker-in-Docker (DinD) environment.
 ```
 ┌─────────────┐           ┌─────────────────────────┐
 │             │           │                         │
-│  MC CLI     │◄─────────►│  Local Docker Daemon    │
-│  (mc)       │           │                         │
+│  Cubbi CLI  │◄─────────►│  Local Docker Daemon    │
+│  (cubbi)    │           │                         │
 │             │           └─────────────────────────┘
 └──────┬──────┘
        │
@@ -44,8 +44,8 @@ Docker-in-Docker (DinD) environment.
        │
 ┌──────▼──────┐           ┌─────────────────────────┐
 │             │           │                         │
-│ MC Service  │◄─────────►│  Docker-in-Docker       │
-│ (Web API)   │           │                         │
+│ Cubbi       │◄─────────►│  Docker-in-Docker       │
+│ Service     │           │                         │
 │             │           └─────────────────────────┘
 └─────────────┘
        │
@@ -63,21 +63,21 @@ Docker-in-Docker (DinD) environment.
 
 - **Session**: An active container instance with a specific image
 - **Image**: A predefined container template with specific AI tools installed
-- **Remote**: A configured MC service instance
+- **Remote**: A configured cubbi service instance
 
 ## User Configuration
 
-MC supports user-specific configuration via a YAML file located at `~/.config/mc/config.yaml`. This provides a way to set default values, store service credentials, and customize behavior without modifying code.
+Cubbi supports user-specific configuration via a YAML file located at `~/.config/cubbi/config.yaml`. This provides a way to set default values, store service credentials, and customize behavior without modifying code.
 
 ### Configuration File Structure
 
 ```yaml
-# ~/.config/mc/config.yaml
+# ~/.config/cubbi/config.yaml
 defaults:
   image: "goose"  # Default image to use
   connect: true    # Automatically connect after creating session
   mount_local: true  # Mount local directory by default
-  networks: []  # Default networks to connect to (besides mc-network)
+  networks: []  # Default networks to connect to (besides cubbi-network)
 
 services:
   # Service credentials with simplified naming
@@ -97,17 +97,17 @@ services:
     api_key: "sk-or-..."
 
 docker:
-  network: "mc-network"  # Default Docker network to use
+  network: "cubbi-network"  # Default Docker network to use
   socket: "/var/run/docker.sock"  # Docker socket path
 
 remote:
   default: "production"  # Default remote to use
   endpoints:
     production:
-      url: "https://mc.monadical.com"
+      url: "https://cubbi.monadical.com"
       auth_method: "oauth"
     staging:
-      url: "https://mc-staging.monadical.com"
+      url: "https://cubbi-staging.monadical.com"
       auth_method: "oauth"
 
 ui:
@@ -145,22 +145,22 @@ The simplified configuration names are mapped to environment variables:
 
 ```bash
 # View entire configuration
-mc config list
+cubbi config list
 
 # Get specific configuration value
-mc config get defaults.driver
+cubbi config get defaults.driver
 
 # Set configuration value (using simplified naming)
-mc config set langfuse.url "https://cloud.langfuse.com"
-mc config set openai.api_key "sk-..."
+cubbi config set langfuse.url "https://cloud.langfuse.com"
+cubbi config set openai.api_key "sk-..."
 
 # Network configuration
-mc config network list                   # List default networks
-mc config network add example-network    # Add a network to defaults
-mc config network remove example-network # Remove a network from defaults
+cubbi config network list                   # List default networks
+cubbi config network add example-network    # Add a network to defaults
+cubbi config network remove example-network # Remove a network from defaults
 
 # Reset configuration to defaults
-mc config reset
+cubbi config reset
 ```
 
 ## CLI Tool Commands
@@ -169,81 +169,81 @@ mc config reset
 
 ```bash
 # Create a new session locally (shorthand)
-mc
+cubbi
 
 # List active sessions on local system
-mc session list
+cubbi session list
 
 # Create a new session locally
-mc session create [OPTIONS]
+cubbi session create [OPTIONS]
 
 # Create a session with a specific image
-mc session create --image goose
+cubbi session create --image goose
 
 # Create a session with a specific project repository
-mc session create --image goose --project github.com/hello/private
+cubbi session create --image goose --project github.com/hello/private
 
 # Create a session with external networks
-mc session create --network teamnet --network othernetwork
+cubbi session create --network teamnet --network othernetwork
 
 # Create a session with a project (shorthand)
-mc git@github.com:hello/private
+cubbi git@github.com:hello/private
 
 # Close a specific session
-mc session close <id>
+cubbi session close <id>
 
 # Connect to an existing session
-mc session connect <id>
+cubbi session connect <id>
 
 ```
 
 ### Remote Management
 
 ```bash
-# Add a remote MC service
-mc remote add <name> <url>
+# Add a remote Cubbi service
+cubbi remote add <name> <url>
 
 # List configured remote services
-mc remote list
+cubbi remote list
 
 # Remove a remote service
-mc remote remove <name>
+cubbi remote remove <name>
 
 # Authenticate with a remote service
-mc -r <remote_name> auth
+cubbi -r <remote_name> auth
 
 # Create a session on a remote service
-mc -r <remote_name> [session create]
+cubbi -r <remote_name> [session create]
 
 # List sessions on a remote service
-mc -r <remote_name> session list
+cubbi -r <remote_name> session list
 ```
 
 ### Environment Variables
 
 ```bash
 # Set environment variables for a session
-mc session create -e VAR1=value1 -e VAR2=value2
+cubbi session create -e VAR1=value1 -e VAR2=value2
 
 # Set environment variables for a remote session
-mc -r <remote_name> session create -e VAR1=value1
+cubbi -r <remote_name> session create -e VAR1=value1
 ```
 
 ### Logging
 
 ```bash
 # Stream logs from a session
-mc session logs <id>
+cubbi session logs <id>
 
 # Stream logs with follow option
-mc session logs <id> -f
+cubbi session logs <id> -f
 ```
 
-## MC Service Specification
+## Cubbi Service Specification
 
 ### Overview
 
-The MC Service is a web service that manages ephemeral containers in a Docker-in-Docker environment. It provides a REST API for container lifecycle management, authentication, and real-time log streaming.
+The Cubbi Service is a web service that manages ephemeral containers in a Docker-in-Docker environment. It provides a REST API for container lifecycle management, authentication, and real-time log streaming.
 
 ### API Endpoints
 
@@ -258,19 +258,19 @@ POST /auth/logout       - Invalidate current token
 
 ### Authentik Integration
 
-The MC Service integrates with Authentik at https://authentik.monadical.io using OAuth 2.0:
+The Cubbi Service integrates with Authentik at https://authentik.monadical.io using OAuth 2.0:
 
 1. **Application Registration**:
-   - MC Service is registered as an OAuth application in Authentik
+   - Cubbi Service is registered as an OAuth application in Authentik
    - Configured with redirect URI to `/auth/callback`
    - Assigned appropriate scopes for user identification
 
 2. **Authentication Flow**:
    - User initiates authentication via CLI
-   - MC CLI opens browser to Authentik authorization URL
+   - Cubbi CLI opens browser to Authentik authorization URL
    - User logs in through Authentik's interface
    - Authentik redirects to callback URL with authorization code
-   - MC Service exchanges code for access and refresh tokens
+   - Cubbi Service exchanges code for access and refresh tokens
    - CLI receives and securely stores tokens
 
 3. **Token Management**:
@@ -309,19 +309,19 @@ DELETE /projects/{id} - Remove a project
 ### Service Configuration
 
 ```yaml
-# mc-service.yaml
+# cubbi-service.yaml
 server:
   port: 3000
   host: 0.0.0.0
 
 docker:
   socket: /var/run/docker.sock
-  network: mc-network
+  network: cubbi-network
 
 auth:
   provider: authentik
   url: https://authentik.monadical.io
-  clientId: mc-service
+  clientId: cubbi-service
 
 logging:
   providers:
@@ -334,11 +334,11 @@ logging:
 
 images:
   - name: goose
-    image: monadical/mc-goose:latest
+    image: monadical/cubbi-goose:latest
   - name: aider
-    image: monadical/mc-aider:latest
+    image: monadical/cubbi-aider:latest
   - name: claude-code
-    image: monadical/mc-claude-code:latest
+    image: monadical/cubbi-claude-code:latest
 
 projects:
   storage:
@@ -352,7 +352,7 @@ projects:
 
 ### Docker-in-Docker Implementation
 
-The MC Service runs in a container with access to the host's Docker socket, allowing it to create and manage sibling containers. This approach provides:
+The Cubbi Service runs in a container with access to the host's Docker socket, allowing it to create and manage sibling containers. This approach provides:
 
 1. Isolation between containers
 2. Simple lifecycle management
@@ -367,7 +367,7 @@ For remote connections to containers, the service provides two methods:
 
 ### Logging Implementation
 
-The MC Service implements log collection and forwarding:
+The Cubbi Service implements log collection and forwarding:
 
 1. Container logs are captured using Docker's logging drivers
 2. Logs are forwarded to configured providers (Fluentd, Langfuse)
@@ -377,22 +377,22 @@ The MC Service implements log collection and forwarding:
 
 ### Persistent Project Configuration
 
-MC provides persistent storage for project-specific configurations that need to survive container restarts. This is implemented through a dedicated volume mount and symlink system:
+Cubbi provides persistent storage for project-specific configurations that need to survive container restarts. This is implemented through a dedicated volume mount and symlink system:
 
 1. **Configuration Storage**:
-   - Each project has a dedicated configuration directory on the host at `~/.mc/projects/<project-hash>/config`
+   - Each project has a dedicated configuration directory on the host at `~/.cubbi/projects/<project-hash>/config`
    - For projects specified by URL, the hash is derived from the repository URL
    - For local projects, the hash is derived from the absolute path of the local directory
-   - This directory is mounted into the container at `/mc-config`
+   - This directory is mounted into the container at `/cubbi-config`
 
 2. **Image Configuration**:
    - Each image can specify configuration files/directories that should persist across sessions
-   - These are defined in the image's `mc-image.yaml` file in the `persistent_configs` section
+   - These are defined in the image's `cubbi-image.yaml` file in the `persistent_configs` section
    - Example for Goose image:
      ```yaml
      persistent_configs:
        - source: "/app/.goose"         # Path in container
-         target: "/mc-config/goose"    # Path in persistent storage
+         target: "/cubbi-config/goose"    # Path in persistent storage
          type: "directory"             # directory or file
          description: "Goose memory and configuration"
      ```
@@ -406,8 +406,8 @@ MC provides persistent storage for project-specific configurations that need to 
 4. **Environment Variables**:
    - Container has access to configuration location via environment variables:
      ```
-     MC_CONFIG_DIR=/mc-config
-     MC_IMAGE_CONFIG_DIR=/mc-config/<image-name>
+     CUBBI_CONFIG_DIR=/cubbi-config
+     CUBBI_IMAGE_CONFIG_DIR=/cubbi-config/<image-name>
      ```
 
 This ensures that important configurations like Goose's memory store, authentication tokens, and other state information persist between container sessions while maintaining isolation between different projects.
@@ -418,21 +418,21 @@ Users can add projects with associated credentials:
 
 ```bash
 # Add a project with SSH key
-mc project add github.com/hello/private --ssh-key ~/.ssh/id_ed25519
+cubbi project add github.com/hello/private --ssh-key ~/.ssh/id_ed25519
 
 # Add a project with token authentication
-mc project add github.com/hello/private --token ghp_123456789
+cubbi project add github.com/hello/private --token ghp_123456789
 
 # List all projects
-mc project list
+cubbi project list
 
 # Remove a project
-mc project remove github.com/hello/private
+cubbi project remove github.com/hello/private
 ```
 
 ### Project Configuration
 
-Projects are stored in the MC service and referenced by their repository URL. The configuration includes:
+Projects are stored in the Cubbi service and referenced by their repository URL. The configuration includes:
 
 ```yaml
 # Project configuration
@@ -457,50 +457,50 @@ Each image is a Docker container with a standardized structure:
 ```
 /
 ├── entrypoint.sh      # Container initialization
-├── mc-init.sh         # Standardized initialization script
-├── mc-image.yaml      # Image metadata and configuration
+├── cubbi-init.sh      # Standardized initialization script
+├── cubbi-image.yaml   # Image metadata and configuration
 ├── tool/              # AI tool installation
 └── ssh/               # SSH server configuration
 ```
 
 ### Standardized Initialization Script
 
-All images include a standardized `mc-init.sh` script that handles common initialization tasks:
+All images include a standardized `cubbi-init.sh` script that handles common initialization tasks:
 ```bash
 #!/bin/bash
 
 # Project initialization
-if [ -n "$MC_PROJECT_URL" ]; then
-    echo "Initializing project: $MC_PROJECT_URL"
+if [ -n "$CUBBI_PROJECT_URL" ]; then
+    echo "Initializing project: $CUBBI_PROJECT_URL"
 
     # Set up SSH key if provided
-    if [ -n "$MC_GIT_SSH_KEY" ]; then
+    if [ -n "$CUBBI_GIT_SSH_KEY" ]; then
         mkdir -p ~/.ssh
-        echo "$MC_GIT_SSH_KEY" > ~/.ssh/id_ed25519
+        echo "$CUBBI_GIT_SSH_KEY" > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
         ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
     fi
 
     # Set up token if provided
-    if [ -n "$MC_GIT_TOKEN" ]; then
+    if [ -n "$CUBBI_GIT_TOKEN" ]; then
         git config --global credential.helper store
-        echo "https://$MC_GIT_TOKEN:x-oauth-basic@github.com" > ~/.git-credentials
+        echo "https://$CUBBI_GIT_TOKEN:x-oauth-basic@github.com" > ~/.git-credentials
     fi
 
     # Clone repository
-    git clone $MC_PROJECT_URL /app
+    git clone $CUBBI_PROJECT_URL /app
     cd /app
 
     # Run project-specific initialization if present
-    if [ -f "/app/.mc/init.sh" ]; then
-        bash /app/.mc/init.sh
+    if [ -f "/app/.cubbi/init.sh" ]; then
+        bash /app/.cubbi/init.sh
     fi
 fi
 
 # Image-specific initialization continues...
 ```
 
-### Image Configuration (mc-image.yaml)
+### Image Configuration (cubbi-image.yaml)
 
 ```yaml
 name: goose
@@ -509,7 +509,7 @@ version: 1.0.0
 maintainer: team@monadical.com
 
 init:
-  pre_command: /mc-init.sh
+  pre_command: /cubbi-init.sh
   command: /entrypoint.sh
 
 environment:
@@ -523,21 +523,21 @@ environment:
     required: false
 
   # Project environment variables
-  - name: MC_PROJECT_URL
+  - name: CUBBI_PROJECT_URL
     description: Project repository URL
     required: false
 
-  - name: MC_PROJECT_TYPE
+  - name: CUBBI_PROJECT_TYPE
     description: Project repository type (git, svn, etc.)
     required: false
     default: git
 
-  - name: MC_GIT_SSH_KEY
+  - name: CUBBI_GIT_SSH_KEY
     description: SSH key for Git authentication
     required: false
     sensitive: true
 
-  - name: MC_GIT_TOKEN
+  - name: CUBBI_GIT_TOKEN
     description: Token for Git authentication
     required: false
     sensitive: true
@@ -552,7 +552,7 @@ volumes:
 
 persistent_configs:
   - source: "/app/.goose"
-    target: "/mc-config/goose"
+    target: "/cubbi-config/goose"
     type: "directory"
     description: "Goose memory and configuration"
 ```
@@ -568,32 +568,32 @@ persistent_configs:
 
 ### Docker Network Integration
 
-MC provides flexible network management for containers:
+Cubbi provides flexible network management for containers:
 
-1. **Default MC Network**:
-   - Each container is automatically connected to the MC network (`mc-network` by default)
+1. **Default Cubbi Network**:
+   - Each container is automatically connected to the Cubbi network (`cubbi-network` by default)
    - This ensures containers can communicate with each other
 
 2. **External Network Connection**:
    - Containers can be connected to one or more external Docker networks
    - This allows integration with existing infrastructure (e.g., databases, web servers)
-   - Networks can be specified at session creation time: `mc session create --network mynetwork`
+   - Networks can be specified at session creation time: `cubbi session create --network mynetwork`
 
 3. **Default Networks Configuration**:
    - Users can configure default networks in their configuration
    - These networks will be used for all new sessions unless overridden
-   - Managed with `mc config network` commands
+   - Managed with `cubbi config network` commands
 
 4. **Network Command Examples**:
    ```bash
    # Use with session creation
-   mc session create --network teamnet
+   cubbi session create --network teamnet
 
    # Use with multiple networks
-   mc session create --network teamnet --network dbnet
+   cubbi session create --network teamnet --network dbnet
 
    # Configure default networks
-   mc config network add teamnet
+   cubbi config network add teamnet
    ```
 
 ## Security Considerations
@@ -606,15 +606,15 @@ MC provides flexible network management for containers:
 
 ## Deployment
 
-### MC Service Deployment
+### Cubbi Service Deployment
 
 ```yaml
-# docker-compose.yml for MC Service
+# docker-compose.yml for Cubbi Service
 version: '3.8'
 
 services:
-  mc-service:
-    image: monadical/mc-service:latest
+  cubbi-service:
+    image: monadical/cubbi-service:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config:/app/config
@@ -624,10 +624,10 @@ services:
       - AUTH_URL=https://authentik.monadical.io
       - LANGFUSE_API_KEY=your_api_key
     networks:
-      - mc-network
+      - cubbi-network
 
 networks:
-  mc-network:
+  cubbi-network:
     driver: bridge
 ```
 
@@ -637,33 +637,33 @@ networks:
 
 1. User adds project repository with authentication:
    ```bash
-   mc project add github.com/hello/private --ssh-key ~/.ssh/id_ed25519
+   cubbi project add github.com/hello/private --ssh-key ~/.ssh/id_ed25519
    ```
 
-2. MC CLI reads the SSH key, encrypts it, and sends to MC Service
+2. Cubbi CLI reads the SSH key, encrypts it, and sends to Cubbi Service
 
-3. MC Service stores the project configuration securely
+3. Cubbi Service stores the project configuration securely
 
 ### Using a Project in a Session
 
 1. User creates a session with a project:
    ```bash
-   mc -r monadical git@github.com:hello/private
+   cubbi -r monadical git@github.com:hello/private
    ```
 
-2. MC Service:
+2. Cubbi Service:
    - Identifies the project from the URL
    - Retrieves project authentication details
    - Sets up environment variables:
      ```
-     MC_PROJECT_URL=git@github.com:hello/private
-     MC_PROJECT_TYPE=git
-     MC_GIT_SSH_KEY=<contents of the SSH key>
+     CUBBI_PROJECT_URL=git@github.com:hello/private
+     CUBBI_PROJECT_TYPE=git
+     CUBBI_GIT_SSH_KEY=<contents of the SSH key>
      ```
    - Creates container with these environment variables
 
 3. Container initialization:
-   - The standardized `mc-init.sh` script detects the project environment variables
+   - The standardized `cubbi-init.sh` script detects the project environment variables
    - Sets up SSH key or token authentication
    - Clones the repository to `/app`
    - Runs any project-specific initialization scripts
@@ -673,7 +673,7 @@ networks:
 ## Implementation Roadmap
 
 1. **Phase 1**: Local CLI tool with Docker integration
-2. **Phase 2**: MC Service REST API with basic container management
+2. **Phase 2**: Cubbi Service REST API with basic container management
 3. **Phase 3**: Authentication and secure connections
 4. **Phase 4**: Project management functionality
 5. **Phase 5**: Image implementation (Goose, Aider, Claude Code)

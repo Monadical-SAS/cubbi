@@ -1,5 +1,5 @@
 """
-MCP (Model Control Protocol) server management for Monadical Container.
+MCP (Model Control Protocol) server management for Cubbi Container.
 """
 
 import logging
@@ -38,7 +38,7 @@ class MCPManager:
         """Ensure the MCP network exists and return its name.
         Note: This is used only by the inspector, not for session-to-MCP connections.
         """
-        network_name = "mc-mcp-network"
+        network_name = "cubbi-mcp-network"
         if self.client:
             networks = self.client.networks.list(names=[network_name])
             if not networks:
@@ -54,7 +54,7 @@ class MCPManager:
         Returns:
             The name of the dedicated network
         """
-        network_name = f"mc-mcp-{mcp_name}-network"
+        network_name = f"cubbi-mcp-{mcp_name}-network"
         if self.client:
             networks = self.client.networks.list(names=[network_name])
             if not networks:
@@ -282,7 +282,7 @@ class MCPManager:
 
     def get_mcp_container_name(self, mcp_name: str) -> str:
         """Get the Docker container name for an MCP server."""
-        return f"mc_mcp_{mcp_name}"
+        return f"cubbi_mcp_{mcp_name}"
 
     def start_mcp(self, name: str) -> Dict[str, Any]:
         """Start an MCP server container."""
@@ -374,9 +374,9 @@ class MCPManager:
                 network=None,  # Start without network, we'll add it with aliases
                 environment=mcp_config.get("env", {}),
                 labels={
-                    "mc.mcp": "true",
-                    "mc.mcp.name": name,
-                    "mc.mcp.type": "docker",
+                    "cubbi.mcp": "true",
+                    "cubbi.mcp.name": name,
+                    "cubbi.mcp.type": "docker",
                 },
             )
 
@@ -540,7 +540,7 @@ ENTRYPOINT ["/entrypoint.sh"]
                     f.write(dockerfile_content)
 
                 # Build the image
-                custom_image_name = f"mc_mcp_proxy_{name}"
+                custom_image_name = f"cubbi_mcp_proxy_{name}"
                 logger.info(f"Building custom proxy image: {custom_image_name}")
                 self.client.images.build(
                     path=tmp_dir,
@@ -577,9 +577,9 @@ ENTRYPOINT ["/entrypoint.sh"]
                         }
                     },
                     labels={
-                        "mc.mcp": "true",
-                        "mc.mcp.name": name,
-                        "mc.mcp.type": "proxy",
+                        "cubbi.mcp": "true",
+                        "cubbi.mcp.name": name,
+                        "cubbi.mcp.type": "proxy",
                     },
                     ports=port_bindings,  # Bind the SSE port to the host if configured
                 )
@@ -816,8 +816,10 @@ ENTRYPOINT ["/entrypoint.sh"]
         if not self.client:
             raise Exception("Docker client is not available")
 
-        # Get all containers with the mc.mcp label
-        containers = self.client.containers.list(all=True, filters={"label": "mc.mcp"})
+        # Get all containers with the cubbi.mcp label
+        containers = self.client.containers.list(
+            all=True, filters={"label": "cubbi.mcp"}
+        )
 
         result = []
         for container in containers:
@@ -858,13 +860,13 @@ ENTRYPOINT ["/entrypoint.sh"]
 
             # Create MCPContainer object
             mcp_container = MCPContainer(
-                name=labels.get("mc.mcp.name", "unknown"),
+                name=labels.get("cubbi.mcp.name", "unknown"),
                 container_id=container.id,
                 status=status,
                 image=container_info["Config"]["Image"],
                 ports=ports,
                 created_at=container_info["Created"],
-                type=labels.get("mc.mcp.type", "unknown"),
+                type=labels.get("cubbi.mcp.type", "unknown"),
             )
 
             result.append(mcp_container)

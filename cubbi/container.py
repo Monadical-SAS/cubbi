@@ -42,8 +42,8 @@ class ContainerManager:
             sys.exit(1)
 
     def _ensure_network(self) -> None:
-        """Ensure the MC network exists"""
-        network_name = self.config_manager.config.docker.get("network", "mc-network")
+        """Ensure the Cubbi network exists"""
+        network_name = self.config_manager.config.docker.get("network", "cubbi-network")
         networks = self.client.networks.list(names=[network_name])
         if not networks:
             self.client.networks.create(network_name, driver="bridge")
@@ -64,8 +64,8 @@ class ContainerManager:
         Returns:
             Path to the project configuration directory, or None if no project_name is provided
         """
-        # Get home directory for the MC config
-        mc_home = pathlib.Path.home() / ".mc"
+        # Get home directory for the Cubbi config
+        cubbi_home = pathlib.Path.home() / ".cubbi"
 
         # Only use project_name if explicitly provided
         if project_name:
@@ -73,7 +73,7 @@ class ContainerManager:
             project_hash = hashlib.md5(project_name.encode()).hexdigest()
 
             # Create the project config directory path
-            config_path = mc_home / "projects" / project_hash / "config"
+            config_path = cubbi_home / "projects" / project_hash / "config"
 
             # Create the directory if it doesn't exist
             config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -82,22 +82,22 @@ class ContainerManager:
             return config_path
         else:
             # If no project_name is provided, don't create any config directory
-            # This ensures we don't mount the /mc-config volume for project-less sessions
+            # This ensures we don't mount the /cubbi-config volume for project-less sessions
             return None
 
     def list_sessions(self) -> List[Session]:
-        """List all active MC sessions"""
+        """List all active Cubbi sessions"""
         sessions = []
         try:
             containers = self.client.containers.list(
-                all=True, filters={"label": "mc.session"}
+                all=True, filters={"label": "cubbi.session"}
             )
 
             for container in containers:
                 container_id = container.id
                 labels = container.labels
 
-                session_id = labels.get("mc.session.id")
+                session_id = labels.get("cubbi.session.id")
                 if not session_id:
                     continue
 
@@ -109,8 +109,8 @@ class ContainerManager:
 
                 session = Session(
                     id=session_id,
-                    name=labels.get("mc.session.name", f"mc-{session_id}"),
-                    image=labels.get("mc.image", "unknown"),
+                    name=labels.get("cubbi.session.name", f"cubbi-{session_id}"),
+                    image=labels.get("cubbi.image", "unknown"),
                     status=status,
                     container_id=container_id,
                 )
@@ -153,7 +153,7 @@ class ContainerManager:
         provider: Optional[str] = None,
         ssh: bool = False,
     ) -> Optional[Session]:
-        """Create a new MC session
+        """Create a new Cubbi session
 
         Args:
             image_name: The name of the image to use
@@ -180,7 +180,7 @@ class ContainerManager:
             # Generate session ID and name
             session_id = self._generate_session_id()
             if not session_name:
-                session_name = f"mc-{session_id}"
+                session_name = f"cubbi-{session_id}"
 
             # Ensure network exists
             self._ensure_network()
@@ -188,12 +188,12 @@ class ContainerManager:
             # Prepare environment variables
             env_vars = environment or {}
 
-            # Add MC_USER_ID and MC_GROUP_ID for entrypoint script
-            env_vars["MC_USER_ID"] = str(uid) if uid is not None else "1000"
-            env_vars["MC_GROUP_ID"] = str(gid) if gid is not None else "1000"
+            # Add CUBBI_USER_ID and CUBBI_GROUP_ID for entrypoint script
+            env_vars["CUBBI_USER_ID"] = str(uid) if uid is not None else "1000"
+            env_vars["CUBBI_GROUP_ID"] = str(gid) if gid is not None else "1000"
 
             # Set SSH environment variable
-            env_vars["MC_SSH_ENABLED"] = "true" if ssh else "false"
+            env_vars["CUBBI_SSH_ENABLED"] = "true" if ssh else "false"
 
             # Pass API keys from host environment to container for local development
             api_keys = [
@@ -240,7 +240,7 @@ class ContainerManager:
                 # Clear project for container environment since we're mounting
                 project = None
             elif is_git_repo:
-                env_vars["MC_PROJECT_URL"] = project
+                env_vars["CUBBI_PROJECT_URL"] = project
                 print(
                     f"Git repository URL provided - container will clone {project} into /app during initialization"
                 )
@@ -269,13 +269,13 @@ class ContainerManager:
 
                 # Mount the project configuration directory
                 session_volumes[str(project_config_path)] = {
-                    "bind": "/mc-config",
+                    "bind": "/cubbi-config",
                     "mode": "rw",
                 }
 
                 # Add environment variables for config path
-                env_vars["MC_CONFIG_DIR"] = "/mc-config"
-                env_vars["MC_IMAGE_CONFIG_DIR"] = f"/mc-config/{image_name}"
+                env_vars["CUBBI_CONFIG_DIR"] = "/cubbi-config"
+                env_vars["CUBBI_IMAGE_CONFIG_DIR"] = f"/cubbi-config/{image_name}"
 
                 # Create image-specific config directories and set up direct volume mounts
                 if image.persistent_configs:
@@ -284,7 +284,7 @@ class ContainerManager:
                     for config in image.persistent_configs:
                         # Get target directory path on host
                         target_dir = project_config_path / config.target.removeprefix(
-                            "/mc-config/"
+                            "/cubbi-config/"
                         )
 
                         # Create directory if it's a directory type config
@@ -299,7 +299,7 @@ class ContainerManager:
                             # File will be created by the container if needed
 
                         # Store the source and target paths for the init script
-                        # Note: config.target is the path *within* /mc-config
+                        # Note: config.target is the path *within* /cubbi-config
                         persistent_links_data.append(f"{config.source}:{config.target}")
 
                         print(
@@ -308,20 +308,20 @@ class ContainerManager:
 
                     # Set up persistent links
                     if persistent_links_data:
-                        env_vars["MC_PERSISTENT_LINKS"] = ";".join(
+                        env_vars["CUBBI_PERSISTENT_LINKS"] = ";".join(
                             persistent_links_data
                         )
                         print(
-                            f"Setting MC_PERSISTENT_LINKS={env_vars['MC_PERSISTENT_LINKS']}"
+                            f"Setting CUBBI_PERSISTENT_LINKS={env_vars['CUBBI_PERSISTENT_LINKS']}"
                         )
             else:
                 print(
                     "No project_name provided - skipping configuration directory setup."
                 )
 
-            # Default MC network
+            # Default Cubbi network
             default_network = self.config_manager.config.docker.get(
-                "network", "mc-network"
+                "network", "cubbi-network"
             )
 
             # Get network list
@@ -440,9 +440,9 @@ class ContainerManager:
                 env_vars["MCP_NAMES"] = json.dumps(mcp_names)
 
             # Add user-specified networks
-            # Default MC network
+            # Default Cubbi network
             default_network = self.config_manager.config.docker.get(
-                "network", "mc-network"
+                "network", "cubbi-network"
             )
 
             # Get network list, ensuring default is first and no duplicates
@@ -468,12 +468,12 @@ class ContainerManager:
             target_shell = "/bin/bash"
 
             if run_command:
-                # Set environment variable for mc-init.sh to pick up
-                env_vars["MC_RUN_COMMAND"] = run_command
+                # Set environment variable for cubbi-init.sh to pick up
+                env_vars["CUBBI_RUN_COMMAND"] = run_command
                 # Set the container's command to be the final shell
                 container_command = [target_shell]
                 logger.info(
-                    f"Setting MC_RUN_COMMAND and targeting shell {target_shell}"
+                    f"Setting CUBBI_RUN_COMMAND and targeting shell {target_shell}"
                 )
             else:
                 # Use default behavior (often defined by image's ENTRYPOINT/CMD)
@@ -486,10 +486,10 @@ class ContainerManager:
                 )
 
             # Set default model/provider from user config if not explicitly provided
-            env_vars["MC_MODEL"] = model or self.user_config_manager.get(
+            env_vars["CUBBI_MODEL"] = model or self.user_config_manager.get(
                 "defaults.model", ""
             )
-            env_vars["MC_PROVIDER"] = provider or self.user_config_manager.get(
+            env_vars["CUBBI_PROVIDER"] = provider or self.user_config_manager.get(
                 "defaults.provider", ""
             )
 
@@ -504,13 +504,13 @@ class ContainerManager:
                 environment=env_vars,
                 volumes=session_volumes,
                 labels={
-                    "mc.session": "true",
-                    "mc.session.id": session_id,
-                    "mc.session.name": session_name,
-                    "mc.image": image_name,
-                    "mc.project": project or "",
-                    "mc.project_name": project_name or "",
-                    "mc.mcps": ",".join(mcp_names) if mcp_names else "",
+                    "cubbi.session": "true",
+                    "cubbi.session.id": session_id,
+                    "cubbi.session.name": session_name,
+                    "cubbi.image": image_name,
+                    "cubbi.project": project or "",
+                    "cubbi.project_name": project_name or "",
+                    "cubbi.mcps": ",".join(mcp_names) if mcp_names else "",
                 },
                 network=network_list[0],  # Connect to the first network initially
                 command=container_command,  # Set the command
@@ -549,7 +549,7 @@ class ContainerManager:
             for mcp_name in mcp_names:
                 try:
                     # Get the dedicated network for this MCP
-                    dedicated_network_name = f"mc-mcp-{mcp_name}-network"
+                    dedicated_network_name = f"cubbi-mcp-{mcp_name}-network"
 
                     try:
                         network = self.client.networks.get(dedicated_network_name)
@@ -633,7 +633,7 @@ class ContainerManager:
             return None
 
     def close_session(self, session_id: str) -> bool:
-        """Close a MC session"""
+        """Close a Cubbi session"""
         try:
             sessions = self.list_sessions()
             for session in sessions:
@@ -648,7 +648,7 @@ class ContainerManager:
             return False
 
     def connect_session(self, session_id: str) -> bool:
-        """Connect to a running MC session"""
+        """Connect to a running Cubbi session"""
         # Retrieve full session data which should include uid/gid
         session_data = self.session_manager.get_session(session_id)
 
@@ -738,7 +738,7 @@ class ContainerManager:
             return False
 
     def close_all_sessions(self, progress_callback=None) -> Tuple[int, bool]:
-        """Close all MC sessions with parallel processing and progress reporting
+        """Close all Cubbi sessions with parallel processing and progress reporting
 
         Args:
             progress_callback: Optional callback function to report progress
@@ -811,7 +811,7 @@ class ContainerManager:
             return 0, False
 
     def get_session_logs(self, session_id: str, follow: bool = False) -> Optional[str]:
-        """Get logs from a MC session"""
+        """Get logs from a Cubbi session"""
         try:
             sessions = self.list_sessions()
             for session in sessions:
@@ -832,7 +832,7 @@ class ContainerManager:
             return None
 
     def get_init_logs(self, session_id: str, follow: bool = False) -> Optional[str]:
-        """Get initialization logs from a MC session
+        """Get initialization logs from a Cubbi session
 
         Args:
             session_id: The session ID

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document specifies the implementation for Model Control Protocol (MCP) server support in the Monadical Container (MC) system. The MCP server feature allows users to connect, build, and manage external MCP servers that can be attached to MC sessions.
+This document specifies the implementation for Model Control Protocol (MCP) server support in the Cubbi system. The MCP server feature allows users to connect, build, and manage external MCP servers that can be attached to Cubbi sessions.
 
 An MCP server is a service that can be accessed by a image (such as Goose or Claude Code) to extend the LLM's capabilities through tool calls. It can be either:
 - A local stdio-based MCP server running in a container (accessed via an SSE proxy)
@@ -53,48 +53,48 @@ mcps:
 ### MCP Management
 
 ```
-mc mcp list                # List all configured MCP servers and their status
-mc mcp status <name>          # Show detailed status of a specific MCP server
-mc mcp start <name>           # Start an MCP server container
-mc mcp stop <name>            # Stop and remove an MCP server container
-mc mcp restart <name>         # Restart an MCP server container
-mc mcp start --all         # Start all MCP server containers
-mc mcp stop --all          # Stop and remove all MCP server containers
-mc mcp inspector                      # Run the MCP Inspector UI with network connectivity to all MCP servers
-mc mcp inspector --client-port <cp> --server-port <sp>  # Run with custom client port (default: 5173) and server port (default: 3000)
-mc mcp inspector --detach  # Run the inspector in detached mode
-mc mcp inspector --stop    # Stop the running inspector
-mc mcp logs <name>            # Show logs for an MCP server container
+cubbi mcp list                # List all configured MCP servers and their status
+cubbi mcp status <name>          # Show detailed status of a specific MCP server
+cubbi mcp start <name>           # Start an MCP server container
+cubbi mcp stop <name>            # Stop and remove an MCP server container
+cubbi mcp restart <name>         # Restart an MCP server container
+cubbi mcp start --all         # Start all MCP server containers
+cubbi mcp stop --all          # Stop and remove all MCP server containers
+cubbi mcp inspector                      # Run the MCP Inspector UI with network connectivity to all MCP servers
+cubbi mcp inspector --client-port <cp> --server-port <sp>  # Run with custom client port (default: 5173) and server port (default: 3000)
+cubbi mcp inspector --detach  # Run the inspector in detached mode
+cubbi mcp inspector --stop    # Stop the running inspector
+cubbi mcp logs <name>            # Show logs for an MCP server container
 ```
 
 ### MCP Configuration
 
 ```
 # Add a proxy-based MCP server (default)
-mc mcp add <name> <base_image> [--command CMD] [--proxy-image IMG] [--sse-port PORT] [--sse-host HOST] [--allow-origin ORIGIN] [--env KEY=VALUE...]
+cubbi mcp add <name> <base_image> [--command CMD] [--proxy-image IMG] [--sse-port PORT] [--sse-host HOST] [--allow-origin ORIGIN] [--env KEY=VALUE...]
 
 # Add a remote MCP server
-mc mcp add-remote <name> <url> [--header KEY=VALUE...]
+cubbi mcp add-remote <name> <url> [--header KEY=VALUE...]
 
 # Remove an MCP configuration
-mc mcp remove <name>
+cubbi mcp remove <name>
 ```
 
 ### Session Integration
 
 ```
-mc session create [--mcp <name>]  # Create a session with an MCP server attached
+cubbi session create [--mcp <name>]  # Create a session with an MCP server attached
 ```
 
 ## Implementation Details
 
 ### MCP Container Management
 
-1. MCP containers will have their own dedicated Docker network (`mc-mcp-network`)
+1. MCP containers will have their own dedicated Docker network (`cubbi-mcp-network`)
 2. Session containers will be attached to both their session network and the MCP network when using an MCP
 3. MCP containers will be persistent across sessions unless explicitly stopped
-4. MCP containers will be named with a prefix to identify them (`mc_mcp_<name>`)
-5. Each MCP container will have a network alias matching its name without the prefix (e.g., `mc_mcp_github` will have the alias `github`)
+4. MCP containers will be named with a prefix to identify them (`cubbi_mcp_<name>`)
+5. Each MCP container will have a network alias matching its name without the prefix (e.g., `cubbi_mcp_github` will have the alias `github`)
 6. Network aliases enable DNS-based service discovery between containers
 
 ### MCP Inspector

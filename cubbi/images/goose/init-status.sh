@@ -28,4 +28,4 @@ if ! grep -q "INIT_COMPLETE=true" "/init.status" 2>/dev/null; then
     fi
 fi
 
-exec gosu mcuser /bin/bash -il
+exec gosu cubbi /bin/bash -il

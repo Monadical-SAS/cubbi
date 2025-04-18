@@ -1,7 +1,7 @@
 [project]
-name = "mcontainer"
+name = "cubbi"
 version = "0.1.0"
-description = "Monadical Container Tool"
+description = "Cubbi Container Tool"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -24,8 +24,8 @@ dev = [
 ]
 
 [project.scripts]
-mc = "mcontainer.cli:app"
-mcx = "mcontainer.cli:session_create_entry_point"
+cubbi = "cubbi.cli:app"
+cubbix = "cubbi.cli:session_create_entry_point"
 
 [tool.ruff]
 line-length = 88

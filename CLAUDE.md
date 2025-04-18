@@ -1,12 +1,12 @@
-# Monadical Container Development Guide
+# Cubbi Container Development Guide
 
 ## Build Commands
 ```bash
 # Install dependencies using uv (Astral)
 uv sync
 
-# Run MC CLI
-uv run -m mcontainer.cli
+# Run Cubbi CLI
+uv run -m cubbi.cli
 ```
 
 ## Lint/Test Commands

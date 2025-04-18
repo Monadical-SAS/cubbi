@@ -5,11 +5,11 @@ Tests for the session management commands.
 from unittest.mock import patch
 
 
-from mcontainer.cli import app
+from cubbi.cli import app
 
 
 def test_session_list_empty(cli_runner, mock_container_manager):
-    """Test 'mc session list' with no active sessions."""
+    """Test 'cubbi session list' with no active sessions."""
     mock_container_manager.list_sessions.return_value = []
 
     result = cli_runner.invoke(app, ["session", "list"])
@@ -19,9 +19,9 @@ def test_session_list_empty(cli_runner, mock_container_manager):
 
 
 def test_session_list_with_sessions(cli_runner, mock_container_manager):
-    """Test 'mc session list' with active sessions."""
+    """Test 'cubbi session list' with active sessions."""
     # Create a mock session and set list_sessions to return it
-    from mcontainer.models import Session, SessionStatus
+    from cubbi.models import Session, SessionStatus
 
     mock_session = Session(
         id="test-session-id",
@@ -40,9 +40,9 @@ def test_session_list_with_sessions(cli_runner, mock_container_manager):
 
 
 def test_session_create_basic(cli_runner, mock_container_manager):
-    """Test 'mc session create' with basic options."""
+    """Test 'cubbi session create' with basic options."""
     # We need to patch user_config.get with a side_effect to handle different keys
-    with patch("mcontainer.cli.user_config") as mock_user_config:
+    with patch("cubbi.cli.user_config") as mock_user_config:
         # Handle different key requests appropriately
         def mock_get_side_effect(key, default=None):
             if key == "defaults.image":
@@ -76,7 +76,7 @@ def test_session_create_basic(cli_runner, mock_container_manager):
 
 
 def test_session_close(cli_runner, mock_container_manager):
-    """Test 'mc session close' command."""
+    """Test 'cubbi session close' command."""
     mock_container_manager.close_session.return_value = True
 
     result = cli_runner.invoke(app, ["session", "close", "test-session-id"])
@@ -87,9 +87,9 @@ def test_session_close(cli_runner, mock_container_manager):
 
 
 def test_session_close_all(cli_runner, mock_container_manager):
-    """Test 'mc session close --all' command."""
+    """Test 'cubbi session close --all' command."""
     # Set up mock sessions
-    from mcontainer.models import Session, SessionStatus
+    from cubbi.models import Session, SessionStatus
 
     # timestamp no longer needed since we don't use created_at in Session
     mock_sessions = [

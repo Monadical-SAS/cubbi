@@ -1,5 +1,5 @@
 """
-Common test fixtures for Monadical Container tests.
+Common test fixtures for Cubbi Container tests.
 """
 
 import uuid
@@ -9,11 +9,11 @@ import docker
 from pathlib import Path
 from unittest.mock import patch
 
-from mcontainer.container import ContainerManager
-from mcontainer.session import SessionManager
-from mcontainer.config import ConfigManager
-from mcontainer.models import Session, SessionStatus
-from mcontainer.user_config import UserConfigManager
+from cubbi.container import ContainerManager
+from cubbi.session import SessionManager
+from cubbi.config import ConfigManager
+from cubbi.models import Session, SessionStatus
+from cubbi.user_config import UserConfigManager
 
 
 # Check if Docker is available
@@ -81,7 +81,7 @@ def isolated_config_manager():
 @pytest.fixture
 def mock_session_manager():
     """Mock the SessionManager class."""
-    with patch("mcontainer.cli.session_manager") as mock_manager:
+    with patch("cubbi.cli.session_manager") as mock_manager:
         yield mock_manager
 
 
@@ -96,7 +96,7 @@ def mock_container_manager():
         ports={"8080": "8080"},
     )
 
-    with patch("mcontainer.cli.container_manager") as mock_manager:
+    with patch("cubbi.cli.container_manager") as mock_manager:
         # Set behaviors to avoid TypeErrors
         mock_manager.list_sessions.return_value = []
         mock_manager.create_session.return_value = mock_session
@@ -149,7 +149,7 @@ def test_file_content(temp_dir):
 @pytest.fixture
 def test_network_name():
     """Generate a unique network name for testing."""
-    return f"mc-test-network-{uuid.uuid4().hex[:8]}"
+    return f"cubbi-test-network-{uuid.uuid4().hex[:8]}"
 
 
 @pytest.fixture
@@ -175,5 +175,5 @@ def docker_test_network(test_network_name):
 @pytest.fixture
 def patched_config_manager(isolated_config):
     """Patch the UserConfigManager in cli.py to use our isolated instance."""
-    with patch("mcontainer.cli.user_config", isolated_config):
+    with patch("cubbi.cli.user_config", isolated_config):
         yield isolated_config

@@ -2,11 +2,11 @@
 Tests for the configuration management commands.
 """
 
-from mcontainer.cli import app
+from cubbi.cli import app
 
 
 def test_config_list(cli_runner, patched_config_manager):
-    """Test the 'mc config list' command."""
+    """Test the 'cubbi config list' command."""
     result = cli_runner.invoke(app, ["config", "list"])
 
     assert result.exit_code == 0
@@ -20,7 +20,7 @@ def test_config_list(cli_runner, patched_config_manager):
 
 
 def test_config_get(cli_runner, patched_config_manager):
-    """Test the 'mc config get' command."""
+    """Test the 'cubbi config get' command."""
     # Test getting an existing value
     result = cli_runner.invoke(app, ["config", "get", "defaults.image"])
 
@@ -36,7 +36,7 @@ def test_config_get(cli_runner, patched_config_manager):
 
 
 def test_config_set(cli_runner, patched_config_manager):
-    """Test the 'mc config set' command."""
+    """Test the 'cubbi config set' command."""
     # Test setting a string value
     result = cli_runner.invoke(app, ["config", "set", "defaults.image", "claude"])
 
@@ -60,7 +60,7 @@ def test_config_set(cli_runner, patched_config_manager):
 
 
 def test_volume_list_empty(cli_runner, patched_config_manager):
-    """Test the 'mc config volume list' command with no volumes."""
+    """Test the 'cubbi config volume list' command with no volumes."""
     result = cli_runner.invoke(app, ["config", "volume", "list"])
 
     assert result.exit_code == 0
@@ -133,7 +133,7 @@ def test_volume_add_nonexistent_path(cli_runner, patched_config_manager, monkeyp
 
 
 def test_network_list_empty(cli_runner, patched_config_manager):
-    """Test the 'mc config network list' command with no networks."""
+    """Test the 'cubbi config network list' command with no networks."""
     result = cli_runner.invoke(app, ["config", "network", "list"])
 
     assert result.exit_code == 0

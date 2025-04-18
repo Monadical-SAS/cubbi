@@ -1,5 +1,5 @@
 """
-Integration tests for Docker interactions in Monadical Container.
+Integration tests for Docker interactions in Cubbi Container.
 These tests require Docker to be running.
 """
 
@@ -31,7 +31,7 @@ def test_integration_session_create_with_volumes(container_manager, test_file_co
         # Create a session with a volume mount
         session = container_manager.create_session(
             image_name="goose",
-            session_name=f"mc-test-volume-{uuid.uuid4().hex[:8]}",
+            session_name=f"cubbi-test-volume-{uuid.uuid4().hex[:8]}",
             mount_local=False,  # Don't mount current directory
             volumes={str(test_file): {"bind": "/test/volume_test.txt", "mode": "ro"}},
         )
@@ -66,7 +66,7 @@ def test_integration_session_create_with_networks(
         # Create a session with the test network
         session = container_manager.create_session(
             image_name="goose",
-            session_name=f"mc-test-network-{uuid.uuid4().hex[:8]}",
+            session_name=f"cubbi-test-network-{uuid.uuid4().hex[:8]}",
             mount_local=False,  # Don't mount current directory
             networks=[docker_test_network],
         )
@@ -85,7 +85,7 @@ def test_integration_session_create_with_networks(
         container = client.containers.get(session.container_id)
         container_networks = container.attrs["NetworkSettings"]["Networks"]
 
-        # Container should be connected to both the default mc-network and our test network
+        # Container should be connected to both the default cubbi-network and our test network
         assert docker_test_network in container_networks
 
         # Verify network interface exists in container
@@ -93,7 +93,7 @@ def test_integration_session_create_with_networks(
             session.container_id, "ip link show | grep -v 'lo' | wc -l"
         )
 
-        # Should have at least 2 interfaces (eth0 for mc-network, eth1 for test network)
+        # Should have at least 2 interfaces (eth0 for cubbi-network, eth1 for test network)
         assert int(network_interfaces) >= 2
 
     finally:

@@ -4,15 +4,15 @@ Tests for the MCP server management commands.
 
 import pytest
 from unittest.mock import patch
-from mcontainer.cli import app
+from cubbi.cli import app
 
 
 def test_mcp_list_empty(cli_runner, patched_config_manager):
-    """Test the 'mc mcp list' command with no MCPs configured."""
+    """Test the 'cubbi mcp list' command with no MCPs configured."""
     # Make sure mcps is empty
     patched_config_manager.set("mcps", [])
 
-    with patch("mcontainer.cli.mcp_manager.list_mcps") as mock_list_mcps:
+    with patch("cubbi.cli.mcp_manager.list_mcps") as mock_list_mcps:
         mock_list_mcps.return_value = []
 
         result = cli_runner.invoke(app, ["mcp", "list"])
@@ -94,7 +94,7 @@ def test_mcp_remove(cli_runner, patched_config_manager):
     )
 
     # Mock the get_mcp and remove_mcp methods
-    with patch("mcontainer.cli.mcp_manager.get_mcp") as mock_get_mcp:
+    with patch("cubbi.cli.mcp_manager.get_mcp") as mock_get_mcp:
         # First make get_mcp return our MCP
         mock_get_mcp.return_value = {
             "name": "test-mcp",
@@ -128,7 +128,7 @@ def test_mcp_status(cli_runner, patched_config_manager, mock_container_manager):
     )
 
     # First mock get_mcp to return our MCP config
-    with patch("mcontainer.cli.mcp_manager.get_mcp") as mock_get_mcp:
+    with patch("cubbi.cli.mcp_manager.get_mcp") as mock_get_mcp:
         mock_get_mcp.return_value = {
             "name": "test-docker-mcp",
             "type": "docker",
@@ -138,7 +138,7 @@ def test_mcp_status(cli_runner, patched_config_manager, mock_container_manager):
         }
 
         # Then mock the get_mcp_status method
-        with patch("mcontainer.cli.mcp_manager.get_mcp_status") as mock_get_status:
+        with patch("cubbi.cli.mcp_manager.get_mcp_status") as mock_get_status:
             mock_get_status.return_value = {
                 "status": "running",
                 "container_id": "test-container-id",
@@ -262,7 +262,7 @@ def test_mcp_logs(cli_runner, patched_config_manager, mock_container_manager):
     )
 
     # Mock the logs operation
-    with patch("mcontainer.cli.mcp_manager.get_mcp_logs") as mock_get_logs:
+    with patch("cubbi.cli.mcp_manager.get_mcp_logs") as mock_get_logs:
         mock_get_logs.return_value = "Test log output"
 
         # View MCP logs
@@ -288,7 +288,7 @@ def test_session_with_mcp(cli_runner, patched_config_manager, mock_container_man
     )
 
     # Mock the session creation with MCP
-    from mcontainer.models import Session, SessionStatus
+    from cubbi.models import Session, SessionStatus
 
     # timestamp no longer needed since we don't use created_at in Session
     mock_container_manager.create_session.return_value = Session(

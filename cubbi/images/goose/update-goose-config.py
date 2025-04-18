@@ -39,8 +39,8 @@ def update_config():
     }
 
     # Update goose configuration with model and provider from environment variables
-    goose_model = os.environ.get("MC_MODEL")
-    goose_provider = os.environ.get("MC_PROVIDER")
+    goose_model = os.environ.get("CUBBI_MODEL")
+    goose_provider = os.environ.get("CUBBI_PROVIDER")
 
     if goose_model:
         config_data["GOOSE_MODEL"] = goose_model

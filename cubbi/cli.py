@@ -1,5 +1,5 @@
 """
-CLI for Monadical Container Tool.
+CLI for Cubbi Container Tool.
 """
 
 import logging
@@ -24,10 +24,10 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()],
 )
 
-app = typer.Typer(help="Monadical Container Tool", no_args_is_help=True)
-session_app = typer.Typer(help="Manage MC sessions", no_args_is_help=True)
-image_app = typer.Typer(help="Manage MC images", no_args_is_help=True)
-config_app = typer.Typer(help="Manage MC configuration", no_args_is_help=True)
+app = typer.Typer(help="Cubbi Container Tool", no_args_is_help=True)
+session_app = typer.Typer(help="Manage Cubbi sessions", no_args_is_help=True)
+image_app = typer.Typer(help="Manage Cubbi images", no_args_is_help=True)
+config_app = typer.Typer(help="Manage Cubbi configuration", no_args_is_help=True)
 mcp_app = typer.Typer(help="Manage MCP servers", no_args_is_help=True)
 app.add_typer(session_app, name="session", no_args_is_help=True)
 app.add_typer(image_app, name="image", no_args_is_help=True)
@@ -49,10 +49,10 @@ def main(
         False, "--verbose", "-v", help="Enable verbose logging"
     ),
 ) -> None:
-    """Monadical Container Tool
+    """Cubbi Container Tool
 
-    Run 'mc session create' to create a new session.
-    Use 'mcx' as a shortcut for 'mc session create'.
+    Run 'cubbi session create' to create a new session.
+    Use 'cubbix' as a shortcut for 'cubbi session create'.
     """
     # Set log level based on verbose flag
     if verbose:
@@ -61,19 +61,19 @@ def main(
 
 @app.command()
 def version() -> None:
-    """Show MC version information"""
+    """Show Cubbi version information"""
     from importlib.metadata import version as get_version
 
     try:
-        version_str = get_version("mcontainer")
-        console.print(f"MC - Monadical Container Tool v{version_str}")
+        version_str = get_version("cubbi")
+        console.print(f"Cubbi - Cubbi Container Tool v{version_str}")
     except Exception:
-        console.print("MC - Monadical Container Tool (development version)")
+        console.print("Cubbi - Cubbi Container Tool (development version)")
 
 
 @session_app.command("list")
 def list_sessions() -> None:
-    """List active MC sessions"""
+    """List active Cubbi sessions"""
     sessions = container_manager.list_sessions()
 
     if not sessions:
@@ -168,7 +168,7 @@ def create_session(
     ),
     ssh: bool = typer.Option(False, "--ssh", help="Start SSH server in the container"),
 ) -> None:
-    """Create a new MC session
+    """Create a new Cubbi session
 
     If a local directory path is provided, it will be mounted at /app in the container.
     If a repository URL is provided, it will be cloned into /app during initialization.
@@ -304,11 +304,11 @@ def create_session(
             if no_connect:
                 console.print("\nConnection skipped due to --no-connect.")
                 console.print(
-                    f"Connect manually with:\n  mc session connect {session.id}"
+                    f"Connect manually with:\n  cubbi session connect {session.id}"
                 )
             elif not auto_connect:
                 console.print(
-                    f"\nAuto-connect disabled. Connect with:\n  mc session connect {session.id}"
+                    f"\nAuto-connect disabled. Connect with:\n  cubbi session connect {session.id}"
                 )
     else:
         console.print("[red]Failed to create session[/red]")
@@ -319,7 +319,7 @@ def close_session(
     session_id: Optional[str] = typer.Argument(None, help="Session ID to close"),
     all_sessions: bool = typer.Option(False, "--all", help="Close all active sessions"),
 ) -> None:
-    """Close a MC session or all sessions"""
+    """Close a Cubbi session or all sessions"""
     if all_sessions:
         # Get sessions first to display them
         sessions = container_manager.list_sessions()
@@ -364,7 +364,7 @@ def close_session(
 def connect_session(
     session_id: str = typer.Argument(..., help="Session ID to connect to"),
 ) -> None:
-    """Connect to a MC session"""
+    """Connect to a Cubbi session"""
     console.print(f"Connecting to session {session_id}...")
     success = container_manager.connect_session(session_id)
 
@@ -380,7 +380,7 @@ def session_logs(
         False, "--init", "-i", help="Show initialization logs instead of container logs"
     ),
 ) -> None:
-    """Stream logs from a MC session"""
+    """Stream logs from a Cubbi session"""
     if init:
         # Show initialization logs
         if follow:
@@ -407,7 +407,7 @@ def session_logs(
 
 @image_app.command("list")
 def list_images() -> None:
-    """List available MC images"""
+    """List available Cubbi images"""
     images = config_manager.list_images()
 
     if not images:
@@ -455,7 +455,7 @@ def build_image(
         return
 
     # Build image name
-    docker_image_name = f"monadical/mc-{image_name}:{tag}"
+    docker_image_name = f"monadical/cubbi-{image_name}:{tag}"
 
     # Build the image
     with console.status(f"Building image {docker_image_name}..."):
@@ -1472,7 +1472,7 @@ def run_mcp_inspector(
     # If stop flag is set, stop all running MCP Inspectors
     if stop:
         containers = client.containers.list(
-            all=True, filters={"label": "mc.mcp.inspector=true"}
+            all=True, filters={"label": "cubbi.mcp.inspector=true"}
         )
         if not containers:
             console.print("[yellow]No running MCP Inspector instances found[/yellow]")
@@ -1491,7 +1491,7 @@ def run_mcp_inspector(
 
     # Check if inspector is already running
     all_inspectors = client.containers.list(
-        all=True, filters={"label": "mc.mcp.inspector=true"}
+        all=True, filters={"label": "cubbi.mcp.inspector=true"}
     )
 
     # Stop any existing inspectors first
@@ -1535,7 +1535,7 @@ def run_mcp_inspector(
         return
 
     # Container name with timestamp to avoid conflicts
-    container_name = f"mc_mcp_inspector_{int(time.time())}"
+    container_name = f"cubbi_mcp_inspector_{int(time.time())}"
 
     with console.status("Starting MCP Inspector..."):
         # Get MCP servers from configuration
@@ -1568,7 +1568,7 @@ def run_mcp_inspector(
                 mcp_name = mcp.get("name")
                 try:
                     # Get the container name for this MCP
-                    container_name = f"mc_mcp_{mcp_name}"
+                    container_name = f"cubbi_mcp_{mcp_name}"
                     container = None
 
                     # Try to find the container
@@ -1619,7 +1619,7 @@ def run_mcp_inspector(
         # Make sure we have at least one network to connect to
         if not mcp_networks_to_connect:
             # Create an MCP-specific network if none exists
-            network_name = "mc-mcp-network"
+            network_name = "cubbi-mcp-network"
             console.print("No MCP networks found, creating a default one")
             try:
                 networks = client.networks.list(names=[network_name])
@@ -1679,7 +1679,8 @@ exec npm start
 
             # Write the script to a temp file
             script_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "mc_inspector_entrypoint.sh"
+                os.path.dirname(os.path.abspath(__file__)),
+                "cubbi_inspector_entrypoint.sh",
             )
             with open(script_path, "w") as f:
                 f.write(script_content)
@@ -1696,7 +1697,7 @@ exec npm start
 
             # Check if existing container with the same name exists, and remove it
             try:
-                existing = client.containers.get("mc_mcp_inspector")
+                existing = client.containers.get("cubbi_mcp_inspector")
                 if existing.status == "running":
                     existing.stop(timeout=1)
                 existing.remove(force=True)
@@ -1722,7 +1723,7 @@ exec npm start
             for mcp in all_mcps:
                 if mcp.get("type") in ["docker", "proxy"]:
                     mcp_name = mcp.get("name")
-                    container_name = f"mc_mcp_{mcp_name}"
+                    container_name = f"cubbi_mcp_{mcp_name}"
 
                     try:
                         # Check if this container exists
@@ -1742,7 +1743,7 @@ exec npm start
 
             container = client.containers.run(
                 image="mcp/inspector",
-                name="mc_mcp_inspector",  # Use a fixed name
+                name="cubbi_mcp_inspector",  # Use a fixed name
                 detach=True,
                 network=initial_network,
                 ports={
@@ -1765,8 +1766,8 @@ exec npm start
                 },
                 entrypoint="/entrypoint.sh",
                 labels={
-                    "mc.mcp.inspector": "true",
-                    "mc.managed": "true",
+                    "cubbi.mcp.inspector": "true",
+                    "cubbi.managed": "true",
                 },
                 network_mode=None,  # Don't use network_mode as we're using network with aliases
                 networking_config=client.api.create_networking_config(network_config),
@@ -1802,7 +1803,7 @@ exec npm start
                         for mcp in all_mcps:
                             if mcp.get("type") in ["docker", "proxy"]:
                                 mcp_name = mcp.get("name")
-                                container_name = f"mc_mcp_{mcp_name}"
+                                container_name = f"cubbi_mcp_{mcp_name}"
 
                                 try:
                                     # Check if this container exists
@@ -1874,7 +1875,7 @@ exec npm start
             "[yellow]Warning: No MCP servers found or started. The Inspector will run but won't have any servers to connect to.[/yellow]"
         )
         console.print(
-            "Start MCP servers using 'mc mcp start --all' and then restart the Inspector."
+            "Start MCP servers using 'cubbi mcp start --all' and then restart the Inspector."
         )
 
     if not detach:
@@ -1890,19 +1891,19 @@ exec npm start
 
 
 def session_create_entry_point():
-    """Entry point that directly invokes 'mc session create'.
+    """Entry point that directly invokes 'cubbi session create'.
 
     This provides a convenient shortcut:
-    - 'mcx' runs as if you typed 'mc session create'
-    - 'mcx .' mounts the current directory
-    - 'mcx /path/to/project' mounts the specified directory
-    - 'mcx repo-url' clones the repository
+    - 'cubbix' runs as if you typed 'cubbi session create'
+    - 'cubbix .' mounts the current directory
+    - 'cubbix /path/to/project' mounts the specified directory
+    - 'cubbix repo-url' clones the repository
 
     All command-line options are passed through to 'session create'.
     """
     import sys
 
-    # Save the program name (e.g., 'mcx')
+    # Save the program name (e.g., 'cubbix')
     prog_name = sys.argv[0]
     # Insert 'session' and 'create' commands before any other arguments
     sys.argv.insert(1, "session")

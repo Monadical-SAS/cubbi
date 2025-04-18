@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 LABEL maintainer="team@monadical.com"
-LABEL description="Goose with MCP servers"
+LABEL description="Goose with MCP servers for Cubbi"
 
 # Install system dependencies including gosu for user switching and shadow for useradd/groupadd
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -41,16 +41,16 @@ RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_
 WORKDIR /app
 
 # Copy initialization scripts
-COPY mc-init.sh /mc-init.sh
+COPY cubbi-init.sh /cubbi-init.sh
 COPY entrypoint.sh /entrypoint.sh
-COPY mc-image.yaml /mc-image.yaml
+COPY cubbi-image.yaml /cubbi-image.yaml
 COPY init-status.sh /init-status.sh
 COPY update-goose-config.py /usr/local/bin/update-goose-config.py
 
 # Extend env via bashrc
 
 # Make scripts executable
-RUN chmod +x /mc-init.sh /entrypoint.sh /init-status.sh \
+RUN chmod +x /cubbi-init.sh /entrypoint.sh /init-status.sh \
     /usr/local/bin/update-goose-config.py
 
 # Set up initialization status check on login
@@ -59,7 +59,7 @@ RUN echo '[ -x /init-status.sh ] && /init-status.sh' >> /etc/bash.bashrc
 # Set up environment
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-# Set WORKDIR to /app, common practice and expected by mc-init.sh
+# Set WORKDIR to /app, common practice and expected by cubbi-init.sh
 WORKDIR /app
 
 # Expose ports

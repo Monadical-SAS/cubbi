@@ -5,11 +5,11 @@ import yaml
 
 from .models import Config, Image
 
-DEFAULT_CONFIG_DIR = Path.home() / ".config" / "mc"
+DEFAULT_CONFIG_DIR = Path.home() / ".config" / "cubbi"
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / "config.yaml"
-DEFAULT_IMAGES_DIR = Path.home() / ".config" / "mc" / "images"
+DEFAULT_IMAGES_DIR = Path.home() / ".config" / "cubbi" / "images"
 PROJECT_ROOT = Path(__file__).parent.parent
-BUILTIN_IMAGES_DIR = Path(__file__).parent / "images"  # mcontainer/images
+BUILTIN_IMAGES_DIR = Path(__file__).parent / "images"
 
 # Dynamically loaded from images directory at runtime
 DEFAULT_IMAGES = {}
@@ -60,7 +60,7 @@ class ConfigManager:
         config = Config(
             docker={
                 "socket": "/var/run/docker.sock",
-                "network": "mc-network",
+                "network": "cubbi-network",
             },
             defaults={
                 "image": "goose",
@@ -108,7 +108,7 @@ class ConfigManager:
     def load_image_from_dir(self, image_dir: Path) -> Optional[Image]:
         """Load an image configuration from a directory"""
         # Check for image config file
-        yaml_path = image_dir / "mc-image.yaml"
+        yaml_path = image_dir / "cubbi-image.yaml"
         if not yaml_path.exists():
             return None
 
@@ -129,7 +129,7 @@ class ConfigManager:
             try:
                 # Ensure image field is set if not in YAML
                 if "image" not in image_data:
-                    image_data["image"] = f"monadical/mc-{image_data['name']}:latest"
+                    image_data["image"] = f"monadical/cubbi-{image_data['name']}:latest"
 
                 image = Image.model_validate(image_data)
                 return image
@@ -144,13 +144,13 @@ class ConfigManager:
             return None
 
     def _load_package_images(self) -> Dict[str, Image]:
-        """Load all package images from the mcontainer/images directory"""
+        """Load all package images from the cubbi/images directory"""
         images = {}
 
         if not BUILTIN_IMAGES_DIR.exists():
             return images
 
-        # Search for mc-image.yaml files in each subdirectory
+        # Search for cubbi-image.yaml files in each subdirectory
         for image_dir in BUILTIN_IMAGES_DIR.iterdir():
             if image_dir.is_dir():
                 image = self.load_image_from_dir(image_dir)

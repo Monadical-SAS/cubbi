@@ -1,5 +1,5 @@
 """
-User configuration manager for Monadical Container Tool.
+User configuration manager for Cubbi Container Tool.
 """
 
 import os
@@ -28,11 +28,11 @@ class UserConfigManager:
 
         Args:
             config_path: Optional path to the configuration file.
-                         Defaults to ~/.config/mc/config.yaml.
+                         Defaults to ~/.config/cubbi/config.yaml.
         """
-        # Default to ~/.config/mc/config.yaml
+        # Default to ~/.config/cubbi/config.yaml
         self.config_path = Path(
-            config_path or os.path.expanduser("~/.config/mc/config.yaml")
+            config_path or os.path.expanduser("~/.config/cubbi/config.yaml")
         )
         self.config = self._load_config()
 
@@ -93,7 +93,7 @@ class UserConfigManager:
                 "image": "goose",
                 "connect": True,
                 "mount_local": True,
-                "networks": [],  # Default networks to connect to (besides mc-network)
+                "networks": [],  # Default networks to connect to (besides cubbi-network)
                 "volumes": [],  # Default volumes to mount, format: "source:dest"
                 "mcps": [],  # Default MCP servers to connect to
                 "model": "claude-3-5-sonnet-latest",  # Default LLM model to use
@@ -107,7 +107,7 @@ class UserConfigManager:
                 "google": {},
             },
             "docker": {
-                "network": "mc-network",
+                "network": "cubbi-network",
             },
             "ui": {
                 "colors": True,

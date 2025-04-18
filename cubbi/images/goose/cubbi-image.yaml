@@ -2,10 +2,10 @@ name: goose
 description: Goose AI environment
 version: 1.0.0
 maintainer: team@monadical.com
-image: monadical/mc-goose:latest
+image: monadical/cubbi-goose:latest
 
 init:
-  pre_command: /mc-init.sh
+  pre_command: /cubbi-init.sh
   command: /entrypoint.sh
 
 environment:
@@ -25,21 +25,21 @@ environment:
     default: https://cloud.langfuse.com
 
   # Project environment variables
-  - name: MC_PROJECT_URL
+  - name: CUBBI_PROJECT_URL
     description: Project repository URL
     required: false
 
-  - name: MC_PROJECT_TYPE
+  - name: CUBBI_PROJECT_TYPE
     description: Project repository type (git, svn, etc.)
     required: false
     default: git
 
-  - name: MC_GIT_SSH_KEY
+  - name: CUBBI_GIT_SSH_KEY
     description: SSH key for Git authentication
     required: false
     sensitive: true
 
-  - name: MC_GIT_TOKEN
+  - name: CUBBI_GIT_TOKEN
     description: Token for Git authentication
     required: false
     sensitive: true
@@ -54,10 +54,10 @@ volumes:
 
 persistent_configs:
   - source: "/app/.goose"
-    target: "/mc-config/goose-app"
+    target: "/cubbi-config/goose-app"
     type: "directory"
     description: "Goose memory"
-  - source: "/home/mcuser/.config/goose"
-    target: "/mc-config/goose-config"
+  - source: "/home/cubbi/.config/goose"
+    target: "/cubbi-config/goose-config"
     type: "directory"
     description: "Goose configuration"

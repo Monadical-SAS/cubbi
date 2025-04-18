@@ -1,17 +1,17 @@
-# MC - Monadical Container Tool
+# Cubbi - Container Tool
 
-MC (Monadical Container) is a command-line tool for managing ephemeral
+Cubbi is a command-line tool for managing ephemeral
 containers that run AI tools and development environments. It works with both
 local Docker and a dedicated remote web service that manages containers in a
-Docker-in-Docker (DinD) environment. MC also supports connecting to MCP (Model Control Protocol) servers to extend AI tools with additional capabilities.
+Docker-in-Docker (DinD) environment. Cubbi also supports connecting to MCP (Model Control Protocol) servers to extend AI tools with additional capabilities.
 
 ## Quick Reference
 
-- `mc session create` - Create a new session
-- `mcx` - Shortcut for `mc session create`
-- `mcx .` - Mount the current directory
-- `mcx /path/to/dir` - Mount a specific directory
-- `mcx https://github.com/user/repo` - Clone a repository
+- `cubbi session create` - Create a new session
+- `cubbix` - Shortcut for `cubbi session create`
+- `cubbix .` - Mount the current directory
+- `cubbix /path/to/dir` - Mount a specific directory
+- `cubbix https://github.com/user/repo` - Clone a repository
 
 ## Requirements
 
@@ -21,104 +21,110 @@ Docker-in-Docker (DinD) environment. MC also supports connecting to MCP (Model C
 
 ```bash
 # Clone the repository
-git clone https://github.com/monadical/mcontainer.git
+git clone https://github.com/monadical/cubbi.git
 
 # Install the tool locally
 # (with editable, so you can update the code and work with it)
-cd mcontainer
+cd cubbi
 uv tool install --with-editable . .
 
-# Then you could use the tool as `mc`
-mc --help
+# Then you could use the tool as `cubbi`
+cubbi --help
+```
+
+Important: compile your first image
+
+```bash
+cubbi image build goose
 ```
 
 ## Basic Usage
 
 ```bash
 # Show help message (displays available commands)
-mc
+cubbi
 
-# Create a new session with the default image (using mcx alias)
-mcx
+# Create a new session with the default image (using cubbix alias)
+cubbix
 
 # Create a session and run an initial command before the shell starts
-mcx --run "echo 'Setup complete'; ls -l"
+cubbix --run "echo 'Setup complete'; ls -l"
 
 # List all active sessions
-mc session list
+cubbi session list
 
 # Connect to a specific session
-mc session connect SESSION_ID
+cubbi session connect SESSION_ID
 
 # Close a session when done
-mc session close SESSION_ID
+cubbi session close SESSION_ID
 
 # Create a session with a specific image
-mcx --image goose
+cubbix --image goose
 
 # Create a session with environment variables
-mcx -e VAR1=value1 -e VAR2=value2
+cubbix -e VAR1=value1 -e VAR2=value2
 
 # Mount custom volumes (similar to Docker's -v flag)
-mcx -v /local/path:/container/path
-mcx -v ~/data:/data -v ./configs:/etc/app/config
+cubbix -v /local/path:/container/path
+cubbix -v ~/data:/data -v ./configs:/etc/app/config
 
 # Mount a local directory (current directory or specific path)
-mcx .
-mcx /path/to/project
+cubbix .
+cubbix /path/to/project
 
 # Connect to external Docker networks
-mcx --network teamnet --network dbnet
+cubbix --network teamnet --network dbnet
 
 # Connect to MCP servers for extended capabilities
-mcx --mcp github --mcp jira
+cubbix --mcp github --mcp jira
 
 # Clone a Git repository
-mcx https://github.com/username/repo
+cubbix https://github.com/username/repo
 
-# Using the mcx shortcut (equivalent to mc session create)
-mcx                        # Creates a session without mounting anything
-mcx .                      # Mounts the current directory
-mcx /path/to/project       # Mounts the specified directory
-mcx https://github.com/username/repo  # Clones the repository
+# Using the cubbix shortcut (equivalent to cubbi session create)
+cubbix                        # Creates a session without mounting anything
+cubbix .                      # Mounts the current directory
+cubbix /path/to/project       # Mounts the specified directory
+cubbix https://github.com/username/repo  # Clones the repository
 
 # Shorthand with MCP servers
-mcx https://github.com/username/repo --mcp github
+cubbix https://github.com/username/repo --mcp github
 
 # Shorthand with an initial command
-mcx . --run "apt-get update && apt-get install -y my-package"
+cubbix . --run "apt-get update && apt-get install -y my-package"
 
 # Enable SSH server in the container
-mcx --ssh
+cubbix --ssh
 ```
 
 ## Image Management
 
-MC includes a image management system that allows you to build, manage, and use Docker images for different AI tools:
+Cubbi includes an image management system that allows you to build, manage, and use Docker images for different AI tools:
 
 ```bash
 # List available images
-mc image list
+cubbi image list
 
 # Get detailed information about an image
-mc image info goose
+cubbi image info goose
 
 # Build an image
-mc image build goose
+cubbi image build goose
 
 # Build and push an image
-mc image build goose --push
+cubbi image build goose --push
 ```
 
-Images are defined in the `mcontainer/images/` directory, with each subdirectory containing:
+Images are defined in the `cubbi/images/` directory, with each subdirectory containing:
 
 - `Dockerfile`: Docker image definition
 - `entrypoint.sh`: Container entrypoint script
-- `mc-init.sh`: Standardized initialization script
-- `mc-image.yaml`: Image metadata and configuration
+- `cubbi-init.sh`: Standardized initialization script
+- `cubbi-image.yaml`: Image metadata and configuration
 - `README.md`: Image documentation
 
-MC automatically discovers and loads image definitions from the YAML files.
+Cubbi automatically discovers and loads image definitions from the YAML files.
 ```
 
 ## Development
@@ -139,28 +145,28 @@ uvx ruff format .
 
 ## Configuration
 
-MC supports user-specific configuration via a YAML file located at `~/.config/mc/config.yaml`. This allows you to set default values and configure service credentials.
+Cubbi supports user-specific configuration via a YAML file located at `~/.config/cubbi/config.yaml`. This allows you to set default values and configure service credentials.
 
 ### Managing Configuration
 
 ```bash
 # View all configuration
-mc config list
+cubbi config list
 
 # Get a specific configuration value
-mc config get langfuse.url
+cubbi config get langfuse.url
 
 # Set configuration values
-mc config set langfuse.url "https://cloud.langfuse.com"
-mc config set langfuse.public_key "pk-lf-..."
-mc config set langfuse.secret_key "sk-lf-..."
+cubbi config set langfuse.url "https://cloud.langfuse.com"
+cubbi config set langfuse.public_key "pk-lf-..."
+cubbi config set langfuse.secret_key "sk-lf-..."
 
 # Set API keys for various services
-mc config set openai.api_key "sk-..."
-mc config set anthropic.api_key "sk-ant-..."
+cubbi config set openai.api_key "sk-..."
+cubbi config set anthropic.api_key "sk-ant-..."
 
 # Reset configuration to defaults
-mc config reset
+cubbi config reset
 ```
 
 ### Default Networks Configuration
@@ -169,13 +175,13 @@ You can configure default networks that will be applied to every new session:
 
 ```bash
 # List default networks
-mc config network list
+cubbi config network list
 
 # Add a network to defaults
-mc config network add teamnet
+cubbi config network add teamnet
 
 # Remove a network from defaults
-mc config network remove teamnet
+cubbi config network remove teamnet
 ```
 
 ### Default Volumes Configuration
@@ -184,13 +190,13 @@ You can configure default volumes that will be automatically mounted in every ne
 
 ```bash
 # List default volumes
-mc config volume list
+cubbi config volume list
 
 # Add a volume to defaults
-mc config volume add /local/path:/container/path
+cubbi config volume add /local/path:/container/path
 
 # Remove a volume from defaults (will prompt if multiple matches found)
-mc config volume remove /local/path
+cubbi config volume remove /local/path
 ```
 
 Default volumes will be combined with any volumes specified using the `-v` flag when creating a session.
@@ -201,35 +207,35 @@ You can configure default MCP servers that sessions will automatically connect t
 
 ```bash
 # List default MCP servers
-mc config mcp list
+cubbi config mcp list
 
 # Add an MCP server to defaults
-mc config mcp add github
+cubbi config mcp add github
 
 # Remove an MCP server from defaults
-mc config mcp remove github
+cubbi config mcp remove github
 ```
 
 When adding new MCP servers, they are added to defaults by default. Use the `--no-default` flag to prevent this:
 
 ```bash
 # Add an MCP server without adding it to defaults
-mc mcp add github ghcr.io/mcp/github:latest --no-default
-mc mcp add-remote jira https://jira-mcp.example.com/sse --no-default
+cubbi mcp add github ghcr.io/mcp/github:latest --no-default
+cubbi mcp add-remote jira https://jira-mcp.example.com/sse --no-default
 ```
 
 When creating sessions, if no MCP server is specified with `--mcp`, the default MCP servers will be used automatically.
 
 ### External Network Connectivity
 
-MC containers can connect to external Docker networks, allowing them to communicate with other services in those networks:
+Cubbi containers can connect to external Docker networks, allowing them to communicate with other services in those networks:
 
 ```bash
 # Create a session connected to external networks
-mc session create --network teamnet --network dbnet
+cubbi session create --network teamnet --network dbnet
 ```
 
-**Important**: Networks must be "attachable" to be joined by MC containers. Here's how to create attachable networks:
+**Important**: Networks must be "attachable" to be joined by Cubbi containers. Here's how to create attachable networks:
 
 ```bash
 # Create an attachable network with Docker
@@ -247,12 +253,12 @@ services:
 networks:
   teamnet:
     driver: bridge
-    attachable: true  # This is required for MC containers to connect
+    attachable: true  # This is required for Cubbi containers to connect
 ```
 
 ### Service Credentials
 
-Service credentials like API keys configured in `~/.config/mc/config.yaml` are automatically passed to containers as environment variables:
+Service credentials like API keys configured in `~/.config/cubbi/config.yaml` are automatically passed to containers as environment variables:
 
 | Config Setting | Environment Variable |
 |----------------|---------------------|
@@ -266,7 +272,7 @@ Service credentials like API keys configured in `~/.config/mc/config.yaml` are a
 
 ## MCP Server Management
 
-MCP (Model Control Protocol) servers provide tool-calling capabilities to AI models, enhancing their ability to interact with external services, databases, and systems. MC supports multiple types of MCP servers:
+MCP (Model Control Protocol) servers provide tool-calling capabilities to AI models, enhancing their ability to interact with external services, databases, and systems. Cubbi supports multiple types of MCP servers:
 
 1. **Remote HTTP SSE servers** - External MCP servers accessed over HTTP
 2. **Docker-based MCP servers** - Local MCP servers running in Docker containers
@@ -276,56 +282,56 @@ MCP (Model Control Protocol) servers provide tool-calling capabilities to AI mod
 
 ```bash
 # List all configured MCP servers and their status
-mc mcp list
+cubbi mcp list
 
 # View detailed status of an MCP server
-mc mcp status github
+cubbi mcp status github
 
 # Start/stop/restart individual MCP servers
-mc mcp start github
-mc mcp stop github
-mc mcp restart github
+cubbi mcp start github
+cubbi mcp stop github
+cubbi mcp restart github
 
 # Start all MCP servers at once
-mc mcp start --all
+cubbi mcp start --all
 
 # Stop and remove all MCP servers at once
-mc mcp stop --all
+cubbi mcp stop --all
 
 # Run the MCP Inspector to visualize and interact with MCP servers
 # It automatically joins all MCP networks for seamless DNS resolution
 # Uses two ports: frontend UI (default: 5173) and backend API (default: 3000)
-mc mcp inspector
+cubbi mcp inspector
 
 # Run the MCP Inspector with custom ports
-mc mcp inspector --client-port 6173 --server-port 6174
+cubbi mcp inspector --client-port 6173 --server-port 6174
 
 # Run the MCP Inspector in detached mode
-mc mcp inspector --detach
+cubbi mcp inspector --detach
 
 # Stop the MCP Inspector
-mc mcp inspector --stop
+cubbi mcp inspector --stop
 
 # View MCP server logs
-mc mcp logs github
+cubbi mcp logs github
 
 # Remove an MCP server configuration
-mc mcp remove github
+cubbi mcp remove github
 ```
 
 ### Adding MCP Servers
 
-MC supports different types of MCP servers:
+Cubbi supports different types of MCP servers:
 
 ```bash
 # Add a remote HTTP SSE MCP server
-mc mcp remote add github http://my-mcp-server.example.com/sse --header "Authorization=Bearer token123"
+cubbi mcp remote add github http://my-mcp-server.example.com/sse --header "Authorization=Bearer token123"
 
 # Add a Docker-based MCP server
-mc mcp docker add github mcp/github:latest --command "github-mcp" --env GITHUB_TOKEN=ghp_123456
+cubbi mcp docker add github mcp/github:latest --command "github-mcp" --env GITHUB_TOKEN=ghp_123456
 
 # Add a proxy-based MCP server (for stdio-to-SSE conversion)
-mc mcp add github ghcr.io/mcp/github:latest --proxy-image ghcr.io/sparfenyuk/mcp-proxy:latest --command "github-mcp" --sse-port 8080 --no-default
+cubbi mcp add github ghcr.io/mcp/github:latest --proxy-image ghcr.io/sparfenyuk/mcp-proxy:latest --command "github-mcp" --sse-port 8080 --no-default
 ```
 
 ### Using MCP Servers with Sessions
@@ -334,13 +340,13 @@ MCP servers can be attached to sessions when they are created:
 
 ```bash
 # Create a session with a single MCP server
-mc session create --mcp github
+cubbi session create --mcp github
 
 # Create a session with multiple MCP servers
-mc session create --mcp github --mcp jira
+cubbi session create --mcp github --mcp jira
 
 # Using MCP with a project repository
-mc github.com/username/repo --mcp github
+cubbi github.com/username/repo --mcp github
 ```
 
 MCP servers are persistent and can be shared between sessions. They continue running even when sessions are closed, allowing for efficient reuse across multiple sessions.

@@ -6,7 +6,7 @@ import time
 import uuid
 
 from conftest import requires_docker
-from mcontainer.mcp import MCPManager
+from cubbi.mcp import MCPManager
 
 
 @requires_docker

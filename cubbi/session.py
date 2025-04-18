@@ -1,5 +1,5 @@
 """
-Session storage management for Monadical Container Tool.
+Session storage management for Cubbi Container Tool.
 """
 
 import os
@@ -8,7 +8,7 @@ from typing import Dict, Optional
 
 import yaml
 
-DEFAULT_SESSIONS_FILE = Path.home() / ".config" / "mc" / "sessions.yaml"
+DEFAULT_SESSIONS_FILE = Path.home() / ".config" / "cubbi" / "sessions.yaml"
 
 
 class SessionManager:
@@ -19,7 +19,7 @@ class SessionManager:
 
         Args:
             sessions_path: Optional path to the sessions file.
-                           Defaults to ~/.config/mc/sessions.yaml.
+                           Defaults to ~/.config/cubbi/sessions.yaml.
         """
         self.sessions_path = sessions_path or DEFAULT_SESSIONS_FILE
         self.sessions = self._load_sessions()
