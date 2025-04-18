@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Cubbi Container Tool"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    {name = "Monadical SAS", email = "contact@monadical.com"}
+]
 dependencies = [
     "typer>=0.9.0",
     "docker>=7.0.0",

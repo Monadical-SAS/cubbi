@@ -7,6 +7,7 @@ Cubbi is a command-line tool for managing ephemeral containers that run AI tools
 ![PyPI - Version](https://img.shields.io/pypi/v/cubbi)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cubbi)
 [![Tests](https://github.com/monadical-sas/cubbi/actions/workflows/pytests.yml/badge.svg?branch=main&event=push)](https://github.com/monadical-sas/cubbi/actions/workflows/pytests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
 
@@ -355,3 +356,7 @@ cubbi github.com/username/repo --mcp github
 ```
 
 MCP servers are persistent and can be shared between sessions. They continue running even when sessions are closed, allowing for efficient reuse across multiple sessions.
+
+## 📜 License
+
+Cubbi is licensed under the [MIT License](LICENSE).
