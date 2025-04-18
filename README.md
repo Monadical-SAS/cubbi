@@ -34,6 +34,7 @@ pip install cubbi
 uv tool install cubbi
 
 # Without installation
+# (meaning all commands below must be prefixed with `uvx`)
 uvx cubbi
 ```
 
