@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_force:
+        # see https://python-semantic-release.readthedocs.io/en/latest/github-action.html#command-line-options
+        description: |
+          Force release be one of: [major | minor | patch]
+          Leave empty for auto-detect based on commit messages.
+        type: choice
+        options:
+          - "" # auto - no force
+          - major # force major
+          - minor # force minor
+          - patch # force patch
+        default: ""
+        required: false
+      prerelease_token:
+        description: 'The "prerelease identifier" to use as a prefix for the "prerelease" part of a semver. Like the rc in `1.2.0-rc.8`.'
+        type: choice
+        options:
+          - rc
+          - beta
+          - alpha
+        default: rc
+        required: false
+      prerelease:
+        description: "Is a pre-release"
+        type: boolean
+        default: false
+        required: false
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false # prevent hickups with semantic-release
+
+env:
+  PYTHON_VERSION_DEFAULT: "3.12"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    concurrency: release
+
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+      # Note: we need to checkout the repository at the workflow sha in case during the workflow
+      # the branch was updated. To keep PSR working with the configured release branches,
+      # we force a checkout of the desired release branch but at the workflow sha HEAD.
+      - name: Setup | Checkout Repository at workflow sha
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: Setup | Force correct release branch on workflow sha
+        run: |
+          git checkout -B ${{ github.ref_name }} ${{ github.sha }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          python-version: ${{ env.PYTHON_VERSION_DEFAULT }}
+
+      - name: Install all dependencies
+        run: uv sync --frozen --all-extras --all-groups
+
+      # 2 steps to prevent uv.lock out of sync
+      # CF https://github.com/python-semantic-release/python-semantic-release/issues/1125
+      - name: Action | Semantic Version Release (stamp only)
+        uses: python-semantic-release/python-semantic-release@v9.12.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          git_committer_name: "github-actions"
+          git_committer_email: "actions@users.noreply.github.com"
+          force: ${{ github.event.inputs.release_force }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          prerelease_token: ${{ github.event.inputs.prerelease_token }}
+          ssh_public_signing_key: ${{ secrets.DEPLOY_KEY_PUB }}
+          ssh_private_signing_key: ${{ secrets.DEPLOY_KEY }}
+          push: false
+          commit: false
+          tag: false
+          changelog: false
+
+      - name: Push and tags
+        run: |
+          uv lock
+          git add uv.lock
+
+      - name: Action | Semantic Version Release (fully to create release)
+        id: release
+        uses: python-semantic-release/python-semantic-release@v9.12.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          git_committer_name: "github-actions"
+          git_committer_email: "actions@users.noreply.github.com"
+          force: ${{ github.event.inputs.release_force }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          prerelease_token: ${{ github.event.inputs.prerelease_token }}
+          ssh_public_signing_key: ${{ secrets.DEPLOY_KEY_PUB }}
+          ssh_private_signing_key: ${{ secrets.DEPLOY_KEY }}
+          push: false
+
+      - name: Push and tags
+        run: |
+          git push --set-upstream --follow-tags origin ${{ github.ref_name }}
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish | Upload package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        if: steps.release.outputs.released == 'true'
+
+      - name: Publish | Upload to GitHub Release Assets
+        uses: python-semantic-release/publish-action@v9.8.9
+        if: steps.release.outputs.released == 'true'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.release.outputs.tag }}

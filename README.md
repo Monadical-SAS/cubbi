@@ -1,11 +1,16 @@
+<div align="center">
+
 # Cubbi - Container Tool
 
-Cubbi is a command-line tool for managing ephemeral
-containers that run AI tools and development environments. It works with both
-local Docker and a dedicated remote web service that manages containers in a
-Docker-in-Docker (DinD) environment. Cubbi also supports connecting to MCP (Model Control Protocol) servers to extend AI tools with additional capabilities.
+Cubbi is a command-line tool for managing ephemeral containers that run AI tools and development environments. It works with both local Docker and a dedicated remote web service that manages containers in a Docker-in-Docker (DinD) environment. Cubbi also supports connecting to MCP (Model Control Protocol) servers to extend AI tools with additional capabilities.
 
-## Quick Reference
+![PyPI - Version](https://img.shields.io/pypi/v/cubbi)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cubbi)
+[![Tests](https://github.com/monadical-sas/cubbi/actions/workflows/pytests.yml/badge.svg?branch=main&event=push)](https://github.com/monadical-sas/cubbi/actions/workflows/pytests.yml)
+
+</div>
+
+## 🚀 Quick Reference
 
 - `cubbi session create` - Create a new session
 - `cubbix` - Shortcut for `cubbi session create`
@@ -13,11 +18,11 @@ Docker-in-Docker (DinD) environment. Cubbi also supports connecting to MCP (Mode
 - `cubbix /path/to/dir` - Mount a specific directory
 - `cubbix https://github.com/user/repo` - Clone a repository
 
-## Requirements
+## 📋 Requirements
 
 - [uv](https://docs.astral.sh/uv/)
 
-## Installation
+## 📥 Installation
 
 ```bash
 # Clone the repository
@@ -38,7 +43,7 @@ Important: compile your first image
 cubbi image build goose
 ```
 
-## Basic Usage
+## 📚 Basic Usage
 
 ```bash
 # Show help message (displays available commands)
@@ -98,7 +103,7 @@ cubbix . --run "apt-get update && apt-get install -y my-package"
 cubbix --ssh
 ```
 
-## Image Management
+## 🖼️ Image Management
 
 Cubbi includes an image management system that allows you to build, manage, and use Docker images for different AI tools:
 
@@ -143,7 +148,7 @@ uvx mypy .
 uvx ruff format .
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 Cubbi supports user-specific configuration via a YAML file located at `~/.config/cubbi/config.yaml`. This allows you to set default values and configure service credentials.
 
@@ -270,7 +275,7 @@ Service credentials like API keys configured in `~/.config/cubbi/config.yaml` ar
 | `openrouter.api_key` | `OPENROUTER_API_KEY` |
 | `google.api_key` | `GOOGLE_API_KEY` |
 
-## MCP Server Management
+## 🌐 MCP Server Management
 
 MCP (Model Control Protocol) servers provide tool-calling capabilities to AI models, enhancing their ability to interact with external services, databases, and systems. Cubbi supports multiple types of MCP servers:
 
