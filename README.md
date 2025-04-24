@@ -49,7 +49,7 @@ cubbi image build goose
 If you are looking to contribute to the development, you will need to use `uv` as well:
 
 ```bash
-git clone https://github.com/monadical/cubbi.git
+git clone https://github.com/monadical/cubbi
 cd cubbi
 uv tool install --with-editable . .
 # You'll have cubbi and cubbix executable files in your PATH, pointing to the local installation.
