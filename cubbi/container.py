@@ -147,6 +147,7 @@ class ContainerManager:
         networks: Optional[List[str]] = None,
         mcp: Optional[List[str]] = None,
         run_command: Optional[str] = None,
+        no_shell: bool = False,
         uid: Optional[int] = None,
         gid: Optional[int] = None,
         model: Optional[str] = None,
@@ -164,10 +165,13 @@ class ContainerManager:
             mount_local: Whether to mount the specified local directory to /app (ignored if project is None)
             volumes: Optional additional volumes to mount (dict of {host_path: {"bind": container_path, "mode": mode}})
             run_command: Optional command to execute before starting the shell
+            no_shell: Whether to close the container after run_command completes (requires run_command)
             networks: Optional list of additional Docker networks to connect to
             mcp: Optional list of MCP server names to attach to the session
             uid: Optional user ID for the container process
             gid: Optional group ID for the container process
+            model: Optional model to use
+            provider: Optional provider to use
             ssh: Whether to start the SSH server in the container (default: False)
         """
         try:
@@ -470,7 +474,15 @@ class ContainerManager:
             if run_command:
                 # Set environment variable for cubbi-init.sh to pick up
                 env_vars["CUBBI_RUN_COMMAND"] = run_command
-                # Set the container's command to be the final shell
+
+                # If no_shell is true, set CUBBI_NO_SHELL environment variable
+                if no_shell:
+                    env_vars["CUBBI_NO_SHELL"] = "true"
+                    logger.info(
+                        "Setting CUBBI_NO_SHELL=true, container will exit after run command"
+                    )
+
+                # Set the container's command to be the final shell (or exit if no_shell is true)
                 container_command = [target_shell]
                 logger.info(
                     f"Setting CUBBI_RUN_COMMAND and targeting shell {target_shell}"
@@ -818,8 +830,49 @@ class ContainerManager:
                 if session.id == session_id and session.container_id:
                     container = self.client.containers.get(session.container_id)
                     if follow:
-                        for line in container.logs(stream=True, follow=True):
-                            print(line.decode().strip())
+                        # For streamed logs, we'll buffer by line to avoid character-by-character output
+                        import io
+                        from typing import Iterator
+
+                        def process_log_stream(
+                            stream: Iterator[bytes],
+                        ) -> Iterator[str]:
+                            buffer = io.StringIO()
+                            for chunk in stream:
+                                chunk_str = chunk.decode("utf-8", errors="replace")
+                                buffer.write(chunk_str)
+
+                                # Process complete lines
+                                while True:
+                                    line = buffer.getvalue()
+                                    newline_pos = line.find("\n")
+                                    if newline_pos == -1:
+                                        break
+
+                                    # Extract complete line and yield it
+                                    complete_line = line[:newline_pos].rstrip()
+                                    yield complete_line
+
+                                    # Update buffer to contain only the remaining content
+                                    new_buffer = io.StringIO()
+                                    new_buffer.write(line[newline_pos + 1 :])
+                                    buffer = new_buffer
+
+                            # Don't forget to yield any remaining content at the end
+                            final_content = buffer.getvalue().strip()
+                            if final_content:
+                                yield final_content
+
+                        try:
+                            # Process the log stream line by line
+                            for line in process_log_stream(
+                                container.logs(stream=True, follow=True)
+                            ):
+                                print(line)
+                        except KeyboardInterrupt:
+                            # Handle Ctrl+C gracefully
+                            print("\nStopped following logs.")
+
                         return None
                     else:
                         return container.logs().decode()
@@ -862,9 +915,52 @@ class ContainerManager:
                             f"Following initialization logs for session {session_id}..."
                         )
                         print("Press Ctrl+C to stop following")
-                        container.exec_run(
-                            "tail -f /init.log", stream=True, demux=True, tty=True
-                        )
+
+                        import io
+
+                        def process_exec_stream(stream):
+                            buffer = io.StringIO()
+                            for chunk_type, chunk_bytes in stream:
+                                if chunk_type != 1:  # Skip stderr (type 2)
+                                    continue
+
+                                chunk_str = chunk_bytes.decode(
+                                    "utf-8", errors="replace"
+                                )
+                                buffer.write(chunk_str)
+
+                                # Process complete lines
+                                while True:
+                                    line = buffer.getvalue()
+                                    newline_pos = line.find("\n")
+                                    if newline_pos == -1:
+                                        break
+
+                                    # Extract complete line and yield it
+                                    complete_line = line[:newline_pos].rstrip()
+                                    yield complete_line
+
+                                    # Update buffer to contain only the remaining content
+                                    new_buffer = io.StringIO()
+                                    new_buffer.write(line[newline_pos + 1 :])
+                                    buffer = new_buffer
+
+                            # Don't forget to yield any remaining content at the end
+                            final_content = buffer.getvalue().strip()
+                            if final_content:
+                                yield final_content
+
+                        try:
+                            exec_result = container.exec_run(
+                                "tail -f /init.log", stream=True, demux=True
+                            )
+
+                            # Process the exec stream line by line
+                            for line in process_exec_stream(exec_result[1]):
+                                print(line)
+                        except KeyboardInterrupt:
+                            print("\nStopped following logs.")
+
                         return None
                     else:
                         exit_code, output = container.exec_run("cat /init.log")

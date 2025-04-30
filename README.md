@@ -67,6 +67,9 @@ cubbix
 # Create a session and run an initial command before the shell starts
 cubbix --run "ls -l"
 
+# Create a session, run a command, and exit (no shell prompt)
+cubbix --run "ls -l" --no-shell
+
 # List all active sessions
 cubbi session list
 
@@ -110,6 +113,9 @@ cubbix https://github.com/username/repo --mcp github
 
 # Shorthand with an initial command
 cubbix . --run "apt-get update && apt-get install -y my-package"
+
+# Execute a command and exit without starting a shell
+cubbix . --run "python script.py" --no-shell
 
 # Enable SSH server in the container
 cubbix --ssh

@@ -147,6 +147,11 @@ def create_session(
         "--run",
         help="Command to execute inside the container before starting the shell",
     ),
+    no_shell: bool = typer.Option(
+        False,
+        "--no-shell",
+        help="Close container after '--run' command finishes (only valid with --run)",
+    ),
     no_connect: bool = typer.Option(
         False, "--no-connect", help="Don't automatically connect to the session"
     ),
@@ -167,6 +172,9 @@ def create_session(
         None, "--provider", "-p", help="Provider to use"
     ),
     ssh: bool = typer.Option(False, "--ssh", help="Start SSH server in the container"),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose logging"
+    ),
 ) -> None:
     """Create a new Cubbi session
 
@@ -264,6 +272,12 @@ def create_session(
         if path_or_url and os.path.isdir(os.path.expanduser(path_or_url)):
             mount_local = True
 
+        # Check if --no-shell is used without --run
+        if no_shell and not run_command:
+            console.print(
+                "[yellow]Warning: --no-shell is ignored without --run[/yellow]"
+            )
+
         session = container_manager.create_session(
             image_name=image_name,
             project=path_or_url,
@@ -275,6 +289,7 @@ def create_session(
             networks=all_networks,
             mcp=all_mcps,
             run_command=run_command,
+            no_shell=no_shell,
             uid=target_uid,
             gid=target_gid,
             ssh=ssh,
@@ -292,24 +307,62 @@ def create_session(
             for container_port, host_port in session.ports.items():
                 console.print(f"  {container_port} -> {host_port}")
 
-        # Auto-connect based on user config, unless overridden by --no-connect flag
+        # Auto-connect based on user config, unless overridden by --no-connect flag or --no-shell
         auto_connect = user_config.get("defaults.connect", True)
-        # Connect if auto_connect is enabled and --no-connect wasn't used.
-        # The --run command no longer prevents connection.
-        should_connect = not no_connect and auto_connect
-        if should_connect:
-            container_manager.connect_session(session.id)
+
+        # When --no-shell is used with --run, show logs instead of connecting
+        if no_shell and run_command:
+            console.print(
+                "[yellow]Executing command and waiting for completion...[/yellow]"
+            )
+            console.print("Container will exit after command completes.")
+            console.print("[bold]Command logs:[/bold]")
+            # Stream logs from the container until it exits
+            container_manager.get_session_logs(session.id, follow=True)
+            # At this point the command and container should have finished
+
+            # Clean up the session entry to avoid leaving stale entries
+            with console.status("Cleaning up session..."):
+                # Give a short delay to ensure container has fully exited
+                import time
+
+                time.sleep(1)
+                # Remove the session from session manager
+                session_manager.remove_session(session.id)
+                try:
+                    # Also try to remove the container to ensure no resources are left behind
+                    container = container_manager.client.containers.get(
+                        session.container_id
+                    )
+                    if container.status != "running":
+                        container.remove(force=False)
+                except Exception as e:
+                    # Container might already be gone or in the process of exiting
+                    # This is fine, just log it
+                    if verbose:
+                        console.print(f"[yellow]Note: {e}[/yellow]")
+
+            console.print(
+                "[green]Command execution complete. Container has exited.[/green]"
+            )
+            console.print("[green]Session has been cleaned up.[/green]")
         else:
-            # Explain why connection was skipped
-            if no_connect:
-                console.print("\nConnection skipped due to --no-connect.")
-                console.print(
-                    f"Connect manually with:\n  cubbi session connect {session.id}"
-                )
-            elif not auto_connect:
-                console.print(
-                    f"\nAuto-connect disabled. Connect with:\n  cubbi session connect {session.id}"
-                )
+            # Connect if auto_connect is enabled and --no-connect wasn't used.
+            # The --run command no longer prevents connection.
+            should_connect = not no_connect and auto_connect
+            if should_connect:
+                container_manager.connect_session(session.id)
+            else:
+                # Explain why connection was skipped
+                if no_connect:
+                    console.print("\nConnection skipped due to --no-connect.")
+                    console.print(
+                        f"Connect manually with:\n  cubbi session connect {session.id}"
+                    )
+                elif not auto_connect:
+                    console.print(
+                        f"\nAuto-connect disabled. Connect with:\n  cubbi session connect {session.id}"
+                    )
     else:
         console.print("[red]Failed to create session[/red]")
 

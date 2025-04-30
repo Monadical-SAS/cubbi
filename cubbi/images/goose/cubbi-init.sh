@@ -170,6 +170,15 @@ if [ -n "$CUBBI_RUN_COMMAND" ]; then
     gosu cubbi sh -c "$CUBBI_RUN_COMMAND"; # Run user command as cubbi
     COMMAND_EXIT_CODE=$?;
     echo "--- Initial command finished (exit code: $COMMAND_EXIT_CODE) ---";
+
+    # If CUBBI_NO_SHELL is set, exit instead of starting a shell
+    if [ "$CUBBI_NO_SHELL" = "true" ]; then
+        echo "--- CUBBI_NO_SHELL=true, exiting container without starting shell ---";
+        # Mark initialization as complete before exiting
+        echo "=== Cubbi Initialization completed at $(date) ==="
+        echo "INIT_COMPLETE=true" > /init.status
+        exit $COMMAND_EXIT_CODE;
+    fi;
 fi;
 
 # Mark initialization as complete
