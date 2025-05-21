@@ -12,3 +12,4 @@ wheels/
 # Aider
 .aider*
 .goose
+.claude/settings.local.json
