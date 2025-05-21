@@ -74,7 +74,7 @@ jobs:
       # 2 steps to prevent uv.lock out of sync
       # CF https://github.com/python-semantic-release/python-semantic-release/issues/1125
       - name: Action | Semantic Version Release (stamp only)
-        uses: python-semantic-release/python-semantic-release@v9.12.0
+        uses: python-semantic-release/python-semantic-release@v9.21.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           git_committer_name: "github-actions"
@@ -92,11 +92,11 @@ jobs:
       - name: Push and tags
         run: |
           uv lock
-          git add uv.lock
+          git add uv.lock pyproject.toml
 
       - name: Action | Semantic Version Release (fully to create release)
         id: release
-        uses: python-semantic-release/python-semantic-release@v9.12.0
+        uses: python-semantic-release/python-semantic-release@v9.21.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           git_committer_name: "github-actions"
