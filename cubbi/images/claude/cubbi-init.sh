@@ -52,6 +52,14 @@ if [ -d /root/.local/bin ]; then
     chown -R $CUBBI_USER_ID:$CUBBI_GROUP_ID /home/cubbi/.local
 fi
 
+# Install Claude Code CLI as cubbi user (in user directory to avoid permissions issues)
+echo "Installing Claude Code CLI for cubbi user..."
+gosu cubbi bash -c "cd /home/cubbi && npm install @anthropic-ai/claude-code && mkdir -p /home/cubbi/.local/bin && ln -sf /home/cubbi/node_modules/.bin/claude /home/cubbi/.local/bin/claude"
+
+# Add .local/bin to PATH for cubbi user (both .bashrc and .profile for all shell types)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/cubbi/.bashrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/cubbi/.profile
+chown $CUBBI_USER_ID:$CUBBI_GROUP_ID /home/cubbi/.bashrc /home/cubbi/.profile
 
 # Start SSH server only if explicitly enabled
 if [ "$CUBBI_SSH_ENABLED" = "true" ]; then
@@ -101,16 +109,6 @@ if [ -n "$CUBBI_PROJECT_URL" ]; then
     fi
 fi
 
-# Goose uses self-hosted instance, no API key required
-
-# Set up Langfuse logging if credentials are provided
-if [ -n "$LANGFUSE_INIT_PROJECT_SECRET_KEY" ] && [ -n "$LANGFUSE_INIT_PROJECT_PUBLIC_KEY" ]; then
-    echo "Setting up Langfuse logging"
-    export LANGFUSE_INIT_PROJECT_SECRET_KEY="$LANGFUSE_INIT_PROJECT_SECRET_KEY"
-    export LANGFUSE_INIT_PROJECT_PUBLIC_KEY="$LANGFUSE_INIT_PROJECT_PUBLIC_KEY"
-    export LANGFUSE_URL="${LANGFUSE_URL:-https://cloud.langfuse.com}"
-fi
-
 # Ensure /cubbi-config directory exists (required for symlinks)
 if [ ! -d "/cubbi-config" ]; then
     echo "Creating /cubbi-config directory since it doesn't exist"
@@ -152,17 +150,6 @@ if [ -n "$CUBBI_PERSISTENT_LINKS" ]; then
 
     done
     echo "Persistent configuration symlinks created."
-fi
-
-# Update Goose configuration with available MCP servers (run as cubbi after symlinks are created)
-if [ -f "/usr/local/bin/update-goose-config.py" ]; then
-    echo "Updating Goose configuration with MCP servers as cubbi..."
-    gosu cubbi /usr/local/bin/update-goose-config.py
-elif [ -f "$(dirname "$0")/update-goose-config.py" ]; then
-    echo "Updating Goose configuration with MCP servers as cubbi..."
-    gosu cubbi "$(dirname "$0")/update-goose-config.py"
-else
-    echo "Warning: update-goose-config.py script not found. Goose configuration will not be updated."
 fi
 
 # Run the user command first, if set, as cubbi

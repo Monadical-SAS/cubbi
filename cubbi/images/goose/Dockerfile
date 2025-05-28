@@ -24,13 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p /var/run/sshd && chmod 0755 /var/run/sshd
 # Do NOT enable root login or set root password here
 
-# Install Node.js 23.x and update npm to latest version
-RUN curl -fsSL https://deb.nodesource.com/setup_23.x -o nodesource_setup.sh && \
-    bash nodesource_setup.sh && \
-    apt-get install -y nodejs && \
-    npm install -g npm@11.4.1 && \
-    rm nodesource_setup.sh && \
-    rm -rf /var/lib/apt/lists/*
 
 # Install deps
 WORKDIR /tmp
