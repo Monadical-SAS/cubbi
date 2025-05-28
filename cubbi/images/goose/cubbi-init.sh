@@ -52,6 +52,15 @@ if [ -d /root/.local/bin ]; then
     chown -R $CUBBI_USER_ID:$CUBBI_GROUP_ID /home/cubbi/.local
 fi
 
+# Install Claude Code CLI as cubbi user (in user directory to avoid permissions issues)
+echo "Installing Claude Code CLI for cubbi user..."
+gosu cubbi bash -c "cd /home/cubbi && npm install @anthropic-ai/claude-code && mkdir -p /home/cubbi/.local/bin && ln -sf /home/cubbi/node_modules/.bin/claude /home/cubbi/.local/bin/claude"
+
+# Add .local/bin to PATH for cubbi user (both .bashrc and .profile for all shell types)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/cubbi/.bashrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/cubbi/.profile
+chown $CUBBI_USER_ID:$CUBBI_GROUP_ID /home/cubbi/.bashrc /home/cubbi/.profile
+
 # Start SSH server only if explicitly enabled
 if [ "$CUBBI_SSH_ENABLED" = "true" ]; then
   echo "Starting SSH server..."

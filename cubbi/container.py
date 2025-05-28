@@ -709,7 +709,7 @@ class ContainerManager:
             # Use docker exec to start a new bash process in the container
             # This leverages the init-status.sh script in bash.bashrc
             # which will check initialization status
-            cmd = ["docker", "exec", "-it", container_id, "bash", "-l"]
+            cmd = ["docker", "exec", "-it", "--user", "cubbi", container_id, "bash", "-l"]
 
             # Use execvp to replace the current process with docker exec
             # This provides a seamless shell experience
