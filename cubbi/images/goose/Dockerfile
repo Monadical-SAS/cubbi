@@ -7,8 +7,6 @@ LABEL description="Goose with MCP servers for Cubbi"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     passwd \
-    git \
-    openssh-server \
     bash \
     curl \
     bzip2 \
@@ -19,10 +17,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nano \
     vim \
     && rm -rf /var/lib/apt/lists/*
-
-# Set up SSH server directory (configuration will be handled by entrypoint if needed)
-RUN mkdir -p /var/run/sshd && chmod 0755 /var/run/sshd
-# Do NOT enable root login or set root password here
 
 # Install deps
 WORKDIR /tmp
@@ -40,32 +34,24 @@ RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_
 # Create app directory
 WORKDIR /app
 
-# Copy initialization scripts
-COPY cubbi-init.sh /cubbi-init.sh
-COPY entrypoint.sh /entrypoint.sh
-COPY cubbi-image.yaml /cubbi-image.yaml
-COPY init-status.sh /init-status.sh
-COPY update-goose-config.py /usr/local/bin/update-goose-config.py
-
-# Extend env via bashrc
-
-# Make scripts executable
-RUN chmod +x /cubbi-init.sh /entrypoint.sh /init-status.sh \
-    /usr/local/bin/update-goose-config.py
-
-# Set up initialization status check on login
-RUN echo '[ -x /init-status.sh ] && /init-status.sh' >> /etc/bash.bashrc
+# Copy initialization system
+COPY cubbi_init.py /cubbi/cubbi_init.py
+COPY goose_plugin.py /cubbi/goose_plugin.py
+COPY cubbi-image.yaml /cubbi/cubbi-image.yaml
+COPY init-status.sh /cubbi/init-status.sh
+RUN chmod +x /cubbi/cubbi_init.py /cubbi/init-status.sh
+RUN echo '[ -x /cubbi/init-status.sh ] && /cubbi/init-status.sh' >> /etc/bash.bashrc
 
 # Set up environment
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV UV_LINK_MODE=copy
+
+# Pre-install the cubbi_init
+RUN /cubbi/cubbi_init.py --help
+
 # Set WORKDIR to /app, common practice and expected by cubbi-init.sh
 WORKDIR /app
 
-# Expose ports
-EXPOSE 8000 22
-
-# Set entrypoint - container starts as root, entrypoint handles user switching
-ENTRYPOINT ["/entrypoint.sh"]
-# Default command if none is provided (entrypoint will run this via gosu)
+ENTRYPOINT ["/cubbi/cubbi_init.py"]
 CMD ["tail", "-f", "/dev/null"]

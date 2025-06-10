@@ -24,29 +24,8 @@ environment:
     required: false
     default: https://cloud.langfuse.com
 
-  # Project environment variables
-  - name: CUBBI_PROJECT_URL
-    description: Project repository URL
-    required: false
-
-  - name: CUBBI_PROJECT_TYPE
-    description: Project repository type (git, svn, etc.)
-    required: false
-    default: git
-
-  - name: CUBBI_GIT_SSH_KEY
-    description: SSH key for Git authentication
-    required: false
-    sensitive: true
-
-  - name: CUBBI_GIT_TOKEN
-    description: Token for Git authentication
-    required: false
-    sensitive: true
-
 ports:
-  - 8000 # Main application
-  - 22 # SSH server
+  - 8000
 
 volumes:
   - mountPath: /app
