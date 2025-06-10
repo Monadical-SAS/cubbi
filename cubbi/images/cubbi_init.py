@@ -255,6 +255,7 @@ class DirectoryManager:
             ("/home/cubbi", 0o755),
             ("/app", 0o755),
             ("/cubbi-config", 0o755),
+            ("/home/cubbi/.local", 0o755),
         ]
 
         self.status.log("Setting up standard directories")
@@ -336,6 +337,26 @@ class ConfigManager:
             )
             return False
 
+    def _ensure_target_directory(
+        self, target_path: str, user_id: int, group_id: int
+    ) -> bool:
+        """Ensure the target directory exists with proper ownership"""
+        try:
+            target_dir = Path(target_path)
+            if not target_dir.exists():
+                self.status.log(f"Creating target directory: {target_path}")
+                target_dir.mkdir(parents=True, exist_ok=True)
+
+            # Set ownership of the target directory to cubbi user
+            os.chown(target_path, user_id, group_id)
+            self.status.log(f"Set ownership of {target_path} to {user_id}:{group_id}")
+            return True
+        except Exception as e:
+            self.status.log(
+                f"Failed to ensure target directory {target_path}: {e}", "ERROR"
+            )
+            return False
+
     def setup_persistent_configs(
         self, persistent_configs: List[PersistentConfig], user_id: int, group_id: int
     ) -> bool:
@@ -346,6 +367,11 @@ class ConfigManager:
 
         success = True
         for config in persistent_configs:
+            # Ensure target directory exists with proper ownership
+            if not self._ensure_target_directory(config.target, user_id, group_id):
+                success = False
+                continue
+
             if not self.create_symlink(config.source, config.target, user_id, group_id):
                 success = False
 
