@@ -544,8 +544,7 @@ class CubbiInitializer:
     def _run_tool_initialization(self, image_config, cubbi_config, mcp_config) -> bool:
         """Run tool-specific initialization"""
         # Look for a tool-specific plugin file in the same directory
-        plugin_name = image_config.name.lower().replace("-", "_")
-        plugin_file = Path(__file__).parent / f"{plugin_name}_plugin.py"
+        plugin_file = Path(__file__).parent / f"{image_config.name.lower()}_plugin.py"
 
         if not plugin_file.exists():
             self.status.log(

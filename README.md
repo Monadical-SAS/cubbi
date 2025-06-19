@@ -144,7 +144,7 @@ Images are defined in the `cubbi/images/` directory, with each subdirectory cont
 - `Dockerfile`: Docker image definition
 - `entrypoint.sh`: Container entrypoint script
 - `cubbi-init.sh`: Standardized initialization script
-- `cubbi-image.yaml`: Image metadata and configuration
+- `cubbi_image.yaml`: Image metadata and configuration
 - `README.md`: Image documentation
 
 Cubbi automatically discovers and loads image definitions from the YAML files.

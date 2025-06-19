@@ -36,7 +36,3 @@ persistent_configs:
     target: "/cubbi-config/goose-app"
     type: "directory"
     description: "Goose memory"
-  - source: "/home/cubbi/.config/goose"
-    target: "/cubbi-config/goose-config"
-    type: "directory"
-    description: "Goose configuration"

@@ -387,7 +387,7 @@ Cubbi provides persistent storage for project-specific configurations that need 
 
 2. **Image Configuration**:
    - Each image can specify configuration files/directories that should persist across sessions
-   - These are defined in the image's `cubbi-image.yaml` file in the `persistent_configs` section
+   - These are defined in the image's `cubbi_image.yaml` file in the `persistent_configs` section
    - Example for Goose image:
      ```yaml
      persistent_configs:
@@ -458,7 +458,7 @@ Each image is a Docker container with a standardized structure:
 /
 ├── entrypoint.sh      # Container initialization
 ├── cubbi-init.sh      # Standardized initialization script
-├── cubbi-image.yaml   # Image metadata and configuration
+├── cubbi_image.yaml   # Image metadata and configuration
 ├── tool/              # AI tool installation
 └── ssh/               # SSH server configuration
 ```
@@ -500,7 +500,7 @@ fi
 # Image-specific initialization continues...
 ```
 
-### Image Configuration (cubbi-image.yaml)
+### Image Configuration (cubbi_image.yaml)
 
 ```yaml
 name: goose

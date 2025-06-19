@@ -108,7 +108,7 @@ class ConfigManager:
     def load_image_from_dir(self, image_dir: Path) -> Optional[Image]:
         """Load an image configuration from a directory"""
         # Check for image config file
-        yaml_path = image_dir / "cubbi-image.yaml"
+        yaml_path = image_dir / "cubbi_image.yaml"
         if not yaml_path.exists():
             return None
 
@@ -150,7 +150,7 @@ class ConfigManager:
         if not BUILTIN_IMAGES_DIR.exists():
             return images
 
-        # Search for cubbi-image.yaml files in each subdirectory
+        # Search for cubbi_image.yaml files in each subdirectory
         for image_dir in BUILTIN_IMAGES_DIR.iterdir():
             if image_dir.is_dir():
                 image = self.load_image_from_dir(image_dir)
