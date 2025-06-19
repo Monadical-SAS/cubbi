@@ -1,0 +1,24 @@
+name: claude-code
+description: Claude Code AI environment
+version: 1.0.0
+maintainer: team@monadical.com
+image: monadical/cubbi-claude-code:latest
+
+init:
+  pre_command: /cubbi-init.sh
+  command: /entrypoint.sh
+
+environment:
+  - name: ANTHROPIC_API_KEY
+    description: Anthropic API key for Claude Code
+    required: true
+    sensitive: true
+
+ports:
+  - 8000
+
+volumes:
+  - mountPath: /app
+    description: Application directory
+
+persistent_configs: []
