@@ -90,12 +90,12 @@ class ImageConfig:
 class ConfigParser:
     """Parses Cubbi image configuration and environment variables"""
 
-    def __init__(self, config_file: str = "/cubbi/cubbi-image.yaml"):
+    def __init__(self, config_file: str = "/cubbi/cubbi_image.yaml"):
         self.config_file = Path(config_file)
         self.environment: Dict[str, str] = dict(os.environ)
 
     def load_image_config(self) -> ImageConfig:
-        """Load and parse the cubbi-image.yaml configuration"""
+        """Load and parse the cubbi_image.yaml configuration"""
         if not self.config_file.exists():
             raise FileNotFoundError(f"Configuration file not found: {self.config_file}")
 
@@ -252,10 +252,9 @@ class DirectoryManager:
     def setup_standard_directories(self, user_id: int, group_id: int) -> bool:
         """Set up standard Cubbi directories"""
         directories = [
-            ("/home/cubbi", 0o755),
             ("/app", 0o755),
             ("/cubbi-config", 0o755),
-            ("/home/cubbi/.local", 0o755),
+            ("/cubbi-config/home", 0o755),
         ]
 
         self.status.log("Setting up standard directories")
@@ -265,10 +264,28 @@ class DirectoryManager:
             if not self.create_directory(dir_path, user_id, group_id, mode):
                 success = False
 
+        # Create /home/cubbi as a symlink to /cubbi-config/home
+        try:
+            home_cubbi = Path("/home/cubbi")
+            if home_cubbi.exists() or home_cubbi.is_symlink():
+                home_cubbi.unlink()
+
+            self.status.log("Creating /home/cubbi as symlink to /cubbi-config/home")
+            home_cubbi.symlink_to("/cubbi-config/home")
+            os.lchown("/home/cubbi", user_id, group_id)
+        except Exception as e:
+            self.status.log(f"Failed to create home directory symlink: {e}", "ERROR")
+            success = False
+
+        # Create .local directory in the persistent home
+        local_dir = Path("/cubbi-config/home/.local")
+        if not self.create_directory(str(local_dir), user_id, group_id, 0o755):
+            success = False
+
         # Copy /root/.local/bin to user's home if it exists
         root_local_bin = Path("/root/.local/bin")
         if root_local_bin.exists():
-            user_local_bin = Path("/home/cubbi/.local/bin")
+            user_local_bin = Path("/cubbi-config/home/.local/bin")
             try:
                 user_local_bin.mkdir(parents=True, exist_ok=True)
 
@@ -527,7 +544,8 @@ class CubbiInitializer:
     def _run_tool_initialization(self, image_config, cubbi_config, mcp_config) -> bool:
         """Run tool-specific initialization"""
         # Look for a tool-specific plugin file in the same directory
-        plugin_file = Path(__file__).parent / f"{image_config.name.lower()}_plugin.py"
+        plugin_name = image_config.name.lower().replace("-", "_")
+        plugin_file = Path(__file__).parent / f"{plugin_name}_plugin.py"
 
         if not plugin_file.exists():
             self.status.log(

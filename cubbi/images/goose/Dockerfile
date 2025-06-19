@@ -37,7 +37,7 @@ WORKDIR /app
 # Copy initialization system
 COPY cubbi_init.py /cubbi/cubbi_init.py
 COPY goose_plugin.py /cubbi/goose_plugin.py
-COPY cubbi-image.yaml /cubbi/cubbi-image.yaml
+COPY cubbi_image.yaml /cubbi/cubbi_image.yaml
 COPY init-status.sh /cubbi/init-status.sh
 RUN chmod +x /cubbi/cubbi_init.py /cubbi/init-status.sh
 RUN echo '[ -x /cubbi/init-status.sh ] && /cubbi/init-status.sh' >> /etc/bash.bashrc

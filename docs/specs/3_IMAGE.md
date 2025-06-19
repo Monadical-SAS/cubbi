@@ -10,7 +10,7 @@ Cubbi images use a Python-based initialization system with a plugin architecture
 
 ### Core Components
 
-1. **Image Metadata File** (`cubbi-image.yaml`) - *Tool-specific*
+1. **Image Metadata File** (`cubbi_image.yaml`) - *Tool-specific*
 2. **Container Definition** (`Dockerfile`) - *Tool-specific*
 3. **Python Initialization Script** (`cubbi_init.py`) - *Shared across all images*
 4. **Tool-specific Plugins** (e.g., `goose_plugin.py`) - *Tool-specific*
@@ -116,7 +116,7 @@ Standard directories:
 - `/cubbi-config` - Persistent configuration storage
 - `/cubbi/init.log` - Initialization log file
 - `/cubbi/init.status` - Initialization status tracking
-- `/cubbi/cubbi-image.yaml` - Image configuration
+- `/cubbi/cubbi_image.yaml` - Image configuration
 
 ## Initialization System
 
@@ -173,7 +173,7 @@ class MyToolPlugin(ToolPlugin):
         return True
 ```
 
-#### Image Configuration (`cubbi-image.yaml`) - *Tool-specific*
+#### Image Configuration (`cubbi_image.yaml`) - *Tool-specific*
 
 Each tool provides its own metadata file defining:
 - Tool-specific environment variables
@@ -248,7 +248,7 @@ COPY init-status.sh /init-status.sh                  # Shared
 
 # Copy tool-specific files
 COPY {tool}_plugin.py /{tool}_plugin.py              # Tool-specific
-COPY cubbi-image.yaml /cubbi/cubbi-image.yaml        # Tool-specific
+COPY cubbi_image.yaml /cubbi/cubbi_image.yaml        # Tool-specific
 
 # Install Python dependencies
 RUN pip install ruamel.yaml
@@ -295,7 +295,7 @@ ENTRYPOINT ["/init-status.sh"]
 
 Before releasing a Cubbi image, verify:
 
-- [ ] All required metadata fields are present in `cubbi-image.yaml`
+- [ ] All required metadata fields are present in `cubbi_image.yaml`
 - [ ] Standard environment variables are supported
 - [ ] `cubbi_init.py` script is properly installed and executable
 - [ ] Tool plugin is discovered and loads correctly
@@ -314,7 +314,7 @@ Before releasing a Cubbi image, verify:
 
 See the `/cubbi/images/goose/` directory for a complete implementation including:
 - `Dockerfile` - Container definition
-- `cubbi-image.yaml` - Image metadata
+- `cubbi_image.yaml` - Image metadata
 - `goose_plugin.py` - Tool-specific initialization
 - `README.md` - Tool-specific documentation
 
@@ -324,4 +324,4 @@ The current Python-based system uses:
 - `cubbi_init.py` - Standalone initialization script with plugin support
 - `{tool}_plugin.py` - Tool-specific configuration and MCP integration
 - `init-status.sh` - Status monitoring and log display
-- `cubbi-image.yaml` - Image metadata and configuration
+- `cubbi_image.yaml` - Image metadata and configuration
