@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 \
     libdbus-1-3 \
     nano \
+    tmux \
+    git-core \
     vim \
     && rm -rf /var/lib/apt/lists/*
 

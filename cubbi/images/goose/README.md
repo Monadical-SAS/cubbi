@@ -1,4 +1,4 @@
-# Goose Image for MC
+# Goose Image for Cubbi
 
 This image provides a containerized environment for running [Goose](https://goose.ai).
 
@@ -59,8 +59,5 @@ docker build -t monadical/cubbi-goose:latest .
 
 ```bash
 # Create a new session with this image
-cubbi session create --driver goose
-
-# Create with project repository
-cubbi  session create --driver goose --project github.com/username/repo
+cubbix -i goose
 ```
