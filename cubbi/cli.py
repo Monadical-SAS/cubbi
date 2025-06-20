@@ -4,6 +4,9 @@ CLI for Cubbi Container Tool.
 
 import logging
 import os
+import shutil
+import tempfile
+from pathlib import Path
 from typing import List, Optional
 
 import typer
@@ -45,9 +48,7 @@ mcp_manager = MCPManager(config_manager=user_config)
 @app.callback()
 def main(
     ctx: typer.Context,
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Enable verbose logging"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", help="Enable verbose logging"),
 ) -> None:
     """Cubbi Container Tool
 
@@ -167,14 +168,12 @@ def create_session(
     gid: Optional[int] = typer.Option(
         None, "--gid", help="Group ID to run the container as (defaults to host user)"
     ),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model to use"),
+    model: Optional[str] = typer.Option(None, "--model", help="Model to use"),
     provider: Optional[str] = typer.Option(
         None, "--provider", "-p", help="Provider to use"
     ),
     ssh: bool = typer.Option(False, "--ssh", help="Start SSH server in the container"),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Enable verbose logging"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", help="Enable verbose logging"),
 ) -> None:
     """Create a new Cubbi session
 
@@ -510,9 +509,60 @@ def build_image(
     # Build image name
     docker_image_name = f"monadical/cubbi-{image_name}:{tag}"
 
-    # Build the image
-    with console.status(f"Building image {docker_image_name}..."):
-        result = os.system(f"cd {image_path} && docker build -t {docker_image_name} .")
+    # Create temporary build directory
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        console.print(f"Using temporary build directory: {temp_path}")
+
+        try:
+            # Copy all files from the image directory to temp directory
+            for item in image_path.iterdir():
+                if item.is_file():
+                    shutil.copy2(item, temp_path / item.name)
+                elif item.is_dir():
+                    shutil.copytree(item, temp_path / item.name)
+
+            # Copy shared cubbi_init.py to temp directory
+            shared_init_path = Path(__file__).parent / "images" / "cubbi_init.py"
+            if shared_init_path.exists():
+                shutil.copy2(shared_init_path, temp_path / "cubbi_init.py")
+                console.print("Copied shared cubbi_init.py to build context")
+            else:
+                console.print(
+                    f"[yellow]Warning: Shared cubbi_init.py not found at {shared_init_path}[/yellow]"
+                )
+
+            # Copy shared init-status.sh to temp directory
+            shared_status_path = Path(__file__).parent / "images" / "init-status.sh"
+            if shared_status_path.exists():
+                shutil.copy2(shared_status_path, temp_path / "init-status.sh")
+                console.print("Copied shared init-status.sh to build context")
+            else:
+                console.print(
+                    f"[yellow]Warning: Shared init-status.sh not found at {shared_status_path}[/yellow]"
+                )
+
+            # Copy image-specific plugin if it exists
+            plugin_path = image_path / f"{image_name.lower()}_plugin.py"
+            if plugin_path.exists():
+                shutil.copy2(plugin_path, temp_path / f"{image_name.lower()}_plugin.py")
+                console.print(f"Copied {image_name.lower()}_plugin.py to build context")
+
+            # Copy init-status.sh if it exists (for backward compatibility with shell connection)
+            init_status_path = image_path / "init-status.sh"
+            if init_status_path.exists():
+                shutil.copy2(init_status_path, temp_path / "init-status.sh")
+                console.print("Copied init-status.sh to build context")
+
+            # Build the image from temporary directory
+            with console.status(f"Building image {docker_image_name}..."):
+                result = os.system(
+                    f"cd {temp_path} && docker build -t {docker_image_name} ."
+                )
+
+        except Exception as e:
+            console.print(f"[red]Error preparing build context: {e}[/red]")
+            return
 
     if result != 0:
         console.print("[red]Failed to build image[/red]")
@@ -1061,9 +1111,7 @@ def mcp_status(name: str = typer.Argument(..., help="MCP server name")) -> None:
 def start_mcp(
     name: Optional[str] = typer.Argument(None, help="MCP server name"),
     all_servers: bool = typer.Option(False, "--all", help="Start all MCP servers"),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Enable verbose logging"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", help="Enable verbose logging"),
 ) -> None:
     """Start an MCP server or all servers"""
     # Set log level based on verbose flag

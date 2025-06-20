@@ -548,9 +548,6 @@ class ContainerManager:
 
                         # Connect the container to the network with session name as an alias
                         network.connect(container, aliases=[session_name])
-                        print(
-                            f"Connected to network: {network_name} with alias: {session_name}"
-                        )
                     except DockerException as e:
                         print(f"Error connecting to network {network_name}: {e}")
 
@@ -571,10 +568,13 @@ class ContainerManager:
                         print(
                             f"Connected session to MCP '{mcp_name}' via dedicated network: {dedicated_network_name}"
                         )
-                    except DockerException as e:
-                        print(
-                            f"Error connecting to MCP dedicated network '{dedicated_network_name}': {e}"
-                        )
+                    except DockerException:
+                        # print(
+                        #     f"Error connecting to MCP dedicated network '{dedicated_network_name}': {e}"
+                        # )
+                        # commented out, may be accessible through another attached network, it's
+                        # not mandatory here.
+                        pass
 
                 except Exception as e:
                     print(f"Error connecting session to MCP '{mcp_name}': {e}")
@@ -604,9 +604,6 @@ class ContainerManager:
 
                             # Connect the container to the network with session name as an alias
                             network.connect(container, aliases=[session_name])
-                            print(
-                                f"Connected to network: {network_name} with alias: {session_name}"
-                            )
                         except DockerException as e:
                             print(f"Error connecting to network {network_name}: {e}")
 

@@ -1,3 +1,0 @@
-"""
-MAI container image management
-"""
