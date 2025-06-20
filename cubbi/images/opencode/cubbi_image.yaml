@@ -1,0 +1,18 @@
+name: opencode
+description: Opencode AI environment
+version: 1.0.0
+maintainer: team@monadical.com
+image: monadical/cubbi-opencode:latest
+
+init:
+  pre_command: /cubbi-init.sh
+  command: /entrypoint.sh
+
+environment: []
+ports: []
+
+volumes:
+  - mountPath: /app
+    description: Application directory
+
+persistent_configs: []
