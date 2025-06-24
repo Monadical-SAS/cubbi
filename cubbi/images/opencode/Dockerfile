@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 LABEL maintainer="team@monadical.com"
-LABEL description="Goose with MCP servers for Cubbi"
+LABEL description="Opencode for Cubbi"
 
 # Install system dependencies including gosu for user switching and shadow for useradd/groupadd
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nano \
     tmux \
     git-core \
+    ripgrep \
+    openssh-client \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,6 +37,7 @@ RUN mkdir -p /opt/node && \
     rm node.tar.gz
 
 ENV PATH="/opt/node/bin:$PATH"
+RUN npm i -g yarn
 RUN npm i -g opencode-ai
 
 # Create app directory
