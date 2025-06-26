@@ -61,7 +61,7 @@ persistent_configs:
     target: "/cubbi-config/claude-settings"
     type: "directory"
     description: "Claude Code settings and configuration"
-  
+
   - source: "/home/cubbi/.cache/claude"
     target: "/cubbi-config/claude-cache"
     type: "directory"

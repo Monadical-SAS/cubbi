@@ -31,7 +31,7 @@ ENTERPRISE_MAPPINGS = {
 
 class ClaudeCodePlugin(ToolPlugin):
     """Plugin for setting up Claude Code authentication and configuration"""
-    
+
     @property
     def tool_name(self) -> str:
         return "claudecode"
@@ -57,25 +57,27 @@ class ClaudeCodePlugin(ToolPlugin):
     def _ensure_claude_dir(self) -> Path:
         """Ensure Claude directory exists with correct ownership"""
         claude_dir = self._get_claude_dir()
-        
+
         try:
             claude_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
             self._set_ownership(claude_dir)
         except OSError as e:
-            self.status.log(f"Failed to create Claude directory {claude_dir}: {e}", "ERROR")
-            
+            self.status.log(
+                f"Failed to create Claude directory {claude_dir}: {e}", "ERROR"
+            )
+
         return claude_dir
-        
+
     def initialize(self) -> bool:
         """Initialize Claude Code configuration"""
         self.status.log("Setting up Claude Code authentication...")
-        
+
         # Ensure Claude directory exists
         claude_dir = self._ensure_claude_dir()
-        
+
         # Create settings configuration
         settings = self._create_settings()
-        
+
         if settings:
             settings_file = claude_dir / "settings.json"
             success = self._write_settings(settings_file, settings)
@@ -86,29 +88,31 @@ class ClaudeCodePlugin(ToolPlugin):
                 return False
         else:
             self.status.log("⚠️ No authentication configuration found", "WARNING")
-            self.status.log("   Please set ANTHROPIC_API_KEY environment variable", "WARNING")
+            self.status.log(
+                "   Please set ANTHROPIC_API_KEY environment variable", "WARNING"
+            )
             self.status.log("   Claude Code will run without authentication", "INFO")
             # Return True to allow container to start without API key
             # Users can still use Claude Code with their own authentication methods
             return True
-    
+
     def _create_settings(self) -> Optional[Dict]:
         """Create Claude Code settings configuration"""
         settings = {}
-        
+
         # Core authentication
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             return None
-            
+
         # Basic authentication setup
         settings["apiKey"] = api_key
-        
+
         # Custom authorization token (optional)
         auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
         if auth_token:
             settings["authToken"] = auth_token
-            
+
         # Custom headers (optional)
         custom_headers = os.environ.get("ANTHROPIC_CUSTOM_HEADERS")
         if custom_headers:
@@ -116,15 +120,17 @@ class ClaudeCodePlugin(ToolPlugin):
                 # Expect JSON string format
                 settings["customHeaders"] = json.loads(custom_headers)
             except json.JSONDecodeError:
-                self.status.log("⚠️ Invalid ANTHROPIC_CUSTOM_HEADERS format, skipping", "WARNING")
-        
+                self.status.log(
+                    "⚠️ Invalid ANTHROPIC_CUSTOM_HEADERS format, skipping", "WARNING"
+                )
+
         # Enterprise integration settings
         if os.environ.get("CLAUDE_CODE_USE_BEDROCK") == "true":
             settings["provider"] = "bedrock"
-            
+
         if os.environ.get("CLAUDE_CODE_USE_VERTEX") == "true":
             settings["provider"] = "vertex"
-            
+
         # Network proxy settings
         http_proxy = os.environ.get("HTTP_PROXY")
         https_proxy = os.environ.get("HTTPS_PROXY")
@@ -134,11 +140,11 @@ class ClaudeCodePlugin(ToolPlugin):
                 settings["proxy"]["http"] = http_proxy
             if https_proxy:
                 settings["proxy"]["https"] = https_proxy
-                
+
         # Telemetry settings
         if os.environ.get("DISABLE_TELEMETRY") == "true":
             settings["telemetry"] = {"enabled": False}
-            
+
         # Tool permissions (allow all by default in Cubbi environment)
         settings["permissions"] = {
             "tools": {
@@ -147,29 +153,29 @@ class ClaudeCodePlugin(ToolPlugin):
                 "edit": {"allowed": True},
                 "bash": {"allowed": True},
                 "webfetch": {"allowed": True},
-                "websearch": {"allowed": True}
+                "websearch": {"allowed": True},
             }
         }
-        
+
         return settings
-    
+
     def _write_settings(self, settings_file: Path, settings: Dict) -> bool:
         """Write settings to Claude Code configuration file"""
         try:
             # Write settings with secure permissions
-            with open(settings_file, 'w') as f:
+            with open(settings_file, "w") as f:
                 json.dump(settings, f, indent=2)
-                
+
             # Set ownership and secure file permissions (read/write for owner only)
             self._set_ownership(settings_file)
             os.chmod(settings_file, stat.S_IRUSR | stat.S_IWUSR)
-            
+
             self.status.log(f"Created Claude Code settings at {settings_file}")
             return True
         except Exception as e:
             self.status.log(f"Failed to write Claude Code settings: {e}", "ERROR")
             return False
-        
+
     def setup_tool_configuration(self) -> bool:
         """Set up Claude Code configuration - called by base class"""
         # Additional tool configuration can be added here if needed
