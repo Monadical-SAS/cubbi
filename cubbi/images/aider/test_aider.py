@@ -54,10 +54,9 @@ def test_docker_image_exists():
 
     if "monadical/cubbi-aider" in result.stdout:
         print("✅ Aider Docker image exists")
-        return True
     else:
         print("❌ Aider Docker image not found")
-        return False
+        assert False, "Aider Docker image not found"
 
 
 def test_aider_version():
@@ -71,12 +70,10 @@ def test_aider_version():
         "Testing Aider version command",
     )
 
-    if "aider" in result.stdout and result.returncode == 0:
-        print("✅ Aider version command works")
-        return True
-    else:
-        print("❌ Aider version command failed")
-        return False
+    assert "aider" in result.stdout and result.returncode == 0, (
+        "Aider version command failed"
+    )
+    print("✅ Aider version command works")
 
 
 def test_api_key_configuration():
@@ -122,7 +119,7 @@ def test_api_key_configuration():
         print("❌ Default AIDER_DARK_MODE not found")
         success = False
 
-    return success
+    assert success, "API key configuration test failed"
 
 
 def test_cubbi_cli_integration():
@@ -157,16 +154,12 @@ def test_cubbi_cli_integration():
             "Testing Cubbi CLI session creation with Aider",
         )
 
-        if (
+        assert (
             result.returncode == 0
             and "aider 0.84.0" in result.stdout
             and "Cubbi CLI test successful" in result.stdout
-        ):
-            print("✅ Cubbi CLI session creation works")
-            return True
-        else:
-            print("❌ Cubbi CLI session creation failed")
-            return False
+        ), "Cubbi CLI session creation failed"
+        print("✅ Cubbi CLI session creation works")
 
 
 def test_persistent_configuration():
@@ -195,7 +188,7 @@ def test_persistent_configuration():
         print("❌ ~/.cache/aider directory not found")
         success = False
 
-    return success
+    assert success, "API key configuration test failed"
 
 
 def test_plugin_functionality():
@@ -224,10 +217,9 @@ def test_plugin_functionality():
 
     if "Aider environment configured successfully" in result.stdout:
         print("✅ Plugin configures environment successfully")
-        return True
     else:
         print("❌ Plugin environment configuration failed")
-        return False
+        assert False, "Plugin environment configuration failed"
 
 
 def main():
@@ -248,7 +240,8 @@ def main():
 
     for test_name, test_func in tests:
         try:
-            results[test_name] = test_func()
+            test_func()
+            results[test_name] = True
         except Exception as e:
             print(f"❌ Test '{test_name}' failed with exception: {e}")
             results[test_name] = False
