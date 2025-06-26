@@ -36,11 +36,15 @@ class GeminiCliPlugin(ToolPlugin):
 
     def _get_gemini_config_dir(self) -> Path:
         """Get the Gemini configuration directory"""
-        return Path("/home/cubbi/.config/gemini")
+        # Get the actual username from the config if available
+        username = self.config.get("username", "cubbi")
+        return Path(f"/home/{username}/.config/gemini")
 
     def _get_gemini_cache_dir(self) -> Path:
         """Get the Gemini cache directory"""
-        return Path("/home/cubbi/.cache/gemini")
+        # Get the actual username from the config if available
+        username = self.config.get("username", "cubbi")
+        return Path(f"/home/{username}/.cache/gemini")
 
     def _ensure_gemini_dirs(self) -> tuple[Path, Path]:
         """Ensure Gemini directories exist with correct ownership"""
