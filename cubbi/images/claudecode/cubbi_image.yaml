@@ -1,0 +1,68 @@
+name: claudecode
+description: Claude Code AI environment
+version: 1.0.0
+maintainer: team@monadical.com
+image: monadical/cubbi-claudecode:latest
+
+init:
+  pre_command: /cubbi-init.sh
+  command: /entrypoint.sh
+
+environment:
+  # Core Anthropic Authentication
+  - name: ANTHROPIC_API_KEY
+    description: Anthropic API key for Claude
+    required: true
+    sensitive: true
+
+  # Optional Enterprise Integration
+  - name: ANTHROPIC_AUTH_TOKEN
+    description: Custom authorization token for Claude
+    required: false
+    sensitive: true
+
+  - name: ANTHROPIC_CUSTOM_HEADERS
+    description: Additional HTTP headers for Claude API requests
+    required: false
+    sensitive: true
+
+  # Enterprise Deployment Options
+  - name: CLAUDE_CODE_USE_BEDROCK
+    description: Use Amazon Bedrock instead of direct API
+    required: false
+
+  - name: CLAUDE_CODE_USE_VERTEX
+    description: Use Google Vertex AI instead of direct API
+    required: false
+
+  # Network Configuration
+  - name: HTTP_PROXY
+    description: HTTP proxy server URL
+    required: false
+
+  - name: HTTPS_PROXY
+    description: HTTPS proxy server URL
+    required: false
+
+  # Optional Telemetry Control
+  - name: DISABLE_TELEMETRY
+    description: Disable Claude Code telemetry
+    required: false
+    default: "false"
+
+ports: []
+
+volumes:
+  - mountPath: /app
+    description: Application directory
+
+persistent_configs:
+  - source: "/home/cubbi/.claude"
+    target: "/cubbi-config/claude-settings"
+    type: "directory"
+    description: "Claude Code settings and configuration"
+
+  - source: "/home/cubbi/.cache/claude"
+    target: "/cubbi-config/claude-cache"
+    type: "directory"
+    description: "Claude Code cache directory"

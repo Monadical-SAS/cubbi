@@ -203,6 +203,8 @@ class ContainerManager:
             api_keys = [
                 "OPENAI_API_KEY",
                 "ANTHROPIC_API_KEY",
+                "ANTHROPIC_AUTH_TOKEN",
+                "ANTHROPIC_CUSTOM_HEADERS",
                 "OPENROUTER_API_KEY",
                 "GOOGLE_API_KEY",
                 "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
