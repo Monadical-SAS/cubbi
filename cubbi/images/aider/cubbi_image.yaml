@@ -1,0 +1,88 @@
+name: aider
+description: Aider AI pair programming environment
+version: 1.0.0
+maintainer: team@monadical.com
+image: monadical/cubbi-aider:latest
+
+init:
+  pre_command: /cubbi-init.sh
+  command: /entrypoint.sh
+
+environment:
+  # OpenAI Configuration
+  - name: OPENAI_API_KEY
+    description: OpenAI API key for GPT models
+    required: false
+    sensitive: true
+
+  # Anthropic Configuration
+  - name: ANTHROPIC_API_KEY
+    description: Anthropic API key for Claude models
+    required: false
+    sensitive: true
+
+  # DeepSeek Configuration
+  - name: DEEPSEEK_API_KEY
+    description: DeepSeek API key for DeepSeek models
+    required: false
+    sensitive: true
+
+  # Gemini Configuration
+  - name: GEMINI_API_KEY
+    description: Google Gemini API key
+    required: false
+    sensitive: true
+
+  # OpenRouter Configuration
+  - name: OPENROUTER_API_KEY
+    description: OpenRouter API key for various models
+    required: false
+    sensitive: true
+
+  # Generic provider API keys
+  - name: AIDER_API_KEYS
+    description: Additional API keys in format "provider1=key1,provider2=key2"
+    required: false
+    sensitive: true
+
+  # Model Configuration
+  - name: AIDER_MODEL
+    description: Default model to use (e.g., sonnet, o3-mini, deepseek)
+    required: false
+
+  # Git Configuration
+  - name: AIDER_AUTO_COMMITS
+    description: Enable automatic commits (true/false)
+    required: false
+    default: "true"
+
+  - name: AIDER_DARK_MODE
+    description: Enable dark mode (true/false)
+    required: false
+    default: "false"
+
+  # Proxy Configuration
+  - name: HTTP_PROXY
+    description: HTTP proxy server URL
+    required: false
+
+  - name: HTTPS_PROXY
+    description: HTTPS proxy server URL
+    required: false
+
+ports: []
+
+volumes:
+  - mountPath: /app
+    description: Application directory
+
+persistent_configs:
+  - source: "/home/cubbi/.aider"
+    target: "/cubbi-config/aider-settings"
+    type: "directory"
+    description: "Aider configuration and history"
+
+  - source: "/home/cubbi/.cache/aider"
+    target: "/cubbi-config/aider-cache"
+    type: "directory"
+    description: "Aider cache directory"
