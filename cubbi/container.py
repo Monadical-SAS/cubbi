@@ -107,12 +107,21 @@ class ContainerManager:
                 elif container.status == "created":
                     status = SessionStatus.CREATING
 
+                # Get MCP list from container labels
+                mcps_str = labels.get("cubbi.mcps", "")
+                mcps = (
+                    [mcp.strip() for mcp in mcps_str.split(",") if mcp.strip()]
+                    if mcps_str
+                    else []
+                )
+
                 session = Session(
                     id=session_id,
                     name=labels.get("cubbi.session.name", f"cubbi-{session_id}"),
                     image=labels.get("cubbi.image", "unknown"),
                     status=status,
                     container_id=container_id,
+                    mcps=mcps,
                 )
 
                 # Get port mappings

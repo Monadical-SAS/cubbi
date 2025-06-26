@@ -93,21 +93,212 @@ def test_mcp_remove(cli_runner, patched_config_manager):
         ],
     )
 
-    # Mock the get_mcp and remove_mcp methods
-    with patch("cubbi.cli.mcp_manager.get_mcp") as mock_get_mcp:
-        # First make get_mcp return our MCP
-        mock_get_mcp.return_value = {
-            "name": "test-mcp",
-            "type": "remote",
-            "url": "http://test-server.com/sse",
-            "headers": {"Authorization": "Bearer test-token"},
-        }
+    # Mock the container_manager.list_sessions to return sessions without MCPs
+    with patch("cubbi.cli.container_manager.list_sessions") as mock_list_sessions:
+        mock_list_sessions.return_value = []
 
-        # Remove the MCP server
-        result = cli_runner.invoke(app, ["mcp", "remove", "test-mcp"])
+        # Mock the remove_mcp method
+        with patch("cubbi.cli.mcp_manager.remove_mcp") as mock_remove_mcp:
+            # Make remove_mcp return True (successful removal)
+            mock_remove_mcp.return_value = True
 
-        # Just check it ran successfully with exit code 0
-        assert result.exit_code == 0
+            # Remove the MCP server
+            result = cli_runner.invoke(app, ["mcp", "remove", "test-mcp"])
+
+            # Just check it ran successfully with exit code 0
+            assert result.exit_code == 0
+            assert "Removed MCP server 'test-mcp'" in result.stdout
+
+
+def test_mcp_remove_with_active_sessions(cli_runner, patched_config_manager):
+    """Test removing an MCP server that is used by active sessions."""
+    from cubbi.models import Session, SessionStatus
+
+    # Add a remote MCP server
+    patched_config_manager.set(
+        "mcps",
+        [
+            {
+                "name": "test-mcp",
+                "type": "remote",
+                "url": "http://test-server.com/sse",
+                "headers": {"Authorization": "Bearer test-token"},
+            }
+        ],
+    )
+
+    # Create mock sessions that use the MCP
+    mock_sessions = [
+        Session(
+            id="session-1",
+            name="test-session-1",
+            image="goose",
+            status=SessionStatus.RUNNING,
+            container_id="container-1",
+            mcps=["test-mcp", "other-mcp"],
+        ),
+        Session(
+            id="session-2",
+            name="test-session-2",
+            image="goose",
+            status=SessionStatus.RUNNING,
+            container_id="container-2",
+            mcps=["other-mcp"],  # This one doesn't use test-mcp
+        ),
+        Session(
+            id="session-3",
+            name="test-session-3",
+            image="goose",
+            status=SessionStatus.RUNNING,
+            container_id="container-3",
+            mcps=["test-mcp"],  # This one uses test-mcp
+        ),
+    ]
+
+    # Mock the container_manager.list_sessions to return our sessions
+    with patch("cubbi.cli.container_manager.list_sessions") as mock_list_sessions:
+        mock_list_sessions.return_value = mock_sessions
+
+        # Mock the remove_mcp method
+        with patch("cubbi.cli.mcp_manager.remove_mcp") as mock_remove_mcp:
+            # Make remove_mcp return True (successful removal)
+            mock_remove_mcp.return_value = True
+
+            # Remove the MCP server
+            result = cli_runner.invoke(app, ["mcp", "remove", "test-mcp"])
+
+            # Check it ran successfully with exit code 0
+            assert result.exit_code == 0
+            assert "Removed MCP server 'test-mcp'" in result.stdout
+            # Check warning about affected sessions
+            assert (
+                "Warning: Found 2 active sessions using MCP 'test-mcp'" in result.stdout
+            )
+            assert "session-1" in result.stdout
+            assert "session-3" in result.stdout
+            # session-2 should not be mentioned since it doesn't use test-mcp
+            assert "session-2" not in result.stdout
+
+
+def test_mcp_remove_nonexistent(cli_runner, patched_config_manager):
+    """Test removing a non-existent MCP server."""
+    # No MCPs configured
+    patched_config_manager.set("mcps", [])
+
+    # Mock the container_manager.list_sessions to return empty list
+    with patch("cubbi.cli.container_manager.list_sessions") as mock_list_sessions:
+        mock_list_sessions.return_value = []
+
+        # Mock the remove_mcp method to return False (MCP not found)
+        with patch("cubbi.cli.mcp_manager.remove_mcp") as mock_remove_mcp:
+            mock_remove_mcp.return_value = False
+
+            # Try to remove a non-existent MCP server
+            result = cli_runner.invoke(app, ["mcp", "remove", "nonexistent-mcp"])
+
+            # Check it ran successfully but reported not found
+            assert result.exit_code == 0
+            assert "MCP server 'nonexistent-mcp' not found" in result.stdout
+
+
+def test_session_mcps_attribute():
+    """Test that Session model has mcps attribute and can be populated correctly."""
+    from cubbi.models import Session, SessionStatus
+
+    # Test that Session can be created with mcps attribute
+    session = Session(
+        id="test-session",
+        name="test-session",
+        image="goose",
+        status=SessionStatus.RUNNING,
+        container_id="test-container",
+        mcps=["mcp1", "mcp2"],
+    )
+
+    assert session.mcps == ["mcp1", "mcp2"]
+
+    # Test that Session can be created with empty mcps list
+    session_empty = Session(
+        id="test-session-2",
+        name="test-session-2",
+        image="goose",
+        status=SessionStatus.RUNNING,
+        container_id="test-container-2",
+    )
+
+    assert session_empty.mcps == []  # Should default to empty list
+
+
+def test_session_mcps_from_container_labels():
+    """Test that Session mcps are correctly populated from container labels."""
+    from unittest.mock import Mock
+    from cubbi.container import ContainerManager
+
+    # Mock a container with MCP labels
+    mock_container = Mock()
+    mock_container.id = "test-container-id"
+    mock_container.status = "running"
+    mock_container.labels = {
+        "cubbi.session": "true",
+        "cubbi.session.id": "test-session",
+        "cubbi.session.name": "test-session-name",
+        "cubbi.image": "goose",
+        "cubbi.mcps": "mcp1,mcp2,mcp3",  # Test with multiple MCPs
+    }
+    mock_container.attrs = {"NetworkSettings": {"Ports": {}}}
+
+    # Mock Docker client
+    mock_client = Mock()
+    mock_client.containers.list.return_value = [mock_container]
+
+    # Create container manager with mocked client
+    with patch("cubbi.container.docker.from_env") as mock_docker:
+        mock_docker.return_value = mock_client
+        mock_client.ping.return_value = True
+
+        container_manager = ContainerManager()
+        sessions = container_manager.list_sessions()
+
+        assert len(sessions) == 1
+        session = sessions[0]
+        assert session.id == "test-session"
+        assert session.mcps == ["mcp1", "mcp2", "mcp3"]
+
+
+def test_session_mcps_from_empty_container_labels():
+    """Test that Session mcps are correctly handled when container has no MCP labels."""
+    from unittest.mock import Mock
+    from cubbi.container import ContainerManager
+
+    # Mock a container without MCP labels
+    mock_container = Mock()
+    mock_container.id = "test-container-id"
+    mock_container.status = "running"
+    mock_container.labels = {
+        "cubbi.session": "true",
+        "cubbi.session.id": "test-session",
+        "cubbi.session.name": "test-session-name",
+        "cubbi.image": "goose",
+        # No cubbi.mcps label
+    }
+    mock_container.attrs = {"NetworkSettings": {"Ports": {}}}
+
+    # Mock Docker client
+    mock_client = Mock()
+    mock_client.containers.list.return_value = [mock_container]
+
+    # Create container manager with mocked client
+    with patch("cubbi.container.docker.from_env") as mock_docker:
+        mock_docker.return_value = mock_client
+        mock_client.ping.return_value = True
+
+        container_manager = ContainerManager()
+        sessions = container_manager.list_sessions()
+
+        assert len(sessions) == 1
+        session = sessions[0]
+        assert session.id == "test-session"
+        assert session.mcps == []  # Should be empty list when no MCPs
 
 
 @pytest.mark.requires_docker
