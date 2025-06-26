@@ -1,0 +1,80 @@
+name: gemini-cli
+description: Google Gemini CLI environment for AI-powered development
+version: 1.0.0
+maintainer: team@monadical.com
+image: monadical/cubbi-gemini-cli:latest
+
+environment:
+  # Google AI Configuration
+  - name: GEMINI_API_KEY
+    description: Google AI API key for Gemini models
+    required: false
+    sensitive: true
+
+  - name: GOOGLE_API_KEY
+    description: Alternative Google API key (compatibility)
+    required: false
+    sensitive: true
+
+  # Google Cloud Configuration
+  - name: GOOGLE_APPLICATION_CREDENTIALS
+    description: Path to Google Cloud service account JSON file
+    required: false
+    sensitive: true
+
+  - name: GCLOUD_PROJECT
+    description: Google Cloud project ID
+    required: false
+
+  # Model Configuration
+  - name: GEMINI_MODEL
+    description: Default Gemini model (e.g., gemini-1.5-pro, gemini-1.5-flash)
+    required: false
+    default: "gemini-1.5-pro"
+
+  - name: GEMINI_TEMPERATURE
+    description: Model temperature (0.0-2.0)
+    required: false
+    default: "0.7"
+
+  - name: GEMINI_MAX_TOKENS
+    description: Maximum tokens in response
+    required: false
+
+  # Search Configuration
+  - name: GEMINI_SEARCH_ENABLED
+    description: Enable Google Search grounding (true/false)
+    required: false
+    default: "false"
+
+  # Proxy Configuration
+  - name: HTTP_PROXY
+    description: HTTP proxy server URL
+    required: false
+
+  - name: HTTPS_PROXY
+    description: HTTPS proxy server URL
+    required: false
+
+  # Debug Configuration
+  - name: GEMINI_DEBUG
+    description: Enable debug mode (true/false)
+    required: false
+    default: "false"
+
+ports: []
+
+volumes:
+  - mountPath: /app
+    description: Application directory
+
+persistent_configs:
+  - source: "/home/cubbi/.config/gemini"
+    target: "/cubbi-config/gemini-settings"
+    type: "directory"
+    description: "Gemini CLI configuration and history"
+
+  - source: "/home/cubbi/.cache/gemini"
+    target: "/cubbi-config/gemini-cache"
+    type: "directory"
+    description: "Gemini CLI cache directory"
