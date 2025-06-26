@@ -70,9 +70,9 @@ def test_aider_version():
         "Testing Aider version command",
     )
 
-    assert "aider" in result.stdout and result.returncode == 0, (
-        "Aider version command failed"
-    )
+    assert (
+        "aider" in result.stdout and result.returncode == 0
+    ), "Aider version command failed"
     print("✅ Aider version command works")
 
 
