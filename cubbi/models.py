@@ -102,6 +102,7 @@ class Session(BaseModel):
     status: SessionStatus
     container_id: Optional[str] = None
     ports: Dict[int, int] = Field(default_factory=dict)
+    mcps: List[str] = Field(default_factory=list)
 
 
 class Config(BaseModel):
