@@ -31,11 +31,21 @@ RUN curl -fsSL https://astral.sh/uv/install.sh -o install.sh && \
     mv /root/.local/bin/uvx /usr/local/bin/uvx && \
     rm install.sh
 
-# Install opencode-ai
+# Install Node.js
+ARG NODE_VERSION=v22.16.0
 RUN mkdir -p /opt/node && \
-    curl -fsSL https://nodejs.org/dist/v22.16.0/node-v22.16.0-linux-x64.tar.gz -o node.tar.gz && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+    NODE_ARCH=linux-x64; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+    NODE_ARCH=linux-arm64; \
+    else \
+    echo "Unsupported architecture"; exit 1; \
+    fi && \
+    curl -fsSL https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-$NODE_ARCH.tar.gz -o node.tar.gz && \
     tar -xf node.tar.gz -C /opt/node --strip-components=1 && \
     rm node.tar.gz
+
 
 ENV PATH="/opt/node/bin:$PATH"
 RUN npm i -g yarn
