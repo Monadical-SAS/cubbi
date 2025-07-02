@@ -6,6 +6,7 @@ LABEL description="Claude Code for Cubbi"
 # Install system dependencies including gosu for user switching
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
+    sudo \
     passwd \
     bash \
     curl \

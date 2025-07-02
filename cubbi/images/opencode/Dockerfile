@@ -6,6 +6,7 @@ LABEL description="Opencode for Cubbi"
 # Install system dependencies including gosu for user switching and shadow for useradd/groupadd
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
+    sudo \
     passwd \
     bash \
     curl \
