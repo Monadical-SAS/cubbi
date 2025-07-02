@@ -226,7 +226,7 @@ class UserManager:
         sudoers_command = [
             "sh",
             "-c",
-            "echo 'cubbi ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers",
+            "echo 'cubbi ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/cubbi && chmod 0440 /etc/sudoers.d/cubbi",
         ]
         if not self._run_command(sudoers_command):
             self.status.log("Failed to create sudoers entry for cubbi", "ERROR")
