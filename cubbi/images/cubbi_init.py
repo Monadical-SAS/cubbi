@@ -222,6 +222,16 @@ class UserManager:
             ):
                 return False
 
+        # Create the sudoers file entry for the 'cubbi' user
+        sudoers_command = [
+            "sh",
+            "-c",
+            "echo 'cubbi ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers",
+        ]
+        if not self._run_command(sudoers_command):
+            self.status.log("Failed to create sudoers entry for cubbi", "ERROR")
+            return False
+
         return True
 
 
