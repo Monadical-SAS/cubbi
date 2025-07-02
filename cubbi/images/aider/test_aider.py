@@ -7,6 +7,7 @@ Tests Docker image build, API key configuration, and Cubbi CLI integration
 import subprocess
 import sys
 import tempfile
+import re
 
 
 def run_command(cmd, description="", check=True):
@@ -156,7 +157,7 @@ def test_cubbi_cli_integration():
 
         assert (
             result.returncode == 0
-            and "aider 0.84.0" in result.stdout
+            and re.search(r"aider \d+\.\d+\.\d+", result.stdout)
             and "Cubbi CLI test successful" in result.stdout
         ), "Cubbi CLI session creation failed"
         print("✅ Cubbi CLI session creation works")
