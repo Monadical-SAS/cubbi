@@ -2,7 +2,7 @@
 
 # Cubbi - Container Tool
 
-Cubbi is a command-line tool for managing ephemeral containers that run AI tools and development environments. It works with both local Docker and a dedicated remote web service that manages containers in a Docker-in-Docker (DinD) environment. Cubbi also supports connecting to MCP (Model Control Protocol) servers to extend AI tools with additional capabilities.
+Cubbi is a command-line tool for managing ephemeral containers that run AI tools and development environments, with support for MCP servers.
 
 ![PyPI - Version](https://img.shields.io/pypi/v/cubbi)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cubbi)
@@ -125,7 +125,16 @@ cubbix --ssh
 
 ## 🖼️ Image Management
 
-Cubbi includes an image management system that allows you to build, manage, and use Docker images for different AI tools:
+Cubbi includes an image management system that allows you to build, manage, and use Docker images for different AI tools
+
+**Supported Images**
+
+| Image Name | Langtrace Support |
+|------------|-------------------|
+| goose      | yes               |
+| opencode   | no                |
+| claudecode | no                |
+| aider      | no                |
 
 ```bash
 # List available images
