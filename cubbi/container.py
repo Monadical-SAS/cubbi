@@ -208,9 +208,10 @@ class ContainerManager:
             # Set SSH environment variable
             env_vars["CUBBI_SSH_ENABLED"] = "true" if ssh else "false"
 
-            # Pass API keys from host environment to container for local development
-            api_keys = [
+            # Pass some environment from host environment to container for local development
+            keys = [
                 "OPENAI_API_KEY",
+                "OPENAI_URL",
                 "ANTHROPIC_API_KEY",
                 "ANTHROPIC_AUTH_TOKEN",
                 "ANTHROPIC_CUSTOM_HEADERS",
@@ -220,7 +221,7 @@ class ContainerManager:
                 "LANGFUSE_INIT_PROJECT_SECRET_KEY",
                 "LANGFUSE_URL",
             ]
-            for key in api_keys:
+            for key in keys:
                 if key in os.environ and key not in env_vars:
                     env_vars[key] = os.environ[key]
 

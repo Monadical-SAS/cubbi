@@ -14,6 +14,7 @@ ENV_MAPPINGS = {
     "services.langfuse.public_key": "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
     "services.langfuse.secret_key": "LANGFUSE_INIT_PROJECT_SECRET_KEY",
     "services.openai.api_key": "OPENAI_API_KEY",
+    "services.openai.url": "OPENAI_URL",
     "services.anthropic.api_key": "ANTHROPIC_API_KEY",
     "services.openrouter.api_key": "OPENROUTER_API_KEY",
     "services.google.api_key": "GOOGLE_API_KEY",

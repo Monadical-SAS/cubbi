@@ -111,6 +111,13 @@ class GoosePlugin(ToolPlugin):
             config_data["GOOSE_PROVIDER"] = goose_provider
             self.status.log(f"Set GOOSE_PROVIDER to {goose_provider}")
 
+            # If provider is OpenAI and OPENAI_URL is set, configure OPENAI_HOST
+            if goose_provider.lower() == "openai":
+                openai_url = os.environ.get("OPENAI_URL")
+                if openai_url:
+                    config_data["OPENAI_HOST"] = openai_url
+                    self.status.log(f"Set OPENAI_HOST to {openai_url}")
+
         try:
             with config_file.open("w") as f:
                 yaml.dump(config_data, f)

@@ -117,6 +117,16 @@ class OpencodePlugin(ToolPlugin):
             api_key = os.environ.get(env_var)
             if api_key:
                 auth_data[provider] = {"type": "api", "key": api_key}
+
+                # Add custom endpoint URL for OpenAI if available
+                if provider == "openai":
+                    openai_url = os.environ.get("OPENAI_URL")
+                    if openai_url:
+                        auth_data[provider]["baseURL"] = openai_url
+                        self.status.log(
+                            f"Added OpenAI custom endpoint URL: {openai_url}"
+                        )
+
                 self.status.log(f"Added {provider} API key to auth configuration")
 
         # Only write file if we have at least one API key

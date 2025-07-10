@@ -101,6 +101,12 @@ class AiderPlugin(ToolPlugin):
             "OPENROUTER_API_KEY": "OPENROUTER_API_KEY",
         }
 
+        # Check for OpenAI API base URL
+        openai_url = os.environ.get("OPENAI_URL")
+        if openai_url:
+            env_vars["OPENAI_API_BASE"] = openai_url
+            self.status.log(f"Set OpenAI API base URL to {openai_url}")
+
         # Check for standard API keys
         for env_var, aider_var in api_key_mappings.items():
             value = os.environ.get(env_var)
