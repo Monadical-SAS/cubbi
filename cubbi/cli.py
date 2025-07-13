@@ -213,7 +213,6 @@ def create_session(
             else:
                 typed_value = value
             config_overrides[key] = typed_value
-            console.print(f"[blue]Config override: {key} = {typed_value}[/blue]")
         else:
             console.print(
                 f"[yellow]Warning: Ignoring invalid config format: {config_item}. Use KEY=VALUE.[/yellow]"
