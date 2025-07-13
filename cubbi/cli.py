@@ -1573,6 +1573,11 @@ def add_mcp(
 def add_remote_mcp(
     name: str = typer.Argument(..., help="MCP server name"),
     url: str = typer.Argument(..., help="URL of the remote MCP server"),
+    mcp_type: str = typer.Option(
+        "auto",
+        "--mcp-type",
+        help="MCP connection type: sse, streamable_http, stdio, or auto (default: auto)",
+    ),
     header: List[str] = typer.Option(
         [], "--header", "-H", help="HTTP headers (format: KEY=VALUE)"
     ),
@@ -1581,6 +1586,22 @@ def add_remote_mcp(
     ),
 ) -> None:
     """Add a remote MCP server"""
+    if mcp_type == "auto":
+        if url.endswith("/sse"):
+            mcp_type = "sse"
+        elif url.endswith("/mcp"):
+            mcp_type = "streamable_http"
+        else:
+            console.print(
+                f"[red]Cannot auto-detect MCP type from URL '{url}'. Please specify --mcp-type (sse, streamable_http, or stdio)[/red]"
+            )
+            return
+    elif mcp_type not in ["sse", "streamable_http", "stdio"]:
+        console.print(
+            f"[red]Invalid MCP type '{mcp_type}'. Must be: sse, streamable_http, stdio, or auto[/red]"
+        )
+        return
+
     # Parse headers
     headers = {}
     for h in header:
@@ -1595,7 +1616,7 @@ def add_remote_mcp(
     try:
         with console.status(f"Adding remote MCP server '{name}'..."):
             mcp_manager.add_remote_mcp(
-                name, url, headers, add_as_default=not no_default
+                name, url, headers, mcp_type=mcp_type, add_as_default=not no_default
             )
 
         console.print(f"[green]Added remote MCP server '{name}'[/green]")

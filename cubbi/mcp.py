@@ -79,6 +79,7 @@ class MCPManager:
         name: str,
         url: str,
         headers: Dict[str, str] = None,
+        mcp_type: Optional[str] = None,
         add_as_default: bool = True,
     ) -> Dict[str, Any]:
         """Add a remote MCP server.
@@ -97,6 +98,7 @@ class MCPManager:
             name=name,
             url=url,
             headers=headers or {},
+            mcp_type=mcp_type,
         )
 
         # Add to the configuration

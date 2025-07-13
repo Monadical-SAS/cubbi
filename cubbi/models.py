@@ -61,6 +61,7 @@ class RemoteMCP(BaseModel):
     type: str = "remote"
     url: str
     headers: Dict[str, str] = Field(default_factory=dict)
+    mcp_type: Optional[str] = None
 
 
 class DockerMCP(BaseModel):

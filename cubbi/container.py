@@ -443,7 +443,7 @@ class ContainerManager:
                         )
 
                     # Set type-specific information
-                    env_vars[f"MCP_{idx}_TYPE"] = "remote"
+                    env_vars[f"MCP_{idx}_TYPE"] = mcp_config.get("mcp_type", "sse")
                     env_vars[f"MCP_{idx}_NAME"] = mcp_name
 
             # Set environment variables for MCP count if we have any

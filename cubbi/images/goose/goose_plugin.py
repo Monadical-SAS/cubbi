@@ -171,7 +171,7 @@ class GoosePlugin(ToolPlugin):
                     "enabled": True,
                     "name": server_name,
                     "timeout": 60,
-                    "type": "sse",
+                    "type": server.get("type", "sse"),
                     "uri": mcp_url,
                     "envs": {},
                 }
@@ -184,7 +184,7 @@ class GoosePlugin(ToolPlugin):
                     "enabled": True,
                     "name": server_name,
                     "timeout": 60,
-                    "type": "sse",
+                    "type": server.get("type", "sse"),
                     "uri": server_url,
                     "envs": {},
                 }
