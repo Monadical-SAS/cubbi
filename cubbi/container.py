@@ -12,7 +12,7 @@ from docker.errors import DockerException, ImageNotFound
 
 from .config import ConfigManager
 from .mcp import MCPManager
-from .models import Session, SessionStatus
+from .models import Image, Session, SessionStatus
 from .session import SessionManager
 from .user_config import UserConfigManager
 
@@ -162,6 +162,7 @@ class ContainerManager:
         model: Optional[str] = None,
         provider: Optional[str] = None,
         ssh: bool = False,
+        domains: Optional[List[str]] = None,
     ) -> Optional[Session]:
         """Create a new Cubbi session
 
@@ -182,13 +183,26 @@ class ContainerManager:
             model: Optional model to use
             provider: Optional provider to use
             ssh: Whether to start the SSH server in the container (default: False)
+            domains: Optional list of domains to restrict network access to (uses network-filter)
         """
         try:
-            # Validate image exists
+            # Try to get image from config first
             image = self.config_manager.get_image(image_name)
             if not image:
-                print(f"Image '{image_name}' not found")
-                return None
+                # If not found in config, treat it as a Docker image name
+                print(
+                    f"Image '{image_name}' not found in Cubbi config, using as Docker image..."
+                )
+                image = Image(
+                    name=image_name,
+                    description=f"Docker image: {image_name}",
+                    version="latest",
+                    maintainer="unknown",
+                    image=image_name,
+                    ports=[],
+                    volumes=[],
+                    persistent_configs=[],
+                )
 
             # Generate session ID and name
             session_id = self._generate_session_id()
@@ -517,17 +531,99 @@ class ContainerManager:
                 "defaults.provider", ""
             )
 
+            # Handle network-filter if domains are specified
+            network_filter_container = None
+            network_mode = None
+
+            if domains:
+                # Check for conflicts
+                if networks:
+                    print(
+                        "[yellow]Warning: Cannot use --domains with --network. Using domain restrictions only.[/yellow]"
+                    )
+                    networks = []
+                    network_list = [default_network]
+
+                # Create network-filter container
+                network_filter_name = f"cubbi-network-filter-{session_id}"
+
+                # Pull network-filter image if needed
+                network_filter_image = "monadicalsas/network-filter:latest"
+                try:
+                    self.client.images.get(network_filter_image)
+                except ImageNotFound:
+                    print(f"Pulling network-filter image {network_filter_image}...")
+                    self.client.images.pull(network_filter_image)
+
+                # Create and start network-filter container
+                print("Creating network-filter container for domain restrictions...")
+                try:
+                    # First check if a network-filter container already exists with this name
+                    try:
+                        existing = self.client.containers.get(network_filter_name)
+                        print(
+                            f"Removing existing network-filter container {network_filter_name}"
+                        )
+                        existing.stop()
+                        existing.remove()
+                    except DockerException:
+                        pass  # Container doesn't exist, which is fine
+
+                    network_filter_container = self.client.containers.run(
+                        image=network_filter_image,
+                        name=network_filter_name,
+                        hostname=network_filter_name,
+                        detach=True,
+                        environment={"ALLOWED_DOMAINS": ",".join(domains)},
+                        labels={
+                            "cubbi.network-filter": "true",
+                            "cubbi.session.id": session_id,
+                            "cubbi.session.name": session_name,
+                        },
+                        cap_add=["NET_ADMIN"],  # Required for iptables
+                        remove=False,  # Don't auto-remove on stop
+                    )
+
+                    # Wait for container to be running
+                    import time
+
+                    for i in range(10):  # Wait up to 10 seconds
+                        network_filter_container.reload()
+                        if network_filter_container.status == "running":
+                            break
+                        time.sleep(1)
+                    else:
+                        raise Exception(
+                            f"Network-filter container failed to start. Status: {network_filter_container.status}"
+                        )
+
+                    # Use container ID instead of name for network_mode
+                    network_mode = f"container:{network_filter_container.id}"
+                    print(
+                        f"Network restrictions enabled for domains: {', '.join(domains)}"
+                    )
+                    print(f"Using network mode: {network_mode}")
+
+                except Exception as e:
+                    print(f"[red]Error creating network-filter container: {e}[/red]")
+                    raise
+
+                # Warn about MCP limitations when using network-filter
+                if mcp_names:
+                    print(
+                        "[yellow]Warning: MCP servers may not be accessible when using domain restrictions.[/yellow]"
+                    )
+
             # Create container
-            container = self.client.containers.create(
-                image=image.image,
-                name=session_name,
-                hostname=session_name,
-                detach=True,
-                tty=True,
-                stdin_open=True,
-                environment=env_vars,
-                volumes=session_volumes,
-                labels={
+            container_params = {
+                "image": image.image,
+                "name": session_name,
+                "detach": True,
+                "tty": True,
+                "stdin_open": True,
+                "environment": env_vars,
+                "volumes": session_volumes,
+                "labels": {
                     "cubbi.session": "true",
                     "cubbi.session.id": session_id,
                     "cubbi.session.name": session_name,
@@ -536,17 +632,29 @@ class ContainerManager:
                     "cubbi.project_name": project_name or "",
                     "cubbi.mcps": ",".join(mcp_names) if mcp_names else "",
                 },
-                network=network_list[0],  # Connect to the first network initially
-                command=container_command,  # Set the command
-                entrypoint=entrypoint,  # Set the entrypoint (might be None)
-                ports={f"{port}/tcp": None for port in image.ports},
-            )
+                "command": container_command,  # Set the command
+                "entrypoint": entrypoint,  # Set the entrypoint (might be None)
+                "ports": {f"{port}/tcp": None for port in image.ports},
+            }
+
+            # Use network_mode if domains are specified, otherwise use regular network
+            if network_mode:
+                container_params["network_mode"] = network_mode
+                # Cannot set hostname when using network_mode
+            else:
+                container_params["hostname"] = session_name
+                container_params["network"] = network_list[
+                    0
+                ]  # Connect to the first network initially
+
+            container = self.client.containers.create(**container_params)
 
             # Start container
             container.start()
 
             # Connect to additional networks (after the first one in network_list)
-            if len(network_list) > 1:
+            # Note: Cannot connect to networks when using network_mode
+            if len(network_list) > 1 and not network_mode:
                 for network_name in network_list[1:]:
                     try:
                         # Get or create the network
@@ -567,32 +675,35 @@ class ContainerManager:
             container.reload()
 
             # Connect directly to each MCP's dedicated network
-            for mcp_name in mcp_names:
-                try:
-                    # Get the dedicated network for this MCP
-                    dedicated_network_name = f"cubbi-mcp-{mcp_name}-network"
-
+            # Note: Cannot connect to networks when using network_mode
+            if not network_mode:
+                for mcp_name in mcp_names:
                     try:
-                        network = self.client.networks.get(dedicated_network_name)
+                        # Get the dedicated network for this MCP
+                        dedicated_network_name = f"cubbi-mcp-{mcp_name}-network"
 
-                        # Connect the session container to the MCP's dedicated network
-                        network.connect(container, aliases=[session_name])
-                        print(
-                            f"Connected session to MCP '{mcp_name}' via dedicated network: {dedicated_network_name}"
-                        )
-                    except DockerException:
-                        # print(
-                        #     f"Error connecting to MCP dedicated network '{dedicated_network_name}': {e}"
-                        # )
-                        # commented out, may be accessible through another attached network, it's
-                        # not mandatory here.
-                        pass
+                        try:
+                            network = self.client.networks.get(dedicated_network_name)
 
-                except Exception as e:
-                    print(f"Error connecting session to MCP '{mcp_name}': {e}")
+                            # Connect the session container to the MCP's dedicated network
+                            network.connect(container, aliases=[session_name])
+                            print(
+                                f"Connected session to MCP '{mcp_name}' via dedicated network: {dedicated_network_name}"
+                            )
+                        except DockerException:
+                            # print(
+                            #     f"Error connecting to MCP dedicated network '{dedicated_network_name}': {e}"
+                            # )
+                            # commented out, may be accessible through another attached network, it's
+                            # not mandatory here.
+                            pass
+
+                    except Exception as e:
+                        print(f"Error connecting session to MCP '{mcp_name}': {e}")
 
             # Connect to additional user-specified networks
-            if networks:
+            # Note: Cannot connect to networks when using network_mode
+            if networks and not network_mode:
                 for network_name in networks:
                     # Check if already connected to this network
                     # NetworkSettings.Networks contains a dict where keys are network names
@@ -651,6 +762,15 @@ class ContainerManager:
 
         except DockerException as e:
             print(f"Error creating session: {e}")
+
+            # Clean up network-filter container if it was created
+            if network_filter_container:
+                try:
+                    network_filter_container.stop()
+                    network_filter_container.remove()
+                except Exception:
+                    pass
+
             return None
 
     def close_session(self, session_id: str) -> bool:
@@ -749,9 +869,24 @@ class ContainerManager:
             return False
 
         try:
+            # First, close the main session container
             container = self.client.containers.get(session.container_id)
             container.stop()
             container.remove()
+
+            # Check for and close any associated network-filter container
+            network_filter_name = f"cubbi-network-filter-{session.id}"
+            try:
+                network_filter_container = self.client.containers.get(
+                    network_filter_name
+                )
+                logger.info(f"Stopping network-filter container {network_filter_name}")
+                network_filter_container.stop()
+                network_filter_container.remove()
+            except DockerException:
+                # Network-filter container might not exist, which is fine
+                pass
+
             self.session_manager.remove_session(session.id)
             return True
         except DockerException as e:
@@ -785,6 +920,19 @@ class ContainerManager:
                     # Stop and remove container
                     container.stop()
                     container.remove()
+
+                    # Check for and close any associated network-filter container
+                    network_filter_name = f"cubbi-network-filter-{session.id}"
+                    try:
+                        network_filter_container = self.client.containers.get(
+                            network_filter_name
+                        )
+                        network_filter_container.stop()
+                        network_filter_container.remove()
+                    except DockerException:
+                        # Network-filter container might not exist, which is fine
+                        pass
+
                     # Remove from session storage
                     self.session_manager.remove_session(session.id)
 
