@@ -98,6 +98,9 @@ cubbix /path/to/project
 # Connect to external Docker networks
 cubbix --network teamnet --network dbnet
 
+# Restrict network access to specific domains
+cubbix --domains github.com --domains "api.example.com:443"
+
 # Connect to MCP servers for extended capabilities
 cubbix --mcp github --mcp jira
 
