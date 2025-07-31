@@ -182,7 +182,7 @@ def create_session(
     domains: List[str] = typer.Option(
         [],
         "--domains",
-        help="Restrict network access to specified domains/ports (e.g., 'example.com:443', '*.api.com')",
+        help="Restrict network access to specified domains/ports (e.g., 'example.com:443', 'api.github.com')",
     ),
     verbose: bool = typer.Option(False, "--verbose", help="Enable verbose logging"),
 ) -> None:
