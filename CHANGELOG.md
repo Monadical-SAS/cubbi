@@ -1,6 +1,158 @@
 # CHANGELOG
 
 
+## v0.3.0 (2025-07-31)
+
+### Bug Fixes
+
+- Claudecode and opencode arm64 images ([#21](https://github.com/Monadical-SAS/cubbi/pull/21),
+  [`dba7a7c`](https://github.com/Monadical-SAS/cubbi/commit/dba7a7c1efcc04570a92ecbc4eee39eb6353aaea))
+
+- Update readme
+  ([`4958b07`](https://github.com/Monadical-SAS/cubbi/commit/4958b07401550fb5a6751b99a257eda6c4558ea4))
+
+### Continuous Integration
+
+- Remove conventional commit, as only PR is required
+  ([`afae8a1`](https://github.com/Monadical-SAS/cubbi/commit/afae8a13e1ea02801b2e5c9d5c84aa65a32d637c))
+
+### Features
+
+- Add --mcp-type option for remote MCP servers
+  ([`d41faf6`](https://github.com/Monadical-SAS/cubbi/commit/d41faf6b3072d4f8bdb2adc896125c7fd0d6117d))
+
+Auto-detects connection type from URL (/sse -> sse, /mcp -> streamable_http) or allows manual
+  specification. Updates goose plugin to use actual MCP type instead of hardcoded sse.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+- Add Claude Code image support ([#16](https://github.com/Monadical-SAS/cubbi/pull/16),
+  [`b28c2bd`](https://github.com/Monadical-SAS/cubbi/commit/b28c2bd63e324f875b2d862be9e0afa4a7a17ffc))
+
+* feat: add Claude Code image support
+
+Add a new Cubbi image for Claude Code (Anthropic's official CLI) with: - Full Claude Code CLI
+  functionality via NPM package - Secure API key management with multiple authentication options -
+  Enterprise support (Bedrock, Vertex AI, proxy configuration) - Persistent configuration and cache
+  directories - Comprehensive test suite and documentation
+
+The image allows users to run Claude Code in containers with proper isolation, persistent settings,
+  and seamless Cubbi integration. It gracefully handles missing API keys to allow flexible
+  authentication.
+
+Also adds optional Claude Code API keys to container.py for enterprise deployments.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+* Pre-commit fixes
+
+---------
+
+Co-authored-by: Claude <noreply@anthropic.com>
+
+Co-authored-by: Your Name <you@example.com>
+
+- Add configuration override in session create with --config/-c
+  ([`672b8a8`](https://github.com/Monadical-SAS/cubbi/commit/672b8a8e315598d98f40d269dfcfbde6203cbb57))
+
+- Add MCP tracking to sessions ([#19](https://github.com/Monadical-SAS/cubbi/pull/19),
+  [`d750e64`](https://github.com/Monadical-SAS/cubbi/commit/d750e64608998f6f3a03928bba18428f576b412f))
+
+Add mcps field to Session model to track active MCP servers and populate it from container labels in
+  ContainerManager. Enhance MCP remove command to warn when removing servers used by active
+  sessions.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-authored-by: Claude <noreply@anthropic.com>
+
+- Add network filtering with domain restrictions
+  ([#22](https://github.com/Monadical-SAS/cubbi/pull/22),
+  [`2eb15a3`](https://github.com/Monadical-SAS/cubbi/commit/2eb15a31f8bb97f93461bea5e567cc2ccde3f86c))
+
+* fix: remove config override logging to prevent API key exposure
+
+* feat: add network filtering with domain restrictions
+
+- Add --domains flag to restrict container network access to specific domains/ports - Integrate
+  monadicalsas/network-filter container for network isolation - Support domain patterns like
+  'example.com:443', '*.api.com' - Add defaults.domains configuration option - Automatically handle
+  network-filter container lifecycle - Prevent conflicts between --domains and --network options
+
+* docs: add --domains option to README usage examples
+
+* docs: remove wildcard domain example from --domains help
+
+Wildcard domains are not currently supported by network-filter
+
+- Add ripgrep and openssh-client in images ([#15](https://github.com/Monadical-SAS/cubbi/pull/15),
+  [`e70ec35`](https://github.com/Monadical-SAS/cubbi/commit/e70ec3538ba4e02a60afedca583da1c35b7b6d7a))
+
+- Add sudo and sudoers ([#20](https://github.com/Monadical-SAS/cubbi/pull/20),
+  [`9c8ddbb`](https://github.com/Monadical-SAS/cubbi/commit/9c8ddbb3f3f2fc97db9283898b6a85aee7235fae))
+
+* feat: add sudo and sudoers
+
+* Update cubbi/images/cubbi_init.py
+
+Co-authored-by: pr-agent-monadical[bot] <198624643+pr-agent-monadical[bot]@users.noreply.github.com>
+
+---------
+
+- Implement Aider AI pair programming support
+  ([#17](https://github.com/Monadical-SAS/cubbi/pull/17),
+  [`fc0d6b5`](https://github.com/Monadical-SAS/cubbi/commit/fc0d6b51af12ddb0bd8655309209dd88e7e4d6f1))
+
+* feat: implement Aider AI pair programming support
+
+- Add comprehensive Aider Docker image with Python 3.12 and system pip installation - Implement
+  aider_plugin.py for secure API key management and environment configuration - Support multiple LLM
+  providers: OpenAI, Anthropic, DeepSeek, Gemini, OpenRouter - Add persistent configuration for
+  ~/.aider/ and ~/.cache/aider/ directories - Create comprehensive documentation with usage examples
+  and troubleshooting - Include automated test suite with 6 test categories covering all
+  functionality - Update container.py to support DEEPSEEK_API_KEY and GEMINI_API_KEY - Integrate
+  with Cubbi CLI for seamless session management
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+* Fix pytest for aider
+
+* Fix pre-commit
+
+---------
+
+Co-authored-by: Your Name <you@example.com>
+
+- Include new image opencode ([#14](https://github.com/Monadical-SAS/cubbi/pull/14),
+  [`5fca51e`](https://github.com/Monadical-SAS/cubbi/commit/5fca51e5152dcf7503781eb707fa04414cf33c05))
+
+* feat: include new image opencode
+
+* docs: update readme
+
+- Support config `openai.url` for goose/opencode/aider
+  ([`da5937e`](https://github.com/Monadical-SAS/cubbi/commit/da5937e70829b88a66f96c3ce7be7dacfc98facb))
+
+### Refactoring
+
+- New image layout and organization ([#13](https://github.com/Monadical-SAS/cubbi/pull/13),
+  [`e5121dd`](https://github.com/Monadical-SAS/cubbi/commit/e5121ddea4230e78a05a85c4ce668e0c169b5ace))
+
+* refactor: rework how image are defined, in order to create others wrapper for others tools
+
+* refactor: fix issues with ownership
+
+* refactor: image share now information with others images type
+
+* fix: update readme
+
+
 ## v0.2.0 (2025-05-21)
 
 ### Continuous Integration
