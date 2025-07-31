@@ -111,5 +111,5 @@ class Config(BaseModel):
     images: Dict[str, Image] = Field(default_factory=dict)
     defaults: Dict[str, object] = Field(
         default_factory=dict
-    )  # Can store strings, booleans, or other values
+    )  # Can store strings, booleans, lists, or other values
     mcps: List[Dict[str, Any]] = Field(default_factory=list)

@@ -64,6 +64,7 @@ class ConfigManager:
             },
             defaults={
                 "image": "goose",
+                "domains": [],
             },
         )
 

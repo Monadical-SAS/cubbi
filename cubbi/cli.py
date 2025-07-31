@@ -179,6 +179,11 @@ def create_session(
         "-c",
         help="Override configuration values (KEY=VALUE) for this session only",
     ),
+    domains: List[str] = typer.Option(
+        [],
+        "--domains",
+        help="Restrict network access to specified domains/ports (e.g., 'example.com:443', 'api.github.com')",
+    ),
     verbose: bool = typer.Option(False, "--verbose", help="Enable verbose logging"),
 ) -> None:
     """Create a new Cubbi session
@@ -213,7 +218,6 @@ def create_session(
             else:
                 typed_value = value
             config_overrides[key] = typed_value
-            console.print(f"[blue]Config override: {key} = {typed_value}[/blue]")
         else:
             console.print(
                 f"[yellow]Warning: Ignoring invalid config format: {config_item}. Use KEY=VALUE.[/yellow]"
@@ -303,6 +307,18 @@ def create_session(
     # Combine default networks with user-specified networks, removing duplicates
     all_networks = list(set(default_networks + network))
 
+    # Get default domains from user config
+    default_domains = temp_user_config.get("defaults.domains", [])
+
+    # Combine default domains with user-specified domains
+    all_domains = default_domains + list(domains)
+
+    # Check for conflict between network and domains
+    if all_domains and all_networks:
+        console.print(
+            "[yellow]Warning: --domains cannot be used with --network. Network restrictions will take precedence.[/yellow]"
+        )
+
     # Get default MCPs from user config if none specified
     all_mcps = mcp if isinstance(mcp, list) else []
     if not all_mcps:
@@ -314,6 +330,9 @@ def create_session(
 
     if all_networks:
         console.print(f"Networks: {', '.join(all_networks)}")
+
+    if all_domains:
+        console.print(f"Domain restrictions: {', '.join(all_domains)}")
 
     # Show volumes that will be mounted
     if volume_mounts:
@@ -361,6 +380,7 @@ def create_session(
             ssh=ssh,
             model=final_model,
             provider=final_provider,
+            domains=all_domains,
         )
 
     if session:
