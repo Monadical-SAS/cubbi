@@ -182,6 +182,9 @@ class OpencodePlugin(ToolPlugin):
         else:
             config_data = {}
 
+        # Set default theme to system
+        config_data.setdefault("theme", "system")
+
         # Update with environment variables
         opencode_model = os.environ.get("CUBBI_MODEL")
         opencode_provider = os.environ.get("CUBBI_PROVIDER")
