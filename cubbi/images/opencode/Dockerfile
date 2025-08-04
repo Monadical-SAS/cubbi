@@ -67,6 +67,7 @@ RUN echo '[ -x /cubbi/init-status.sh ] && /cubbi/init-status.sh' >> /etc/bash.ba
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV UV_LINK_MODE=copy
+ENV COLORTERM=truecolor
 
 # Pre-install the cubbi_init
 RUN /cubbi/cubbi_init.py --help
