@@ -43,6 +43,7 @@ Then compile your first image:
 ```bash
 cubbi image build goose
 cubbi image build opencode
+cubbi image build crush
 ```
 
 ### For Developers
@@ -83,6 +84,7 @@ cubbi session close SESSION_ID
 # Create a session with a specific image
 cubbix --image goose
 cubbix --image opencode
+cubbix --image crush
 
 # Create a session with environment variables
 cubbix -e VAR1=value1 -e VAR2=value2
@@ -138,6 +140,7 @@ Cubbi includes an image management system that allows you to build, manage, and 
 | opencode   | no                |
 | claudecode | no                |
 | aider      | no                |
+| crush      | no                |
 
 ```bash
 # List available images
@@ -146,10 +149,12 @@ cubbi image list
 # Get detailed information about an image
 cubbi image info goose
 cubbi image info opencode
+cubbi image info crush
 
 # Build an image
 cubbi image build goose
 cubbi image build opencode
+cubbi image build crush
 ```
 
 Images are defined in the `cubbi/images/` directory, with each subdirectory containing:

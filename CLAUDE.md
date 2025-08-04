@@ -48,3 +48,15 @@ Use uv instead:
 - **Configuration**: Use environment variables with YAML for configuration
 
 Refer to SPECIFICATIONS.md for detailed architecture and implementation guidance.
+
+## Cubbi images
+
+A cubbi image is a flavored docker image that wrap a tool (let's say goose), and dynamically configure the tool when the image is starting. All cubbi images are defined in `cubbi/images` directory.
+
+Each image must have (let's take goose image for example):
+- `goose/cubbi_image.yaml`, list of persistent paths, etc.
+- `goose/Dockerfile`, that is used to build the cubbi image with cubbi tools
+- `goose/goose_plugin.py`, a plugin file named of the cubbi image name, that is specific for this image, with the intent to configure dynamically the docker image when starting with the preferences of the user (via environment variable). They all import `cubbi_init.py`, but this file is shared accross all images, so it is normal that execution of the plugin import does not work, because the build system will copy the file in place during the build.
+- `goose/README.md`, a tiny readme about the image
+
+If you are creating a new image, look about existing images (goose, opencode).
