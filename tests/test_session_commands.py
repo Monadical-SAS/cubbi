@@ -83,7 +83,9 @@ def test_session_close(cli_runner, mock_container_manager):
 
     assert result.exit_code == 0
     assert "closed successfully" in result.stdout
-    mock_container_manager.close_session.assert_called_once_with("test-session-id")
+    mock_container_manager.close_session.assert_called_once_with(
+        "test-session-id", kill=False
+    )
 
 
 def test_session_close_all(cli_runner, mock_container_manager):
@@ -214,7 +216,22 @@ def test_session_create_invalid_port_format(
     assert result.exit_code == 0
     assert "Warning: Ignoring invalid port format" in result.stdout
 
-    # Should not call create_session due to early return
+    # Session creation should continue with empty ports list (invalid port ignored)
+    mock_container_manager.create_session.assert_called_once()
+    call_args = mock_container_manager.create_session.call_args
+    assert call_args.kwargs["ports"] == []  # Invalid port should be ignored
+
+
+def test_session_create_invalid_port_range(
+    cli_runner, mock_container_manager, patched_config_manager
+):
+    """Test session creation with port outside valid range."""
+    result = cli_runner.invoke(app, ["session", "create", "--port", "70000"])
+
+    assert result.exit_code == 0
+    assert "Error: Invalid ports [70000]" in result.stdout
+
+    # Session creation should not happen due to early return
     mock_container_manager.create_session.assert_not_called()
 
 
@@ -236,6 +253,57 @@ def test_session_list_shows_ports(cli_runner, mock_container_manager):
     assert result.exit_code == 0
     assert "8000:32768" in result.stdout
     assert "3000:32769" in result.stdout
+
+
+def test_session_close_with_kill_flag(
+    cli_runner, mock_container_manager, patched_config_manager
+):
+    """Test session close with --kill flag."""
+    result = cli_runner.invoke(app, ["session", "close", "test-session-id", "--kill"])
+
+    assert result.exit_code == 0
+
+    # Verify close_session was called with kill=True
+    mock_container_manager.close_session.assert_called_once_with(
+        "test-session-id", kill=True
+    )
+
+
+def test_session_close_all_with_kill_flag(
+    cli_runner, mock_container_manager, patched_config_manager
+):
+    """Test session close --all with --kill flag."""
+    from cubbi.models import Session, SessionStatus
+
+    # Mock some sessions to close
+    mock_sessions = [
+        Session(
+            id="session-1",
+            name="Session 1",
+            image="goose",
+            status=SessionStatus.RUNNING,
+            ports={},
+        ),
+        Session(
+            id="session-2",
+            name="Session 2",
+            image="goose",
+            status=SessionStatus.RUNNING,
+            ports={},
+        ),
+    ]
+    mock_container_manager.list_sessions.return_value = mock_sessions
+    mock_container_manager.close_all_sessions.return_value = (2, True)
+
+    result = cli_runner.invoke(app, ["session", "close", "--all", "--kill"])
+
+    assert result.exit_code == 0
+    assert "2 sessions closed successfully" in result.stdout
+
+    # Verify close_all_sessions was called with kill=True
+    mock_container_manager.close_all_sessions.assert_called_once()
+    call_args = mock_container_manager.close_all_sessions.call_args
+    assert call_args.kwargs["kill"] is True
 
 
 # For more complex tests that need actual Docker,

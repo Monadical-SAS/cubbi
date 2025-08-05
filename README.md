@@ -77,6 +77,15 @@ cubbi session connect SESSION_ID
 # Close a session when done
 cubbi session close SESSION_ID
 
+# Close a session quickly (kill instead of graceful stop)
+cubbi session close SESSION_ID --kill
+
+# Close all sessions at once
+cubbi session close --all
+
+# Close all sessions quickly
+cubbi session close --all --kill
+
 # Create a session with a specific image
 cubbix --image goose
 cubbix --image opencode

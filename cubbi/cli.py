@@ -492,6 +492,9 @@ def create_session(
 def close_session(
     session_id: Optional[str] = typer.Argument(None, help="Session ID to close"),
     all_sessions: bool = typer.Option(False, "--all", help="Close all active sessions"),
+    kill: bool = typer.Option(
+        False, "--kill", help="Forcefully kill containers instead of graceful stop"
+    ),
 ) -> None:
     """Close a Cubbi session or all sessions"""
     if all_sessions:
@@ -515,7 +518,9 @@ def close_session(
                 )
 
         # Start closing sessions with progress updates
-        count, success = container_manager.close_all_sessions(update_progress)
+        count, success = container_manager.close_all_sessions(
+            update_progress, kill=kill
+        )
 
         # Final result
         if success:
@@ -524,7 +529,7 @@ def close_session(
             console.print("[red]Failed to close all sessions[/red]")
     elif session_id:
         with console.status(f"Closing session {session_id}..."):
-            success = container_manager.close_session(session_id)
+            success = container_manager.close_session(session_id, kill=kill)
 
         if success:
             console.print(f"[green]Session {session_id} closed successfully[/green]")
