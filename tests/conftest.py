@@ -43,13 +43,6 @@ requires_docker = pytest.mark.skipif(
 
 
 @pytest.fixture
-def temp_dir():
-    """Create a temporary directory for test files."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        yield Path(tmp_dir)
-
-
-@pytest.fixture
 def temp_config_dir():
     """Create a temporary directory for configuration files."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -88,28 +81,23 @@ def cli_runner():
 
 
 @pytest.fixture
-def test_file_content(temp_dir):
-    """Create a test file with content in the temporary directory."""
+def test_file_content(temp_config_dir):
+    """Create a test file with content in a temporary directory."""
     test_content = "This is a test file for volume mounting"
-    test_file = temp_dir / "test_volume_file.txt"
+    test_file = temp_config_dir / "test_volume_file.txt"
     with open(test_file, "w") as f:
         f.write(test_content)
     return test_file, test_content
 
 
 @pytest.fixture
-def test_network_name():
-    """Generate a unique network name for testing."""
-    return f"cubbi-test-network-{uuid.uuid4().hex[:8]}"
-
-
-@pytest.fixture
-def docker_test_network(test_network_name):
+def docker_test_network():
     """Create a Docker network for testing and clean it up after."""
     if not is_docker_available():
         pytest.skip("Docker is not available")
         return None
 
+    test_network_name = f"cubbi-test-network-{uuid.uuid4().hex[:8]}"
     client = docker.from_env()
     network = client.networks.create(test_network_name, driver="bridge")
 
