@@ -2,7 +2,7 @@
 
 # Cubbi - Container Tool
 
-Cubbi is a command-line tool for managing ephemeral containers that run AI tools and development environments, with support for MCP servers.
+Cubbi is a command-line tool for managing ephemeral containers that run AI tools and development environments, with support for MCP servers. It supports [Aider](https://github.com/Aider-AI/aider), [Crush](https://github.com/charmbracelet/crush), [Claude Code](https://github.com/anthropics/claude-code), [Goose](https://github.com/block/goose), [Opencode](https://github.com/sst/opencode).
 
 ![PyPI - Version](https://img.shields.io/pypi/v/cubbi)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cubbi)
@@ -17,7 +17,6 @@ Cubbi is a command-line tool for managing ephemeral containers that run AI tools
 - `cubbix` - Shortcut for `cubbi session create`
 - `cubbix .` - Mount the current directory
 - `cubbix /path/to/dir` - Mount a specific directory
-- `cubbix https://github.com/user/repo` - Clone a repository
 
 ## 📋 Requirements
 
@@ -27,9 +26,6 @@ Cubbi is a command-line tool for managing ephemeral containers that run AI tools
 ## 📥 Installation
 
 ```bash
-# Via pip
-pip install cubbi
-
 # Via uv
 uv tool install cubbi
 
