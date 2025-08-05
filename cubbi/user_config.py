@@ -96,6 +96,7 @@ class UserConfigManager:
                 "mount_local": True,
                 "networks": [],  # Default networks to connect to (besides cubbi-network)
                 "volumes": [],  # Default volumes to mount, format: "source:dest"
+                "ports": [],  # Default ports to forward, format: list of integers
                 "mcps": [],  # Default MCP servers to connect to
                 "model": "claude-3-5-sonnet-latest",  # Default LLM model to use
                 "provider": "anthropic",  # Default LLM provider to use

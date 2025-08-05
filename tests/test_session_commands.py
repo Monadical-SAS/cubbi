@@ -113,6 +113,131 @@ def test_session_close_all(cli_runner, mock_container_manager):
     mock_container_manager.close_all_sessions.assert_called_once()
 
 
+def test_session_create_with_ports(
+    cli_runner, mock_container_manager, patched_config_manager
+):
+    """Test session creation with port forwarding."""
+    from cubbi.models import Session, SessionStatus
+
+    # Mock the create_session to return a session with ports
+    mock_session = Session(
+        id="test-session-id",
+        name="test-session",
+        image="goose",
+        status=SessionStatus.RUNNING,
+        ports={8000: 32768, 3000: 32769},
+    )
+    mock_container_manager.create_session.return_value = mock_session
+
+    result = cli_runner.invoke(app, ["session", "create", "--port", "8000,3000"])
+
+    assert result.exit_code == 0
+    assert "Session created successfully" in result.stdout
+    assert "Forwarding ports: 8000, 3000" in result.stdout
+
+    # Verify create_session was called with correct ports
+    mock_container_manager.create_session.assert_called_once()
+    call_args = mock_container_manager.create_session.call_args
+    assert call_args.kwargs["ports"] == [8000, 3000]
+
+
+def test_session_create_with_default_ports(
+    cli_runner, mock_container_manager, patched_config_manager
+):
+    """Test session creation using default ports."""
+    from cubbi.models import Session, SessionStatus
+
+    # Set up default ports
+    patched_config_manager.set("defaults.ports", [8080, 9000])
+
+    # Mock the create_session to return a session with ports
+    mock_session = Session(
+        id="test-session-id",
+        name="test-session",
+        image="goose",
+        status=SessionStatus.RUNNING,
+        ports={8080: 32768, 9000: 32769},
+    )
+    mock_container_manager.create_session.return_value = mock_session
+
+    result = cli_runner.invoke(app, ["session", "create"])
+
+    assert result.exit_code == 0
+    assert "Session created successfully" in result.stdout
+    assert "Forwarding ports: 8080, 9000" in result.stdout
+
+    # Verify create_session was called with default ports
+    mock_container_manager.create_session.assert_called_once()
+    call_args = mock_container_manager.create_session.call_args
+    assert call_args.kwargs["ports"] == [8080, 9000]
+
+
+def test_session_create_combine_default_and_custom_ports(
+    cli_runner, mock_container_manager, patched_config_manager
+):
+    """Test session creation combining default and custom ports."""
+    from cubbi.models import Session, SessionStatus
+
+    # Set up default ports
+    patched_config_manager.set("defaults.ports", [8080])
+
+    # Mock the create_session to return a session with combined ports
+    mock_session = Session(
+        id="test-session-id",
+        name="test-session",
+        image="goose",
+        status=SessionStatus.RUNNING,
+        ports={8080: 32768, 3000: 32769},
+    )
+    mock_container_manager.create_session.return_value = mock_session
+
+    result = cli_runner.invoke(app, ["session", "create", "--port", "3000"])
+
+    assert result.exit_code == 0
+    assert "Session created successfully" in result.stdout
+    # Ports should be combined and deduplicated
+    assert "Forwarding ports:" in result.stdout
+
+    # Verify create_session was called with combined ports
+    mock_container_manager.create_session.assert_called_once()
+    call_args = mock_container_manager.create_session.call_args
+    # Should contain both default (8080) and custom (3000) ports
+    assert set(call_args.kwargs["ports"]) == {8080, 3000}
+
+
+def test_session_create_invalid_port_format(
+    cli_runner, mock_container_manager, patched_config_manager
+):
+    """Test session creation with invalid port format."""
+    result = cli_runner.invoke(app, ["session", "create", "--port", "invalid"])
+
+    assert result.exit_code == 0
+    assert "Warning: Ignoring invalid port format" in result.stdout
+
+    # Should not call create_session due to early return
+    mock_container_manager.create_session.assert_not_called()
+
+
+def test_session_list_shows_ports(cli_runner, mock_container_manager):
+    """Test that session list shows port mappings."""
+    from cubbi.models import Session, SessionStatus
+
+    mock_session = Session(
+        id="test-session-id",
+        name="test-session",
+        image="goose",
+        status=SessionStatus.RUNNING,
+        ports={8000: 32768, 3000: 32769},
+    )
+    mock_container_manager.list_sessions.return_value = [mock_session]
+
+    result = cli_runner.invoke(app, ["session", "list"])
+
+    assert result.exit_code == 0
+    assert "8000:32768" in result.stdout
+    assert "3000:32769" in result.stdout
+
+
 # For more complex tests that need actual Docker,
 # we've implemented them in test_integration_docker.py
 # They will run automatically if Docker is available

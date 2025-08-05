@@ -9,8 +9,6 @@ init:
   command: /entrypoint.sh
 
 environment: []
-ports: []
-
 volumes:
   - mountPath: /app
     description: Application directory

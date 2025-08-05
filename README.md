@@ -93,6 +93,11 @@ cubbix -v ~/data:/data -v ./configs:/etc/app/config
 cubbix .
 cubbix /path/to/project
 
+# Forward ports from container to host
+cubbix --port 8000                    # Forward port 8000
+cubbix --port 8000,3000,5173         # Forward multiple ports (comma-separated)
+cubbix --port 8000 --port 3000       # Forward multiple ports (repeated flag)
+
 # Connect to external Docker networks
 cubbix --network teamnet --network dbnet
 
@@ -234,6 +239,26 @@ cubbi config volume remove /local/path
 ```
 
 Default volumes will be combined with any volumes specified using the `-v` flag when creating a session.
+
+### Default Ports Configuration
+
+You can configure default ports that will be automatically forwarded in every new session:
+
+```bash
+# List default ports
+cubbi config port list
+
+# Add a single port to defaults
+cubbi config port add 8000
+
+# Add multiple ports to defaults (comma-separated)
+cubbi config port add 8000,3000,5173
+
+# Remove a port from defaults
+cubbi config port remove 8000
+```
+
+Default ports will be combined with any ports specified using the `--port` flag when creating a session.
 
 ### Default MCP Servers Configuration
 

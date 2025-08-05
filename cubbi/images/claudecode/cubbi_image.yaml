@@ -50,8 +50,6 @@ environment:
     required: false
     default: "false"
 
-ports: []
-
 volumes:
   - mountPath: /app
     description: Application directory

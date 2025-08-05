@@ -154,6 +154,7 @@ class ContainerManager:
         mount_local: bool = False,
         volumes: Optional[Dict[str, Dict[str, str]]] = None,
         networks: Optional[List[str]] = None,
+        ports: Optional[List[int]] = None,
         mcp: Optional[List[str]] = None,
         run_command: Optional[str] = None,
         no_shell: bool = False,
@@ -634,8 +635,11 @@ class ContainerManager:
                 },
                 "command": container_command,  # Set the command
                 "entrypoint": entrypoint,  # Set the entrypoint (might be None)
-                "ports": {f"{port}/tcp": None for port in image.ports},
             }
+
+            # Add port forwarding if ports are specified
+            if ports:
+                container_params["ports"] = {f"{port}/tcp": None for port in ports}
 
             # Use network_mode if domains are specified, otherwise use regular network
             if network_mode:

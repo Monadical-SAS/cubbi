@@ -70,8 +70,6 @@ environment:
     description: HTTPS proxy server URL
     required: false
 
-ports: []
-
 volumes:
   - mountPath: /app
     description: Application directory
