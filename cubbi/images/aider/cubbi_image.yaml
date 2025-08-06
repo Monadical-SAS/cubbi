@@ -74,13 +74,4 @@ volumes:
   - mountPath: /app
     description: Application directory
 
-persistent_configs:
-  - source: "/home/cubbi/.aider"
-    target: "/cubbi-config/aider-settings"
-    type: "directory"
-    description: "Aider configuration and history"
-
-  - source: "/home/cubbi/.cache/aider"
-    target: "/cubbi-config/aider-cache"
-    type: "directory"
-    description: "Aider cache directory"
+persistent_configs: []

@@ -40,12 +40,4 @@ volumes:
   - mountPath: /app
     description: Application directory
 
-persistent_configs:
-  - source: "/home/cubbi/.config/crush"
-    target: "/cubbi-config/crush-config"
-    type: "directory"
-    description: "Crush configuration directory"
-  - source: "/app/.crush"
-    target: "/cubbi-config/crush-app"
-    type: "directory"
-    description: "Crush application data and sessions"
+persistent_configs: []
