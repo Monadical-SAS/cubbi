@@ -272,13 +272,22 @@ class UserConfigManager:
     def get_environment_variables(self) -> Dict[str, str]:
         """Get environment variables from the configuration.
 
+        NOTE: API keys are now handled by cubbi_init plugins, not passed from host.
+
         Returns:
             A dictionary of environment variables to set in the container.
         """
         env_vars = {}
 
         # Process the legacy service configurations and map to environment variables
+        # BUT EXCLUDE API KEYS - they're now handled by cubbi_init
         for config_path, env_var in LEGACY_ENV_MAPPINGS.items():
+            # Skip API key environment variables - let cubbi_init handle them
+            if any(
+                key_word in env_var.upper() for key_word in ["API_KEY", "SECRET_KEY"]
+            ):
+                continue
+
             value = self.get(config_path)
             if value:
                 # Handle environment variable references
@@ -292,32 +301,9 @@ class UserConfigManager:
 
                 env_vars[env_var] = str(value)
 
-        # Add provider-based environment variables for backward compatibility
-        # This ensures existing plugins still work while we transition
-        providers = self.get("providers", {})
-        for provider_name, provider_config in providers.items():
-            provider_type = provider_config.get("type", provider_name)
-            api_key = provider_config.get("api_key", "")
-            base_url = provider_config.get("base_url")
-
-            # Resolve environment variable references
-            if api_key.startswith("${") and api_key.endswith("}"):
-                env_var_name = api_key[2:-1]
-                resolved_api_key = os.environ.get(env_var_name, "")
-            else:
-                resolved_api_key = api_key
-
-            # Add standard environment variables based on provider type
-            if provider_type == "anthropic" and resolved_api_key:
-                env_vars["ANTHROPIC_API_KEY"] = resolved_api_key
-            elif provider_type == "openai" and resolved_api_key:
-                env_vars["OPENAI_API_KEY"] = resolved_api_key
-                if base_url:
-                    env_vars["OPENAI_URL"] = base_url
-            elif provider_type == "google" and resolved_api_key:
-                env_vars["GOOGLE_API_KEY"] = resolved_api_key
-            elif provider_type == "openrouter" and resolved_api_key:
-                env_vars["OPENROUTER_API_KEY"] = resolved_api_key
+        # NOTE: Provider API keys are no longer passed as environment variables
+        # They are now handled by cubbi_init plugins based on selected model
+        # This prevents unused API keys from being exposed in containers
 
         return env_vars
 
