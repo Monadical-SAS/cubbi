@@ -28,8 +28,4 @@ volumes:
   - mountPath: /app
     description: Application directory
 
-persistent_configs:
-  - source: "/app/.goose"
-    target: "/cubbi-config/goose-app"
-    type: "directory"
-    description: "Goose memory"
+persistent_configs: []

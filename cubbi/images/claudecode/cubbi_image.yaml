@@ -54,13 +54,4 @@ volumes:
   - mountPath: /app
     description: Application directory
 
-persistent_configs:
-  - source: "/home/cubbi/.claude"
-    target: "/cubbi-config/claude-settings"
-    type: "directory"
-    description: "Claude Code settings and configuration"
-
-  - source: "/home/cubbi/.cache/claude"
-    target: "/cubbi-config/claude-cache"
-    type: "directory"
-    description: "Claude Code cache directory"
+persistent_configs: []
