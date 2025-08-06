@@ -94,14 +94,27 @@ class GoosePlugin(ToolPlugin):
             config_data["GOOSE_MODEL"] = model_name
             config_data["GOOSE_PROVIDER"] = provider_config.type
 
+            # Set the specific API key for the selected provider only
+            if provider_config.type == "anthropic" and provider_config.api_key:
+                config_data["ANTHROPIC_API_KEY"] = provider_config.api_key
+                self.status.log("Set Anthropic API key for selected model")
+            elif provider_config.type == "openai" and provider_config.api_key:
+                config_data["OPENAI_API_KEY"] = provider_config.api_key
+                self.status.log("Set OpenAI API key for selected model")
+                # Set base URL for OpenAI-compatible providers
+                if provider_config.base_url:
+                    config_data["OPENAI_HOST"] = provider_config.base_url
+                    self.status.log(f"Set OPENAI_HOST to {provider_config.base_url}")
+            elif provider_config.type == "google" and provider_config.api_key:
+                config_data["GOOGLE_API_KEY"] = provider_config.api_key
+                self.status.log("Set Google API key for selected model")
+            elif provider_config.type == "openrouter" and provider_config.api_key:
+                config_data["OPENROUTER_API_KEY"] = provider_config.api_key
+                self.status.log("Set OpenRouter API key for selected model")
+
             self.status.log(
                 f"Configured Goose: model={model_name}, provider={provider_config.type}"
             )
-
-            # Set base URL for OpenAI-compatible providers
-            if provider_config.type == "openai" and provider_config.base_url:
-                config_data["OPENAI_HOST"] = provider_config.base_url
-                self.status.log(f"Set OPENAI_HOST to {provider_config.base_url}")
         else:
             self.status.log("No default model or provider configured", "WARNING")
 

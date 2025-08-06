@@ -144,13 +144,37 @@ Cubbi includes an image management system that allows you to build, manage, and 
 
 **Supported Images**
 
-| Image Name | Langtrace Support |
-|------------|-------------------|
-| goose      | yes               |
-| opencode   | no                |
-| claudecode | no                |
-| aider      | no                |
-| crush      | no                |
+| Image Name | Langtrace Support | Single Prompt Command |
+|------------|-------------------|----------------------|
+| goose      | yes               | `goose run -t 'prompt' --no-session --quiet` |
+| opencode   | no                | `opencode run -m MODEL 'prompt'` |
+| claudecode | no                | `claude -p 'prompt'` |
+| aider      | no                | `aider --message 'prompt' --yes-always --no-fancy-input` |
+| crush      | no                | `crush run 'prompt'` |
+
+**Automated Testing:**
+
+Each image can be tested with single prompt commands using different models:
+
+```bash
+# Test a single image with a specific model
+cubbix -i goose -m anthropic/claude-sonnet-4-20250514 --no-connect --no-shell --run "goose run -t 'What is 2+2?' --no-session --quiet"
+
+# Test aider with non-interactive flags
+cubbix -i aider -m openai/gpt-4o --no-connect --no-shell --run "aider --message 'What is 2+2?' --yes-always --no-fancy-input --no-check-update"
+
+# Test claude-code (note: binary name is 'claude', not 'claude-code')
+cubbix -i claudecode -m anthropic/claude-sonnet-4-20250514 --no-connect --no-shell --run "claude -p 'What is 2+2?'"
+
+# Test opencode with model specification
+cubbix -i opencode -m anthropic/claude-sonnet-4-20250514 --no-connect --no-shell --run "opencode run -m anthropic/claude-sonnet-4-20250514 'What is 2+2?'"
+
+# Test crush
+cubbix -i crush -m anthropic/claude-sonnet-4-20250514 --no-connect --no-shell --run "crush run 'What is 2+2?'"
+
+# Run comprehensive test suite (requires test.sh script)
+./test.sh  # Tests all images with multiple models: anthropic/claude-sonnet-4-20250514, openai/gpt-4o, openrouter/openai/gpt-4o, litellm/gpt-oss:120b
+```
 
 ```bash
 # List available images
