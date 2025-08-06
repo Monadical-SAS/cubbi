@@ -1,6 +1,35 @@
 # CHANGELOG
 
 
+## v0.4.0 (2025-08-06)
+
+### Documentation
+
+- Update readme ([#25](https://github.com/Monadical-SAS/cubbi/pull/25),
+  [`9dc1158`](https://github.com/Monadical-SAS/cubbi/commit/9dc11582a21371a069d407390308340a87358a9f))
+
+doc: update readme
+
+### Features
+
+- Add user port support ([#26](https://github.com/Monadical-SAS/cubbi/pull/26),
+  [`75c9849`](https://github.com/Monadical-SAS/cubbi/commit/75c9849315aebb41ffbd5ac942c7eb3c4a151663))
+
+* feat: add user port support
+
+* fix: fix unit test and improve isolation
+
+* refactor: remove some fixture
+
+- Make opencode beautiful by default ([#24](https://github.com/Monadical-SAS/cubbi/pull/24),
+  [`b8ecad6`](https://github.com/Monadical-SAS/cubbi/commit/b8ecad6227f6a328517edfc442cd9bcf4d3361dc))
+
+opencode: try having compatible default theme
+
+- Support for crush ([#23](https://github.com/Monadical-SAS/cubbi/pull/23),
+  [`472f030`](https://github.com/Monadical-SAS/cubbi/commit/472f030924e58973dea0a41188950540550c125d))
+
+
 ## v0.3.0 (2025-07-31)
 
 ### Bug Fixes
