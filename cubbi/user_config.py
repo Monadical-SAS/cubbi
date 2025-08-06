@@ -8,8 +8,28 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-# Define the environment variable mappings
-ENV_MAPPINGS = {
+# Define the environment variable mappings for auto-discovery
+STANDARD_PROVIDERS = {
+    "anthropic": {
+        "type": "anthropic",
+        "env_key": "ANTHROPIC_API_KEY",
+    },
+    "openai": {
+        "type": "openai",
+        "env_key": "OPENAI_API_KEY",
+    },
+    "google": {
+        "type": "google",
+        "env_key": "GOOGLE_API_KEY",
+    },
+    "openrouter": {
+        "type": "openrouter",
+        "env_key": "OPENROUTER_API_KEY",
+    },
+}
+
+# Legacy environment variable mappings (kept for backward compatibility)
+LEGACY_ENV_MAPPINGS = {
     "services.langfuse.url": "LANGFUSE_URL",
     "services.langfuse.public_key": "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
     "services.langfuse.secret_key": "LANGFUSE_INIT_PROJECT_SECRET_KEY",
@@ -44,6 +64,10 @@ class UserConfigManager:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
             # Create default config
             default_config = self._get_default_config()
+
+            # Auto-discover and add providers from environment for new configs
+            self._auto_discover_providers(default_config)
+
             # Save to file
             with open(self.config_path, "w") as f:
                 yaml.safe_dump(default_config, f)
@@ -85,7 +109,12 @@ class UserConfigManager:
                 config = {}
 
         # Merge with defaults for any missing fields
-        return self._merge_with_defaults(config)
+        config = self._merge_with_defaults(config)
+
+        # Auto-discover and add providers from environment
+        self._auto_discover_providers(config)
+
+        return config
 
     def _get_default_config(self) -> Dict[str, Any]:
         """Get the default configuration."""
@@ -98,15 +127,11 @@ class UserConfigManager:
                 "volumes": [],  # Default volumes to mount, format: "source:dest"
                 "ports": [],  # Default ports to forward, format: list of integers
                 "mcps": [],  # Default MCP servers to connect to
-                "model": "claude-3-5-sonnet-latest",  # Default LLM model to use
-                "provider": "anthropic",  # Default LLM provider to use
+                "model": "anthropic/claude-3-5-sonnet-latest",  # Default LLM model (provider/model format)
             },
+            "providers": {},  # LLM providers configuration
             "services": {
-                "langfuse": {},
-                "openai": {},
-                "anthropic": {},
-                "openrouter": {},
-                "google": {},
+                "langfuse": {},  # Keep langfuse in services as it's not an LLM provider
             },
             "docker": {
                 "network": "cubbi-network",
@@ -148,7 +173,7 @@ class UserConfigManager:
             and not key_path.startswith("services.")
             and not any(
                 key_path.startswith(section + ".")
-                for section in ["defaults", "docker", "remote", "ui"]
+                for section in ["defaults", "docker", "remote", "ui", "providers"]
             )
         ):
             service, setting = key_path.split(".", 1)
@@ -177,7 +202,7 @@ class UserConfigManager:
             and not key_path.startswith("services.")
             and not any(
                 key_path.startswith(section + ".")
-                for section in ["defaults", "docker", "remote", "ui"]
+                for section in ["defaults", "docker", "remote", "ui", "providers"]
             )
         ):
             service, setting = key_path.split(".", 1)
@@ -252,8 +277,8 @@ class UserConfigManager:
         """
         env_vars = {}
 
-        # Process the service configurations and map to environment variables
-        for config_path, env_var in ENV_MAPPINGS.items():
+        # Process the legacy service configurations and map to environment variables
+        for config_path, env_var in LEGACY_ENV_MAPPINGS.items():
             value = self.get(config_path)
             if value:
                 # Handle environment variable references
@@ -266,6 +291,91 @@ class UserConfigManager:
                     value = os.environ.get(env_var_name, "")
 
                 env_vars[env_var] = str(value)
+
+        # Add provider-based environment variables for backward compatibility
+        # This ensures existing plugins still work while we transition
+        providers = self.get("providers", {})
+        for provider_name, provider_config in providers.items():
+            provider_type = provider_config.get("type", provider_name)
+            api_key = provider_config.get("api_key", "")
+            base_url = provider_config.get("base_url")
+
+            # Resolve environment variable references
+            if api_key.startswith("${") and api_key.endswith("}"):
+                env_var_name = api_key[2:-1]
+                resolved_api_key = os.environ.get(env_var_name, "")
+            else:
+                resolved_api_key = api_key
+
+            # Add standard environment variables based on provider type
+            if provider_type == "anthropic" and resolved_api_key:
+                env_vars["ANTHROPIC_API_KEY"] = resolved_api_key
+            elif provider_type == "openai" and resolved_api_key:
+                env_vars["OPENAI_API_KEY"] = resolved_api_key
+                if base_url:
+                    env_vars["OPENAI_URL"] = base_url
+            elif provider_type == "google" and resolved_api_key:
+                env_vars["GOOGLE_API_KEY"] = resolved_api_key
+            elif provider_type == "openrouter" and resolved_api_key:
+                env_vars["OPENROUTER_API_KEY"] = resolved_api_key
+
+        return env_vars
+
+    def get_provider_environment_variables(self, provider_name: str) -> Dict[str, str]:
+        """Get environment variables for a specific provider.
+
+        Args:
+            provider_name: Name of the provider to get environment variables for
+
+        Returns:
+            Dictionary of environment variables for the provider
+        """
+        env_vars = {}
+        provider_config = self.get_provider(provider_name)
+
+        if not provider_config:
+            return env_vars
+
+        provider_type = provider_config.get("type", provider_name)
+        api_key = provider_config.get("api_key", "")
+        base_url = provider_config.get("base_url")
+
+        # Resolve environment variable references
+        if api_key.startswith("${") and api_key.endswith("}"):
+            env_var_name = api_key[2:-1]
+            resolved_api_key = os.environ.get(env_var_name, "")
+        else:
+            resolved_api_key = api_key
+
+        if not resolved_api_key:
+            return env_vars
+
+        # Add environment variables based on provider type
+        if provider_type == "anthropic":
+            env_vars["ANTHROPIC_API_KEY"] = resolved_api_key
+        elif provider_type == "openai":
+            env_vars["OPENAI_API_KEY"] = resolved_api_key
+            if base_url:
+                env_vars["OPENAI_URL"] = base_url
+        elif provider_type == "google":
+            env_vars["GOOGLE_API_KEY"] = resolved_api_key
+        elif provider_type == "openrouter":
+            env_vars["OPENROUTER_API_KEY"] = resolved_api_key
+
+        return env_vars
+
+    def get_all_providers_environment_variables(self) -> Dict[str, str]:
+        """Get environment variables for all configured providers.
+
+        Returns:
+            Dictionary of all provider environment variables
+        """
+        env_vars = {}
+        providers = self.get("providers", {})
+
+        for provider_name in providers.keys():
+            provider_env = self.get_provider_environment_variables(provider_name)
+            env_vars.update(provider_env)
 
         return env_vars
 
@@ -295,3 +405,247 @@ class UserConfigManager:
 
         _flatten_dict(self.config)
         return sorted(result)
+
+    def _auto_discover_providers(self, config: Dict[str, Any]) -> None:
+        """Auto-discover providers from environment variables."""
+        if "providers" not in config:
+            config["providers"] = {}
+
+        for provider_name, provider_info in STANDARD_PROVIDERS.items():
+            # Skip if provider already configured
+            if provider_name in config["providers"]:
+                continue
+
+            # Check if environment variable exists
+            api_key = os.environ.get(provider_info["env_key"])
+            if api_key:
+                config["providers"][provider_name] = {
+                    "type": provider_info["type"],
+                    "api_key": f"${{{provider_info['env_key']}}}",  # Reference to env var
+                }
+
+    def get_provider(self, provider_name: str) -> Optional[Dict[str, Any]]:
+        """Get a provider configuration by name."""
+        return self.get(f"providers.{provider_name}")
+
+    def list_providers(self) -> Dict[str, Dict[str, Any]]:
+        """Get all configured providers."""
+        return self.get("providers", {})
+
+    def add_provider(
+        self,
+        name: str,
+        provider_type: str,
+        api_key: str,
+        base_url: Optional[str] = None,
+        env_key: Optional[str] = None,
+    ) -> None:
+        """Add a new provider configuration.
+
+        Args:
+            name: Provider name/identifier
+            provider_type: Type of provider (anthropic, openai, etc.)
+            api_key: API key value or environment variable reference
+            base_url: Custom base URL for API calls (optional)
+            env_key: If provided, use env reference instead of direct api_key
+        """
+        provider_config = {
+            "type": provider_type,
+            "api_key": f"${{{env_key}}}" if env_key else api_key,
+        }
+
+        if base_url:
+            provider_config["base_url"] = base_url
+
+        self.set(f"providers.{name}", provider_config)
+
+    def remove_provider(self, name: str) -> bool:
+        """Remove a provider configuration.
+
+        Returns:
+            True if provider was removed, False if it didn't exist
+        """
+        providers = self.get("providers", {})
+        if name in providers:
+            del providers[name]
+            self.set("providers", providers)
+            return True
+        return False
+
+    def resolve_model(self, model_spec: str) -> Optional[Dict[str, Any]]:
+        """Resolve a model specification (provider/model) to provider config.
+
+        Args:
+            model_spec: Model specification in format "provider/model"
+
+        Returns:
+            Dictionary with resolved provider config and model name
+        """
+        if "/" not in model_spec:
+            # Legacy format - try to use as provider name with empty model
+            provider_name = model_spec
+            model_name = ""
+        else:
+            provider_name, model_name = model_spec.split("/", 1)
+
+        provider_config = self.get_provider(provider_name)
+        if not provider_config:
+            return None
+
+        # Resolve environment variable references in API key
+        api_key = provider_config.get("api_key", "")
+        if api_key.startswith("${") and api_key.endswith("}"):
+            env_var_name = api_key[2:-1]
+            resolved_api_key = os.environ.get(env_var_name, "")
+        else:
+            resolved_api_key = api_key
+
+        return {
+            "provider_name": provider_name,
+            "provider_type": provider_config.get("type", provider_name),
+            "model_name": model_name,
+            "api_key": resolved_api_key,
+            "base_url": provider_config.get("base_url"),
+        }
+
+    # Resource management methods
+    def list_mcps(self) -> List[str]:
+        """Get all configured default MCP servers."""
+        return self.get("defaults.mcps", [])
+
+    def add_mcp(self, name: str) -> None:
+        """Add a new default MCP server."""
+        mcps = self.list_mcps()
+        if name not in mcps:
+            mcps.append(name)
+            self.set("defaults.mcps", mcps)
+
+    def remove_mcp(self, name: str) -> bool:
+        """Remove a default MCP server.
+
+        Returns:
+            True if MCP was removed, False if it didn't exist
+        """
+        mcps = self.list_mcps()
+        if name in mcps:
+            mcps.remove(name)
+            self.set("defaults.mcps", mcps)
+            return True
+        return False
+
+    def list_mcp_configurations(self) -> List[Dict[str, Any]]:
+        """Get all configured MCP server configurations."""
+        return self.get("mcps", [])
+
+    def get_mcp_configuration(self, name: str) -> Optional[Dict[str, Any]]:
+        """Get an MCP configuration by name."""
+        mcps = self.list_mcp_configurations()
+        for mcp in mcps:
+            if mcp.get("name") == name:
+                return mcp
+        return None
+
+    def add_mcp_configuration(self, mcp_config: Dict[str, Any]) -> None:
+        """Add a new MCP server configuration."""
+        mcps = self.list_mcp_configurations()
+
+        # Remove existing MCP with the same name if it exists
+        mcps = [mcp for mcp in mcps if mcp.get("name") != mcp_config.get("name")]
+
+        # Add the new MCP
+        mcps.append(mcp_config)
+
+        # Save the configuration
+        self.set("mcps", mcps)
+
+    def remove_mcp_configuration(self, name: str) -> bool:
+        """Remove an MCP server configuration.
+
+        Returns:
+            True if MCP was removed, False if it didn't exist
+        """
+        mcps = self.list_mcp_configurations()
+        original_length = len(mcps)
+
+        # Filter out the MCP with the specified name
+        mcps = [mcp for mcp in mcps if mcp.get("name") != name]
+
+        if len(mcps) < original_length:
+            self.set("mcps", mcps)
+
+            # Also remove from defaults if it's there
+            self.remove_mcp(name)
+            return True
+        return False
+
+    def list_networks(self) -> List[str]:
+        """Get all configured default networks."""
+        return self.get("defaults.networks", [])
+
+    def add_network(self, name: str) -> None:
+        """Add a new default network."""
+        networks = self.list_networks()
+        if name not in networks:
+            networks.append(name)
+            self.set("defaults.networks", networks)
+
+    def remove_network(self, name: str) -> bool:
+        """Remove a default network.
+
+        Returns:
+            True if network was removed, False if it didn't exist
+        """
+        networks = self.list_networks()
+        if name in networks:
+            networks.remove(name)
+            self.set("defaults.networks", networks)
+            return True
+        return False
+
+    def list_volumes(self) -> List[str]:
+        """Get all configured default volumes."""
+        return self.get("defaults.volumes", [])
+
+    def add_volume(self, volume: str) -> None:
+        """Add a new default volume mapping."""
+        volumes = self.list_volumes()
+        if volume not in volumes:
+            volumes.append(volume)
+            self.set("defaults.volumes", volumes)
+
+    def remove_volume(self, volume: str) -> bool:
+        """Remove a default volume mapping.
+
+        Returns:
+            True if volume was removed, False if it didn't exist
+        """
+        volumes = self.list_volumes()
+        if volume in volumes:
+            volumes.remove(volume)
+            self.set("defaults.volumes", volumes)
+            return True
+        return False
+
+    def list_ports(self) -> List[int]:
+        """Get all configured default ports."""
+        return self.get("defaults.ports", [])
+
+    def add_port(self, port: int) -> None:
+        """Add a new default port."""
+        ports = self.list_ports()
+        if port not in ports:
+            ports.append(port)
+            self.set("defaults.ports", ports)
+
+    def remove_port(self, port: int) -> bool:
+        """Remove a default port.
+
+        Returns:
+            True if port was removed, False if it didn't exist
+        """
+        ports = self.list_ports()
+        if port in ports:
+            ports.remove(port)
+            self.set("defaults.ports", ports)
+            return True
+        return False
