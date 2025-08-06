@@ -51,7 +51,6 @@ class Image(BaseModel):
     image: str
     init: Optional[ImageInit] = None
     environment: List[ImageEnvironmentVariable] = []
-    ports: List[int] = []
     volumes: List[VolumeMount] = []
     persistent_configs: List[PersistentConfig] = []
 

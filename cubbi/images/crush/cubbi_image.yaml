@@ -36,9 +36,6 @@ environment:
     description: AI provider to use with crush
     required: false
 
-ports:
-  - 8000
-
 volumes:
   - mountPath: /app
     description: Application directory

@@ -154,6 +154,7 @@ class ContainerManager:
         mount_local: bool = False,
         volumes: Optional[Dict[str, Dict[str, str]]] = None,
         networks: Optional[List[str]] = None,
+        ports: Optional[List[int]] = None,
         mcp: Optional[List[str]] = None,
         run_command: Optional[str] = None,
         no_shell: bool = False,
@@ -634,8 +635,11 @@ class ContainerManager:
                 },
                 "command": container_command,  # Set the command
                 "entrypoint": entrypoint,  # Set the entrypoint (might be None)
-                "ports": {f"{port}/tcp": None for port in image.ports},
             }
+
+            # Add port forwarding if ports are specified
+            if ports:
+                container_params["ports"] = {f"{port}/tcp": None for port in ports}
 
             # Use network_mode if domains are specified, otherwise use regular network
             if network_mode:
@@ -773,13 +777,18 @@ class ContainerManager:
 
             return None
 
-    def close_session(self, session_id: str) -> bool:
-        """Close a Cubbi session"""
+    def close_session(self, session_id: str, kill: bool = False) -> bool:
+        """Close a Cubbi session
+
+        Args:
+            session_id: The ID of the session to close
+            kill: If True, forcefully kill the container instead of graceful stop
+        """
         try:
             sessions = self.list_sessions()
             for session in sessions:
                 if session.id == session_id:
-                    return self._close_single_session(session)
+                    return self._close_single_session(session, kill=kill)
 
             print(f"Session '{session_id}' not found")
             return False
@@ -856,11 +865,12 @@ class ContainerManager:
             print(f"Error connecting to session: {e}")
             return False
 
-    def _close_single_session(self, session: Session) -> bool:
+    def _close_single_session(self, session: Session, kill: bool = False) -> bool:
         """Close a single session (helper for parallel processing)
 
         Args:
             session: The session to close
+            kill: If True, forcefully kill the container instead of graceful stop
 
         Returns:
             bool: Whether the session was successfully closed
@@ -871,7 +881,10 @@ class ContainerManager:
         try:
             # First, close the main session container
             container = self.client.containers.get(session.container_id)
-            container.stop()
+            if kill:
+                container.kill()
+            else:
+                container.stop()
             container.remove()
 
             # Check for and close any associated network-filter container
@@ -881,7 +894,10 @@ class ContainerManager:
                     network_filter_name
                 )
                 logger.info(f"Stopping network-filter container {network_filter_name}")
-                network_filter_container.stop()
+                if kill:
+                    network_filter_container.kill()
+                else:
+                    network_filter_container.stop()
                 network_filter_container.remove()
             except DockerException:
                 # Network-filter container might not exist, which is fine
@@ -893,12 +909,15 @@ class ContainerManager:
             print(f"Error closing session {session.id}: {e}")
             return False
 
-    def close_all_sessions(self, progress_callback=None) -> Tuple[int, bool]:
+    def close_all_sessions(
+        self, progress_callback=None, kill: bool = False
+    ) -> Tuple[int, bool]:
         """Close all Cubbi sessions with parallel processing and progress reporting
 
         Args:
             progress_callback: Optional callback function to report progress
                 The callback should accept (session_id, status, message)
+            kill: If True, forcefully kill containers instead of graceful stop
 
         Returns:
             tuple: (number of sessions closed, success)
@@ -918,7 +937,10 @@ class ContainerManager:
                 try:
                     container = self.client.containers.get(session.container_id)
                     # Stop and remove container
-                    container.stop()
+                    if kill:
+                        container.kill()
+                    else:
+                        container.stop()
                     container.remove()
 
                     # Check for and close any associated network-filter container
@@ -927,7 +949,10 @@ class ContainerManager:
                         network_filter_container = self.client.containers.get(
                             network_filter_name
                         )
-                        network_filter_container.stop()
+                        if kill:
+                            network_filter_container.kill()
+                        else:
+                            network_filter_container.stop()
                         network_filter_container.remove()
                     except DockerException:
                         # Network-filter container might not exist, which is fine

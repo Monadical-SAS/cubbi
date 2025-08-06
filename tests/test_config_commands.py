@@ -189,4 +189,103 @@ def test_config_reset(cli_runner, patched_config_manager, monkeypatch):
     assert patched_config_manager.get("defaults.image") == "goose"
 
 
+def test_port_list_empty(cli_runner, patched_config_manager):
+    """Test listing ports when none are configured."""
+    result = cli_runner.invoke(app, ["config", "port", "list"])
+
+    assert result.exit_code == 0
+    assert "No default ports configured" in result.stdout
+
+
+def test_port_add_single(cli_runner, patched_config_manager):
+    """Test adding a single port."""
+    result = cli_runner.invoke(app, ["config", "port", "add", "8000"])
+
+    assert result.exit_code == 0
+    assert "Added port 8000 to defaults" in result.stdout
+
+    # Verify it was added
+    ports = patched_config_manager.get("defaults.ports")
+    assert 8000 in ports
+
+
+def test_port_add_multiple(cli_runner, patched_config_manager):
+    """Test adding multiple ports with comma separation."""
+    result = cli_runner.invoke(app, ["config", "port", "add", "8000,3000,5173"])
+
+    assert result.exit_code == 0
+    assert "Added ports [8000, 3000, 5173] to defaults" in result.stdout
+
+    # Verify they were added
+    ports = patched_config_manager.get("defaults.ports")
+    assert 8000 in ports
+    assert 3000 in ports
+    assert 5173 in ports
+
+
+def test_port_add_duplicate(cli_runner, patched_config_manager):
+    """Test adding a port that already exists."""
+    # Add a port first
+    patched_config_manager.set("defaults.ports", [8000])
+
+    # Try to add the same port again
+    result = cli_runner.invoke(app, ["config", "port", "add", "8000"])
+
+    assert result.exit_code == 0
+    assert "Port 8000 is already in defaults" in result.stdout
+
+
+def test_port_add_invalid_format(cli_runner, patched_config_manager):
+    """Test adding an invalid port format."""
+    result = cli_runner.invoke(app, ["config", "port", "add", "invalid"])
+
+    assert result.exit_code == 0
+    assert "Error: Invalid port format" in result.stdout
+
+
+def test_port_add_invalid_range(cli_runner, patched_config_manager):
+    """Test adding a port outside valid range."""
+    result = cli_runner.invoke(app, ["config", "port", "add", "70000"])
+
+    assert result.exit_code == 0
+    assert "Error: Invalid ports [70000]" in result.stdout
+
+
+def test_port_list_with_ports(cli_runner, patched_config_manager):
+    """Test listing ports when some are configured."""
+    # Add some ports
+    patched_config_manager.set("defaults.ports", [8000, 3000])
+
+    # List ports
+    result = cli_runner.invoke(app, ["config", "port", "list"])
+
+    assert result.exit_code == 0
+    assert "8000" in result.stdout
+    assert "3000" in result.stdout
+
+
+def test_port_remove(cli_runner, patched_config_manager):
+    """Test removing a port."""
+    # Add a port first
+    patched_config_manager.set("defaults.ports", [8000])
+
+    # Remove the port
+    result = cli_runner.invoke(app, ["config", "port", "remove", "8000"])
+
+    assert result.exit_code == 0
+    assert "Removed port 8000 from defaults" in result.stdout
+
+    # Verify it's gone
+    ports = patched_config_manager.get("defaults.ports")
+    assert 8000 not in ports
+
+
+def test_port_remove_not_found(cli_runner, patched_config_manager):
+    """Test removing a port that doesn't exist."""
+    result = cli_runner.invoke(app, ["config", "port", "remove", "8000"])
+
+    assert result.exit_code == 0
+    assert "Port 8000 is not in defaults" in result.stdout
+
+
 # patched_config_manager fixture is now in conftest.py

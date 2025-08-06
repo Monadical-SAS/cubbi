@@ -21,7 +21,7 @@ def test_mcp_list_empty(cli_runner, patched_config_manager):
         assert "No MCP servers configured" in result.stdout
 
 
-def test_mcp_add_remote(cli_runner, patched_config_manager):
+def test_mcp_add_remote(cli_runner, isolate_cubbi_config):
     """Test adding a remote MCP server and listing it."""
     # Add a remote MCP server
     result = cli_runner.invoke(
@@ -49,7 +49,7 @@ def test_mcp_add_remote(cli_runner, patched_config_manager):
     assert "http://mcp-se" in result.stdout  # Truncated in table view
 
 
-def test_mcp_add(cli_runner, patched_config_manager):
+def test_mcp_add(cli_runner, isolate_cubbi_config):
     """Test adding a proxy-based MCP server and listing it."""
     # Add a Docker MCP server
     result = cli_runner.invoke(
@@ -350,10 +350,12 @@ def test_mcp_status(cli_runner, patched_config_manager, mock_container_manager):
 
 
 @pytest.mark.requires_docker
-def test_mcp_start(cli_runner, patched_config_manager, mock_container_manager):
+def test_mcp_start(cli_runner, isolate_cubbi_config):
     """Test starting an MCP server."""
+    mcp_manager = isolate_cubbi_config["mcp_manager"]
+
     # Add a Docker MCP
-    patched_config_manager.set(
+    isolate_cubbi_config["user_config"].set(
         "mcps",
         [
             {
@@ -365,25 +367,30 @@ def test_mcp_start(cli_runner, patched_config_manager, mock_container_manager):
         ],
     )
 
-    # Mock the start operation
-    mock_container_manager.start_mcp.return_value = {
-        "container_id": "test-container-id",
-        "status": "running",
-    }
+    # Mock the start_mcp method to avoid actual Docker operations
+    with patch.object(
+        mcp_manager,
+        "start_mcp",
+        return_value={
+            "container_id": "test-container-id",
+            "status": "running",
+        },
+    ):
+        # Start the MCP
+        result = cli_runner.invoke(app, ["mcp", "start", "test-docker-mcp"])
 
-    # Start the MCP
-    result = cli_runner.invoke(app, ["mcp", "start", "test-docker-mcp"])
-
-    assert result.exit_code == 0
-    assert "Started MCP server" in result.stdout
-    assert "test-docker-mcp" in result.stdout
+        assert result.exit_code == 0
+        assert "Started MCP server" in result.stdout
+        assert "test-docker-mcp" in result.stdout
 
 
 @pytest.mark.requires_docker
-def test_mcp_stop(cli_runner, patched_config_manager, mock_container_manager):
+def test_mcp_stop(cli_runner, isolate_cubbi_config):
     """Test stopping an MCP server."""
+    mcp_manager = isolate_cubbi_config["mcp_manager"]
+
     # Add a Docker MCP
-    patched_config_manager.set(
+    isolate_cubbi_config["user_config"].set(
         "mcps",
         [
             {
@@ -395,22 +402,23 @@ def test_mcp_stop(cli_runner, patched_config_manager, mock_container_manager):
         ],
     )
 
-    # Mock the stop operation
-    mock_container_manager.stop_mcp.return_value = True
+    # Mock the stop_mcp method to avoid actual Docker operations
+    with patch.object(mcp_manager, "stop_mcp", return_value=True):
+        # Stop the MCP
+        result = cli_runner.invoke(app, ["mcp", "stop", "test-docker-mcp"])
 
-    # Stop the MCP
-    result = cli_runner.invoke(app, ["mcp", "stop", "test-docker-mcp"])
-
-    assert result.exit_code == 0
-    assert "Stopped and removed MCP server" in result.stdout
-    assert "test-docker-mcp" in result.stdout
+        assert result.exit_code == 0
+        assert "Stopped and removed MCP server" in result.stdout
+        assert "test-docker-mcp" in result.stdout
 
 
 @pytest.mark.requires_docker
-def test_mcp_restart(cli_runner, patched_config_manager, mock_container_manager):
+def test_mcp_restart(cli_runner, isolate_cubbi_config):
     """Test restarting an MCP server."""
+    mcp_manager = isolate_cubbi_config["mcp_manager"]
+
     # Add a Docker MCP
-    patched_config_manager.set(
+    isolate_cubbi_config["user_config"].set(
         "mcps",
         [
             {
@@ -422,18 +430,21 @@ def test_mcp_restart(cli_runner, patched_config_manager, mock_container_manager)
         ],
     )
 
-    # Mock the restart operation
-    mock_container_manager.restart_mcp.return_value = {
-        "container_id": "test-container-id",
-        "status": "running",
-    }
+    # Mock the restart_mcp method to avoid actual Docker operations
+    with patch.object(
+        mcp_manager,
+        "restart_mcp",
+        return_value={
+            "container_id": "test-container-id",
+            "status": "running",
+        },
+    ):
+        # Restart the MCP
+        result = cli_runner.invoke(app, ["mcp", "restart", "test-docker-mcp"])
 
-    # Restart the MCP
-    result = cli_runner.invoke(app, ["mcp", "restart", "test-docker-mcp"])
-
-    assert result.exit_code == 0
-    assert "Restarted MCP server" in result.stdout
-    assert "test-docker-mcp" in result.stdout
+        assert result.exit_code == 0
+        assert "Restarted MCP server" in result.stdout
+        assert "test-docker-mcp" in result.stdout
 
 
 @pytest.mark.requires_docker

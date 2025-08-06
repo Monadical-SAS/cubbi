@@ -142,6 +142,11 @@ def create_session(
     network: List[str] = typer.Option(
         [], "--network", "-N", help="Connect to additional Docker networks"
     ),
+    port: List[str] = typer.Option(
+        [],
+        "--port",
+        help="Forward ports (e.g., '8000' or '8000,3000' or multiple --port flags)",
+    ),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Session name"),
     run_command: Optional[str] = typer.Option(
         None,
@@ -319,6 +324,35 @@ def create_session(
             "[yellow]Warning: --domains cannot be used with --network. Network restrictions will take precedence.[/yellow]"
         )
 
+    # Get default ports from user config
+    default_ports = temp_user_config.get("defaults.ports", [])
+
+    # Parse and combine ports from command line
+    session_ports = []
+    for port_arg in port:
+        try:
+            parsed_ports = [int(p.strip()) for p in port_arg.split(",")]
+
+            # Validate port ranges
+            invalid_ports = [p for p in parsed_ports if not (1 <= p <= 65535)]
+            if invalid_ports:
+                console.print(
+                    f"[red]Error: Invalid ports {invalid_ports}. Ports must be between 1 and 65535[/red]"
+                )
+                return
+
+            session_ports.extend(parsed_ports)
+        except ValueError:
+            console.print(
+                f"[yellow]Warning: Ignoring invalid port format: {port_arg}. Use integers only.[/yellow]"
+            )
+
+    # Combine default ports with session ports, removing duplicates
+    all_ports = list(set(default_ports + session_ports))
+
+    if all_ports:
+        console.print(f"Forwarding ports: {', '.join(map(str, all_ports))}")
+
     # Get default MCPs from user config if none specified
     all_mcps = mcp if isinstance(mcp, list) else []
     if not all_mcps:
@@ -372,6 +406,7 @@ def create_session(
             mount_local=mount_local,
             volumes=volume_mounts,
             networks=all_networks,
+            ports=all_ports,
             mcp=all_mcps,
             run_command=run_command,
             no_shell=no_shell,
@@ -457,6 +492,9 @@ def create_session(
 def close_session(
     session_id: Optional[str] = typer.Argument(None, help="Session ID to close"),
     all_sessions: bool = typer.Option(False, "--all", help="Close all active sessions"),
+    kill: bool = typer.Option(
+        False, "--kill", help="Forcefully kill containers instead of graceful stop"
+    ),
 ) -> None:
     """Close a Cubbi session or all sessions"""
     if all_sessions:
@@ -480,7 +518,9 @@ def close_session(
                 )
 
         # Start closing sessions with progress updates
-        count, success = container_manager.close_all_sessions(update_progress)
+        count, success = container_manager.close_all_sessions(
+            update_progress, kill=kill
+        )
 
         # Final result
         if success:
@@ -489,7 +529,7 @@ def close_session(
             console.print("[red]Failed to close all sessions[/red]")
     elif session_id:
         with console.status(f"Closing session {session_id}..."):
-            success = container_manager.close_session(session_id)
+            success = container_manager.close_session(session_id, kill=kill)
 
         if success:
             console.print(f"[green]Session {session_id} closed successfully[/green]")
@@ -710,6 +750,10 @@ config_app.add_typer(network_app, name="network", no_args_is_help=True)
 # Create a volume subcommand for config
 volume_app = typer.Typer(help="Manage default volumes")
 config_app.add_typer(volume_app, name="volume", no_args_is_help=True)
+
+# Create a port subcommand for config
+port_app = typer.Typer(help="Manage default ports")
+config_app.add_typer(port_app, name="port", no_args_is_help=True)
 
 # Create an MCP subcommand for config
 config_mcp_app = typer.Typer(help="Manage default MCP servers")
@@ -1019,6 +1063,91 @@ def remove_volume(
     volumes.remove(volume_to_remove)
     user_config.set("defaults.volumes", volumes)
     console.print(f"[green]Removed volume '{volume_to_remove}' from defaults[/green]")
+
+
+# Port configuration commands
+@port_app.command("list")
+def list_ports() -> None:
+    """List all default ports"""
+    ports = user_config.get("defaults.ports", [])
+
+    if not ports:
+        console.print("No default ports configured")
+        return
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Port")
+
+    for port in ports:
+        table.add_row(str(port))
+
+    console.print(table)
+
+
+@port_app.command("add")
+def add_port(
+    ports_arg: str = typer.Argument(
+        ..., help="Port(s) to add to defaults (e.g., '8000' or '8000,3000,5173')"
+    ),
+) -> None:
+    """Add port(s) to default ports"""
+    current_ports = user_config.get("defaults.ports", [])
+
+    # Parse ports (support comma-separated)
+    try:
+        if "," in ports_arg:
+            new_ports = [int(p.strip()) for p in ports_arg.split(",")]
+        else:
+            new_ports = [int(ports_arg)]
+    except ValueError:
+        console.print(
+            "[red]Error: Invalid port format. Use integers only (e.g., '8000' or '8000,3000')[/red]"
+        )
+        return
+
+    # Validate port ranges
+    invalid_ports = [p for p in new_ports if not (1 <= p <= 65535)]
+    if invalid_ports:
+        console.print(
+            f"[red]Error: Invalid ports {invalid_ports}. Ports must be between 1 and 65535[/red]"
+        )
+        return
+
+    # Add new ports, avoiding duplicates
+    added_ports = []
+    for port in new_ports:
+        if port not in current_ports:
+            current_ports.append(port)
+            added_ports.append(port)
+
+    if not added_ports:
+        if len(new_ports) == 1:
+            console.print(f"Port {new_ports[0]} is already in defaults")
+        else:
+            console.print(f"All ports {new_ports} are already in defaults")
+        return
+
+    user_config.set("defaults.ports", current_ports)
+    if len(added_ports) == 1:
+        console.print(f"[green]Added port {added_ports[0]} to defaults[/green]")
+    else:
+        console.print(f"[green]Added ports {added_ports} to defaults[/green]")
+
+
+@port_app.command("remove")
+def remove_port(
+    port: int = typer.Argument(..., help="Port to remove from defaults"),
+) -> None:
+    """Remove a port from default ports"""
+    ports = user_config.get("defaults.ports", [])
+
+    if port not in ports:
+        console.print(f"Port {port} is not in defaults")
+        return
+
+    ports.remove(port)
+    user_config.set("defaults.ports", ports)
+    console.print(f"[green]Removed port {port} from defaults[/green]")
 
 
 # MCP Management Commands

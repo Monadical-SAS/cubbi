@@ -77,6 +77,15 @@ cubbi session connect SESSION_ID
 # Close a session when done
 cubbi session close SESSION_ID
 
+# Close a session quickly (kill instead of graceful stop)
+cubbi session close SESSION_ID --kill
+
+# Close all sessions at once
+cubbi session close --all
+
+# Close all sessions quickly
+cubbi session close --all --kill
+
 # Create a session with a specific image
 cubbix --image goose
 cubbix --image opencode
@@ -92,6 +101,11 @@ cubbix -v ~/data:/data -v ./configs:/etc/app/config
 # Mount a local directory (current directory or specific path)
 cubbix .
 cubbix /path/to/project
+
+# Forward ports from container to host
+cubbix --port 8000                    # Forward port 8000
+cubbix --port 8000,3000,5173         # Forward multiple ports (comma-separated)
+cubbix --port 8000 --port 3000       # Forward multiple ports (repeated flag)
 
 # Connect to external Docker networks
 cubbix --network teamnet --network dbnet
@@ -234,6 +248,26 @@ cubbi config volume remove /local/path
 ```
 
 Default volumes will be combined with any volumes specified using the `-v` flag when creating a session.
+
+### Default Ports Configuration
+
+You can configure default ports that will be automatically forwarded in every new session:
+
+```bash
+# List default ports
+cubbi config port list
+
+# Add a single port to defaults
+cubbi config port add 8000
+
+# Add multiple ports to defaults (comma-separated)
+cubbi config port add 8000,3000,5173
+
+# Remove a port from defaults
+cubbi config port remove 8000
+```
+
+Default ports will be combined with any ports specified using the `--port` flag when creating a session.
 
 ### Default MCP Servers Configuration
 

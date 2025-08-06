@@ -24,9 +24,6 @@ environment:
     required: false
     default: https://cloud.langfuse.com
 
-ports:
-  - 8000
-
 volumes:
   - mountPath: /app
     description: Application directory
