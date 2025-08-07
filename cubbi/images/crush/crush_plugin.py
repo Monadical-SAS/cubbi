@@ -187,3 +187,6 @@ class CrushPlugin(ToolPlugin):
         except Exception as e:
             self.status.log(f"Failed to integrate MCP servers: {e}", "ERROR")
             return False
+
+
+PLUGIN_CLASS = CrushPlugin

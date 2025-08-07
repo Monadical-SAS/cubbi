@@ -689,24 +689,14 @@ class CubbiInitializer:
             plugin_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(plugin_module)
 
-            # Find the plugin class (should inherit from ToolPlugin)
-            plugin_class = None
-            for attr_name in dir(plugin_module):
-                attr = getattr(plugin_module, attr_name)
-                if (
-                    isinstance(attr, type)
-                    and hasattr(attr, "tool_name")
-                    and hasattr(attr, "initialize")
-                    and attr_name != "ToolPlugin"
-                ):  # Skip the base class
-                    plugin_class = attr
-                    break
-
-            if not plugin_class:
+            # Get the plugin class from the standard export variable
+            if not hasattr(plugin_module, "PLUGIN_CLASS"):
                 self.status.log(
-                    f"No valid plugin class found in {plugin_file}", "ERROR"
+                    f"No PLUGIN_CLASS variable found in {plugin_file}", "ERROR"
                 )
                 return False
+
+            plugin_class = plugin_module.PLUGIN_CLASS
 
             # Instantiate and run the plugin
             plugin = plugin_class(self.status, {"image_config": image_config})

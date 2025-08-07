@@ -178,3 +178,6 @@ class AiderPlugin(ToolPlugin):
         except Exception as e:
             self.status.log(f"Failed to write Aider environment file: {e}", "ERROR")
             return False
+
+
+PLUGIN_CLASS = AiderPlugin

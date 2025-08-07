@@ -127,3 +127,6 @@ class ClaudeCodePlugin(ToolPlugin):
         except Exception as e:
             self.status.log(f"Failed to write Claude Code settings: {e}", "ERROR")
             return False
+
+
+PLUGIN_CLASS = ClaudeCodePlugin
