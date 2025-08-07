@@ -3,13 +3,14 @@ description: Crush AI coding assistant environment
 version: 1.0.0
 maintainer: team@monadical.com
 image: monadical/cubbi-crush:latest
-
-persistent_configs:
-  - source: "/home/cubbi/.config/crush"
-    target: "/cubbi-config/crush-config"
-    type: "directory"
-    description: "Crush configuration directory"
-  - source: "/app/.crush"
-    target: "/cubbi-config/crush-app"
-    type: "directory"
-    description: "Crush application data and sessions"
+persistent_configs: []
+environments_to_forward:
+  # API Keys
+  - OPENAI_API_KEY
+  - ANTHROPIC_API_KEY
+  - ANTHROPIC_AUTH_TOKEN
+  - ANTHROPIC_CUSTOM_HEADERS
+  - DEEPSEEK_API_KEY
+  - GEMINI_API_KEY
+  - OPENROUTER_API_KEY
+  - AIDER_API_KEYS
