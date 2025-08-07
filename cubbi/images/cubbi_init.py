@@ -110,7 +110,6 @@ def set_ownership(path: Path) -> None:
         os.chown(path, user_id, group_id)
     except OSError:
         pass
-        pass
 
 
 class StatusManager:
