@@ -156,6 +156,17 @@ class ContainerManager:
         with open(config_file, "w") as f:
             yaml.dump(config, f)
 
+        # Set restrictive permissions (0o600 = read/write for owner only)
+        config_file.chmod(0o600)
+
+        # Set ownership to cubbi user if uid/gid are provided
+        if uid is not None and gid is not None:
+            try:
+                os.chown(config_file, uid, gid)
+            except (OSError, PermissionError):
+                # If we can't chown (e.g., running as non-root), just log and continue
+                logger.warning(f"Could not set ownership of config file to {uid}:{gid}")
+
         return config_file
 
     def list_sessions(self) -> List[Session]:
