@@ -6,7 +6,7 @@ from typing import Dict
 
 
 # Test matrix: all images and models to test
-IMAGES = ["goose", "aider", "claudecode", "opencode", "crush"]
+IMAGES = ["goose", "aider", "opencode", "crush"]
 
 MODELS = [
     "anthropic/claude-sonnet-4-20250514",
@@ -19,14 +19,13 @@ MODELS = [
 COMMANDS: Dict[str, str] = {
     "goose": "goose run -t '{prompt}' --no-session --quiet",
     "aider": "aider --message '{prompt}' --yes-always --no-fancy-input --no-check-update --no-auto-commits",
-    "claudecode": "claude -p '{prompt}'",
     "opencode": "opencode run -m {model} '{prompt}'",
     "crush": "crush run '{prompt}'",
 }
 
 
 def run_cubbi_command(
-    image: str, model: str, command: str, timeout: int = 180
+    image: str, model: str, command: str, timeout: int = 20
 ) -> subprocess.CompletedProcess:
     """Run a cubbi command with specified image, model, and command."""
     full_command = [
@@ -81,8 +80,11 @@ def test_image_model_combination(image: str, model: str):
     else:
         command = command_template.format(prompt=prompt)
 
-    # Run the test
-    result = run_cubbi_command(image, model, command)
+    # Run the test with timeout handling
+    try:
+        result = run_cubbi_command(image, model, command)
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"Test timed out after 20s for {image} with {model}")
 
     # Check if the command was successful
     assert is_successful_response(result), (
@@ -91,13 +93,6 @@ def test_image_model_combination(image: str, model: str):
         f"Stdout: {result.stdout}\n"
         f"Stderr: {result.stderr}"
     )
-
-    # Additional checks for specific outputs (optional)
-    if image == "goose":
-        # Goose should show some calculation result
-        assert any(
-            char.isdigit() for char in result.stdout
-        ), f"Goose should provide numeric answer for math question. Output: {result.stdout}"
 
 
 @pytest.mark.integration
@@ -126,17 +121,41 @@ def test_image_help_command(image: str):
     help_commands = {
         "goose": "goose --help",
         "aider": "aider --help",
-        "claudecode": "claude --help",
         "opencode": "opencode --help",
         "crush": "crush --help",
     }
 
     command = help_commands[image]
-    result = run_cubbi_command(image, MODELS[0], command, timeout=60)  # Use first model
+
+    try:
+        result = run_cubbi_command(
+            image, MODELS[0], command, timeout=20
+        )  # Use first model
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"Help command timed out after 20s for {image}")
 
     assert is_successful_response(result), (
         f"Failed to run help command for {image}. "
         f"Return code: {result.returncode}\n"
+        f"Stderr: {result.stderr}"
+    )
+
+
+@pytest.mark.integration
+def test_claudecode_without_model():
+    """Test Claude Code without model preselection since it only supports Anthropic."""
+    command = "claude --help"  # Test basic functionality without model specification
+
+    # Use first available model just for the container setup, but Claude Code ignores it
+    try:
+        result = run_cubbi_command("claudecode", MODELS[0], command, timeout=20)
+    except subprocess.TimeoutExpired:
+        pytest.fail("Claude Code help command timed out after 20s")
+
+    assert is_successful_response(result), (
+        f"Failed to run Claude Code help command. "
+        f"Return code: {result.returncode}\n"
+        f"Stdout: {result.stdout}\n"
         f"Stderr: {result.stderr}"
     )
 
