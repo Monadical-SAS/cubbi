@@ -8,34 +8,6 @@ init:
   pre_command: /cubbi-init.sh
   command: /entrypoint.sh
 
-environment:
-  - name: OPENAI_API_KEY
-    description: OpenAI API key for crush
-    required: false
-    sensitive: true
-
-  - name: ANTHROPIC_API_KEY
-    description: Anthropic API key for crush
-    required: false
-    sensitive: true
-
-  - name: GROQ_API_KEY
-    description: Groq API key for crush
-    required: false
-    sensitive: true
-
-  - name: OPENAI_URL
-    description: Custom OpenAI-compatible API URL
-    required: false
-
-  - name: CUBBI_MODEL
-    description: AI model to use with crush
-    required: false
-
-  - name: CUBBI_PROVIDER
-    description: AI provider to use with crush
-    required: false
-
 volumes:
   - mountPath: /app
     description: Application directory

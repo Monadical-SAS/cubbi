@@ -8,7 +8,6 @@ init:
   pre_command: /cubbi-init.sh
   command: /entrypoint.sh
 
-environment: []
 volumes:
   - mountPath: /app
     description: Application directory

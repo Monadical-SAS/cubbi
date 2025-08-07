@@ -8,68 +8,6 @@ init:
   pre_command: /cubbi-init.sh
   command: /entrypoint.sh
 
-environment:
-  # OpenAI Configuration
-  - name: OPENAI_API_KEY
-    description: OpenAI API key for GPT models
-    required: false
-    sensitive: true
-
-  # Anthropic Configuration
-  - name: ANTHROPIC_API_KEY
-    description: Anthropic API key for Claude models
-    required: false
-    sensitive: true
-
-  # DeepSeek Configuration
-  - name: DEEPSEEK_API_KEY
-    description: DeepSeek API key for DeepSeek models
-    required: false
-    sensitive: true
-
-  # Gemini Configuration
-  - name: GEMINI_API_KEY
-    description: Google Gemini API key
-    required: false
-    sensitive: true
-
-  # OpenRouter Configuration
-  - name: OPENROUTER_API_KEY
-    description: OpenRouter API key for various models
-    required: false
-    sensitive: true
-
-  # Generic provider API keys
-  - name: AIDER_API_KEYS
-    description: Additional API keys in format "provider1=key1,provider2=key2"
-    required: false
-    sensitive: true
-
-  # Model Configuration
-  - name: AIDER_MODEL
-    description: Default model to use (e.g., sonnet, o3-mini, deepseek)
-    required: false
-
-  # Git Configuration
-  - name: AIDER_AUTO_COMMITS
-    description: Enable automatic commits (true/false)
-    required: false
-    default: "true"
-
-  - name: AIDER_DARK_MODE
-    description: Enable dark mode (true/false)
-    required: false
-    default: "false"
-
-  # Proxy Configuration
-  - name: HTTP_PROXY
-    description: HTTP proxy server URL
-    required: false
-
-  - name: HTTPS_PROXY
-    description: HTTPS proxy server URL
-    required: false
-
 volumes:
   - mountPath: /app
     description: Application directory
@@ -84,3 +22,40 @@ persistent_configs:
     target: "/cubbi-config/aider-cache"
     type: "directory"
     description: "Aider cache directory"
+
+environments_to_forward:
+  # API Keys
+  - OPENAI_API_KEY
+  - ANTHROPIC_API_KEY
+  - ANTHROPIC_AUTH_TOKEN
+  - ANTHROPIC_CUSTOM_HEADERS
+  - DEEPSEEK_API_KEY
+  - GEMINI_API_KEY
+  - OPENROUTER_API_KEY
+  - AIDER_API_KEYS
+
+  # Model Configuration
+  - AIDER_MODEL
+  - CUBBI_MODEL
+  - CUBBI_PROVIDER
+
+  # Git Configuration
+  - AIDER_AUTO_COMMITS
+  - AIDER_DARK_MODE
+  - GIT_AUTHOR_NAME
+  - GIT_AUTHOR_EMAIL
+  - GIT_COMMITTER_NAME
+  - GIT_COMMITTER_EMAIL
+
+  # Proxy Configuration
+  - HTTP_PROXY
+  - HTTPS_PROXY
+  - NO_PROXY
+
+  # OpenAI Configuration
+  - OPENAI_URL
+  - OPENAI_API_BASE
+  - AIDER_OPENAI_API_BASE
+
+  # Timezone (useful for logs and timestamps)
+  - TZ

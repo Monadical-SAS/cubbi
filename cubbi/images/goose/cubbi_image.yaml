@@ -8,22 +8,6 @@ init:
   pre_command: /cubbi-init.sh
   command: /entrypoint.sh
 
-environment:
-  - name: LANGFUSE_INIT_PROJECT_PUBLIC_KEY
-    description: Langfuse public key
-    required: false
-    sensitive: true
-
-  - name: LANGFUSE_INIT_PROJECT_SECRET_KEY
-    description: Langfuse secret key
-    required: false
-    sensitive: true
-
-  - name: LANGFUSE_URL
-    description: Langfuse API URL
-    required: false
-    default: https://cloud.langfuse.com
-
 volumes:
   - mountPath: /app
     description: Application directory
