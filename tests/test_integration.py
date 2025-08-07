@@ -5,7 +5,7 @@ import pytest
 from typing import Dict
 
 
-IMAGES = ["goose", "aider", "opencode"]  # fixme: crush
+IMAGES = ["goose", "aider", "opencode", "crush"]
 
 MODELS = [
     "anthropic/claude-sonnet-4-20250514",
@@ -19,7 +19,7 @@ COMMANDS: Dict[str, str] = {
     "goose": "goose run -t '{prompt}' --no-session --quiet",
     "aider": "aider --message '{prompt}' --yes-always --no-fancy-input --no-check-update --no-auto-commits",
     "opencode": "opencode run '{prompt}'",
-    "crush": "crush run '{prompt}'",
+    "crush": "crush run -q '{prompt}'",
 }
 
 

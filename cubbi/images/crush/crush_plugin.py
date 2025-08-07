@@ -7,6 +7,9 @@ from typing import Any, Dict
 
 from cubbi_init import ToolPlugin, cubbi_config
 
+# Standard providers that Crush supports natively
+STANDARD_PROVIDERS = ["anthropic", "openai", "google", "openrouter"]
+
 
 class CrushPlugin(ToolPlugin):
     @property
@@ -27,102 +30,43 @@ class CrushPlugin(ToolPlugin):
         return Path("/home/cubbi/.config/crush")
 
     def _map_provider_to_crush_format(
-        self, provider_name: str, provider_config
+        self, provider_name: str, provider_config, is_default_provider: bool = False
     ) -> Dict[str, Any] | None:
         """Map cubbi provider configuration to crush provider format"""
 
-        if provider_config.type == "anthropic":
-            return {
-                "name": "Anthropic",
-                "type": "anthropic",
-                "api_key": provider_config.api_key,
-                "base_url": provider_config.base_url or "https://api.anthropic.com/v1",
-                "models": [
-                    {
-                        "id": "claude-3-5-sonnet-20241022",
-                        "name": "Claude 3.5 Sonnet",
-                        "context_window": 200000,
-                        "default_max_tokens": 4096,
-                    },
-                    {
-                        "id": "claude-3-5-haiku-20241022",
-                        "name": "Claude 3.5 Haiku",
-                        "context_window": 200000,
-                        "default_max_tokens": 4096,
-                    },
-                ],
-            }
+        if not provider_config.base_url:
+            if provider_config.type in STANDARD_PROVIDERS:
+                provider_entry = {
+                    "api_key": provider_config.api_key,
+                }
+                return provider_entry
 
-        elif provider_config.type == "openai":
-            base_url = provider_config.base_url or "https://api.openai.com/v1"
-            return {
-                "name": "OpenAI"
-                if base_url.startswith("https://api.openai.com")
-                else f"OpenAI ({base_url})",
-                "type": "openai",
-                "api_key": provider_config.api_key,
-                "base_url": base_url,
-                "models": [
-                    {
-                        "id": "gpt-4o",
-                        "name": "GPT-4o",
-                        "context_window": 128000,
-                        "default_max_tokens": 4096,
-                    },
-                    {
-                        "id": "gpt-4o-mini",
-                        "name": "GPT-4o Mini",
-                        "context_window": 128000,
-                        "default_max_tokens": 16384,
-                    },
-                ],
-            }
+        # Custom provider - include base_url and name
+        provider_entry = {
+            "api_key": provider_config.api_key,
+            "base_url": provider_config.base_url,
+            "models": [],
+        }
 
-        elif provider_config.type == "google":
-            return {
-                "name": "Google",
-                "type": "openai",  # Google Gemini uses OpenAI-compatible API
-                "api_key": provider_config.api_key,
-                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-                "models": [
-                    {
-                        "id": "gemini-1.5-pro",
-                        "name": "Gemini 1.5 Pro",
-                        "context_window": 2000000,
-                        "default_max_tokens": 8192,
-                    },
-                    {
-                        "id": "gemini-1.5-flash",
-                        "name": "Gemini 1.5 Flash",
-                        "context_window": 1000000,
-                        "default_max_tokens": 8192,
-                    },
-                ],
-            }
+        # Add name and type for custom providers
+        if provider_config.type in STANDARD_PROVIDERS:
+            # Standard provider with custom URL - determine type and name
+            if provider_config.type == "anthropic":
+                provider_entry["type"] = "anthropic"
+            elif provider_config.type == "openai":
+                provider_entry["type"] = "openai"
+            elif provider_config.type == "google":
+                provider_entry["type"] = "gemini"
+            elif provider_config.type == "openrouter":
+                provider_entry["type"] = "openai"
+            # Set name format as 'provider_name (type)'
+            provider_entry["name"] = f"{provider_name} ({provider_config.type})"
+        else:
+            # Non-standard provider with custom URL
+            provider_entry["type"] = "openai"
+            provider_entry["name"] = f"{provider_name} ({provider_config.type})"
 
-        elif provider_config.type == "openrouter":
-            return {
-                "name": "OpenRouter",
-                "type": "openai",
-                "api_key": provider_config.api_key,
-                "base_url": "https://openrouter.ai/api/v1",
-                "models": [
-                    {
-                        "id": "anthropic/claude-3.5-sonnet",
-                        "name": "Claude 3.5 Sonnet (via OpenRouter)",
-                        "context_window": 200000,
-                        "default_max_tokens": 4096,
-                    },
-                    {
-                        "id": "openai/gpt-4o",
-                        "name": "GPT-4o (via OpenRouter)",
-                        "context_window": 128000,
-                        "default_max_tokens": 4096,
-                    },
-                ],
-            }
-
-        return None
+        return provider_entry
 
     def _ensure_user_config_dir(self) -> Path:
         config_dir = self._get_user_config_path()
@@ -168,65 +112,45 @@ class CrushPlugin(ToolPlugin):
         # Initialize Crush configuration with schema
         config_data = {"$schema": "https://charm.land/crush.json", "providers": {}}
 
+        # Determine the default provider from the default model
+        default_provider_name = None
+        if cubbi_config.defaults.model:
+            default_provider_name = cubbi_config.defaults.model.split("/", 1)[0]
+
         # Get all configured providers using the new provider system
         self.status.log(
             f"Found {len(cubbi_config.providers)} configured providers for Crush"
         )
 
         for provider_name, provider_config in cubbi_config.providers.items():
+            is_default_provider = provider_name == default_provider_name
             crush_provider = self._map_provider_to_crush_format(
-                provider_name, provider_config
+                provider_name, provider_config, is_default_provider
             )
             if crush_provider:
-                config_data["providers"][provider_name] = crush_provider
+                # Translate google provider name to gemini for crush configuration
+                crush_provider_name = (
+                    "gemini" if provider_config.type == "google" else provider_name
+                )
+                config_data["providers"][crush_provider_name] = crush_provider
                 self.status.log(
-                    f"Added {provider_name} provider to Crush configuration"
+                    f"Added {crush_provider_name} provider to Crush configuration{'(default)' if is_default_provider else ''}"
                 )
 
-        # Fallback to legacy environment variables if no providers found
-        if not config_data["providers"]:
-            self.status.log(
-                "No providers found via new system, falling back to legacy detection"
-            )
-
-            # Check for legacy environment variables
-            legacy_providers = {
-                "anthropic": "ANTHROPIC_API_KEY",
-                "openai": "OPENAI_API_KEY",
-                "google": "GOOGLE_API_KEY",
-                "openrouter": "OPENROUTER_API_KEY",
-            }
-
-            for provider_name, env_var in legacy_providers.items():
-                api_key = os.environ.get(env_var)
-                if api_key:
-                    # Create a simple object for legacy compatibility
-                    class LegacyProvider:
-                        def __init__(self, provider_type, api_key, base_url=None):
-                            self.type = provider_type
-                            self.api_key = api_key
-                            self.base_url = base_url
-
-                    if provider_name == "openai":
-                        openai_url = os.environ.get("OPENAI_URL")
-                        legacy_provider = LegacyProvider("openai", api_key, openai_url)
-                    else:
-                        legacy_provider = LegacyProvider(provider_name, api_key)
-
-                    crush_provider = self._map_provider_to_crush_format(
-                        provider_name, legacy_provider
-                    )
-                    if crush_provider:
-                        config_data["providers"][provider_name] = crush_provider
-                        self.status.log(
-                            f"Added {provider_name} provider from legacy environment (legacy)"
-                        )
-
-        # Set default model from cubbi configuration
         if cubbi_config.defaults.model:
-            # Crush expects provider/model format for default model selection
-            config_data["default_model"] = cubbi_config.defaults.model
-            self.status.log(f"Set default model to {config_data['default_model']}")
+            provider_part, model_part = cubbi_config.defaults.model.split("/", 1)
+            config_data["models"] = {
+                "large": {"provider": provider_part, "model": model_part},
+                "small": {"provider": provider_part, "model": model_part},
+            }
+            self.status.log(f"Set default model to {cubbi_config.defaults.model}")
+
+            # add model to the crush provider only if custom
+            provider = cubbi_config.providers.get(provider_part)
+            if provider and provider.base_url:
+                config_data["providers"][provider_part]["models"].append(
+                    {"id": model_part, "name": model_part}
+                )
 
         # Only write config if we have providers configured
         if not config_data["providers"]:
