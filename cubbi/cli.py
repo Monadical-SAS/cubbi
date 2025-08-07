@@ -173,9 +173,11 @@ def create_session(
     gid: Optional[int] = typer.Option(
         None, "--gid", help="Group ID to run the container as (defaults to host user)"
     ),
-    model: Optional[str] = typer.Option(None, "--model", help="Model to use"),
-    provider: Optional[str] = typer.Option(
-        None, "--provider", "-p", help="Provider to use"
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help="Model to use in 'provider/model' format (e.g., 'anthropic/claude-3-5-sonnet')",
     ),
     ssh: bool = typer.Option(False, "--ssh", help="Start SSH server in the container"),
     config: List[str] = typer.Option(
@@ -387,14 +389,9 @@ def create_session(
                 "[yellow]Warning: --no-shell is ignored without --run[/yellow]"
             )
 
-        # Use model and provider from config overrides if not explicitly provided
+        # Use model from config overrides if not explicitly provided
         final_model = (
             model if model is not None else temp_user_config.get("defaults.model")
-        )
-        final_provider = (
-            provider
-            if provider is not None
-            else temp_user_config.get("defaults.provider")
         )
 
         session = container_manager.create_session(
@@ -414,7 +411,6 @@ def create_session(
             gid=target_gid,
             ssh=ssh,
             model=final_model,
-            provider=final_provider,
             domains=all_domains,
         )
 
