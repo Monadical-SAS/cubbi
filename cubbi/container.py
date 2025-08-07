@@ -4,10 +4,13 @@ import logging
 import os
 import pathlib
 import sys
+import tempfile
 import uuid
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import docker
+import yaml
 from docker.errors import DockerException, ImageNotFound
 
 from .config import ConfigManager
@@ -85,6 +88,87 @@ class ContainerManager:
             # This ensures we don't mount the /cubbi-config volume for project-less sessions
             return None
 
+    def _generate_container_config(
+        self,
+        image_name: str,
+        project_url: Optional[str] = None,
+        uid: Optional[int] = None,
+        gid: Optional[int] = None,
+        model: Optional[str] = None,
+        ssh: bool = False,
+        run_command: Optional[str] = None,
+        no_shell: bool = False,
+        mcp_list: Optional[List[str]] = None,
+        persistent_links: Optional[List[Dict[str, str]]] = None,
+    ) -> Path:
+        """Generate container configuration YAML file"""
+
+        providers = {}
+        for name, provider in self.user_config_manager.list_providers().items():
+            api_key = provider.get("api_key", "")
+            if api_key.startswith("${") and api_key.endswith("}"):
+                env_var = api_key[2:-1]
+                api_key = os.environ.get(env_var, "")
+
+            provider_config = {
+                "type": provider.get("type"),
+                "api_key": api_key,
+            }
+            if provider.get("base_url"):
+                provider_config["base_url"] = provider.get("base_url")
+
+            providers[name] = provider_config
+
+        mcps = []
+        if mcp_list:
+            for mcp_name in mcp_list:
+                mcp_config = self.mcp_manager.get_mcp(mcp_name)
+                if mcp_config:
+                    mcps.append(mcp_config)
+
+        config = {
+            "version": "1.0",
+            "user": {"uid": uid or 1000, "gid": gid or 1000},
+            "providers": providers,
+            "mcps": mcps,
+            "project": {
+                "config_dir": "/cubbi-config",
+                "image_config_dir": f"/cubbi-config/{image_name}",
+            },
+            "ssh": {"enabled": ssh},
+        }
+
+        if project_url:
+            config["project"]["url"] = project_url
+
+        if persistent_links:
+            config["persistent_links"] = persistent_links
+
+        if model:
+            config["defaults"] = {"model": model}
+
+        if run_command:
+            config["run_command"] = run_command
+
+        config["no_shell"] = no_shell
+
+        config_file = Path(tempfile.mkdtemp()) / "config.yaml"
+        with open(config_file, "w") as f:
+            yaml.dump(config, f)
+
+        # Set restrictive permissions (0o600 = read/write for owner only)
+        config_file.chmod(0o600)
+
+        # Set ownership to cubbi user if uid/gid are provided
+        if uid is not None and gid is not None:
+            try:
+                os.chown(config_file, uid, gid)
+            except (OSError, PermissionError):
+                # If we can't chown (e.g., running as non-root), just log and continue
+                logger.warning(f"Could not set ownership of config file to {uid}:{gid}")
+
+        return config_file
+
     def list_sessions(self) -> List[Session]:
         """List all active Cubbi sessions"""
         sessions = []
@@ -161,7 +245,6 @@ class ContainerManager:
         uid: Optional[int] = None,
         gid: Optional[int] = None,
         model: Optional[str] = None,
-        provider: Optional[str] = None,
         ssh: bool = False,
         domains: Optional[List[str]] = None,
     ) -> Optional[Session]:
@@ -181,8 +264,8 @@ class ContainerManager:
             mcp: Optional list of MCP server names to attach to the session
             uid: Optional user ID for the container process
             gid: Optional group ID for the container process
-            model: Optional model to use
-            provider: Optional provider to use
+            model: Optional model specification in 'provider/model' format (e.g., 'anthropic/claude-3-5-sonnet')
+                   Legacy separate model and provider parameters are also supported for backward compatibility
             ssh: Whether to start the SSH server in the container (default: False)
             domains: Optional list of domains to restrict network access to (uses network-filter)
         """
@@ -213,32 +296,22 @@ class ContainerManager:
             # Ensure network exists
             self._ensure_network()
 
-            # Prepare environment variables
+            # Minimal environment variables
             env_vars = environment or {}
+            env_vars["CUBBI_CONFIG_FILE"] = "/cubbi/config.yaml"
 
-            # Add CUBBI_USER_ID and CUBBI_GROUP_ID for entrypoint script
-            env_vars["CUBBI_USER_ID"] = str(uid) if uid is not None else "1000"
-            env_vars["CUBBI_GROUP_ID"] = str(gid) if gid is not None else "1000"
-
-            # Set SSH environment variable
-            env_vars["CUBBI_SSH_ENABLED"] = "true" if ssh else "false"
-
-            # Pass some environment from host environment to container for local development
-            keys = [
-                "OPENAI_API_KEY",
-                "OPENAI_URL",
-                "ANTHROPIC_API_KEY",
-                "ANTHROPIC_AUTH_TOKEN",
-                "ANTHROPIC_CUSTOM_HEADERS",
-                "OPENROUTER_API_KEY",
-                "GOOGLE_API_KEY",
-                "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
-                "LANGFUSE_INIT_PROJECT_SECRET_KEY",
-                "LANGFUSE_URL",
-            ]
-            for key in keys:
-                if key in os.environ and key not in env_vars:
-                    env_vars[key] = os.environ[key]
+            # Forward specified environment variables from the host to the container
+            if (
+                hasattr(image, "environments_to_forward")
+                and image.environments_to_forward
+            ):
+                for env_name in image.environments_to_forward:
+                    env_value = os.environ.get(env_name)
+                    if env_value is not None:
+                        env_vars[env_name] = env_value
+                        print(
+                            f"Forwarding environment variable {env_name} to container"
+                        )
 
             # Pull image if needed
             try:
@@ -294,6 +367,7 @@ class ContainerManager:
                     print(f"Mounting volume: {host_path} -> {container_path}")
 
             # Set up persistent project configuration if project_name is provided
+            persistent_links = []
             project_config_path = self._get_project_config_path(project, project_name)
             if project_config_path:
                 print(f"Using project configuration directory: {project_config_path}")
@@ -304,13 +378,8 @@ class ContainerManager:
                     "mode": "rw",
                 }
 
-                # Add environment variables for config path
-                env_vars["CUBBI_CONFIG_DIR"] = "/cubbi-config"
-                env_vars["CUBBI_IMAGE_CONFIG_DIR"] = f"/cubbi-config/{image_name}"
-
-                # Create image-specific config directories and set up direct volume mounts
+                # Create image-specific config directories and collect persistent links
                 if image.persistent_configs:
-                    persistent_links_data = []  # To store "source:target" pairs for symlinks
                     print("Setting up persistent configuration directories:")
                     for config in image.persistent_configs:
                         # Get target directory path on host
@@ -327,23 +396,18 @@ class ContainerManager:
                         # For files, make sure parent directory exists
                         elif config.type == "file":
                             target_dir.parent.mkdir(parents=True, exist_ok=True)
-                            # File will be created by the container if needed
 
-                        # Store the source and target paths for the init script
-                        # Note: config.target is the path *within* /cubbi-config
-                        persistent_links_data.append(f"{config.source}:{config.target}")
+                        # Store persistent link data for config file
+                        persistent_links.append(
+                            {
+                                "source": config.source,
+                                "target": config.target,
+                                "type": config.type,
+                            }
+                        )
 
                         print(
                             f"  - Prepared host path {target_dir} for symlink target {config.target}"
-                        )
-
-                    # Set up persistent links
-                    if persistent_links_data:
-                        env_vars["CUBBI_PERSISTENT_LINKS"] = ";".join(
-                            persistent_links_data
-                        )
-                        print(
-                            f"Setting CUBBI_PERSISTENT_LINKS={env_vars['CUBBI_PERSISTENT_LINKS']}"
                         )
             else:
                 print(
@@ -394,43 +458,6 @@ class ContainerManager:
                         # Get MCP status to extract endpoint information
                         mcp_status = self.mcp_manager.get_mcp_status(mcp_name)
 
-                        # Add MCP environment variables with index
-                        idx = len(mcp_names) - 1  # 0-based index for the current MCP
-
-                        if mcp_config.get("type") == "remote":
-                            # For remote MCP, set the URL and headers
-                            env_vars[f"MCP_{idx}_URL"] = mcp_config.get("url")
-                            if mcp_config.get("headers"):
-                                # Serialize headers as JSON
-                                import json
-
-                                env_vars[f"MCP_{idx}_HEADERS"] = json.dumps(
-                                    mcp_config.get("headers")
-                                )
-                        else:
-                            # For Docker/proxy MCP, set the connection details
-                            # Use both the container name and the short name for internal Docker DNS resolution
-                            container_name = self.mcp_manager.get_mcp_container_name(
-                                mcp_name
-                            )
-                            # Use the short name (mcp_name) as the primary hostname
-                            env_vars[f"MCP_{idx}_HOST"] = mcp_name
-                            # Default port is 8080 unless specified in status
-                            port = next(
-                                iter(mcp_status.get("ports", {}).values()), 8080
-                            )
-                            env_vars[f"MCP_{idx}_PORT"] = str(port)
-                            # Use the short name in the URL to take advantage of the network alias
-                            env_vars[f"MCP_{idx}_URL"] = f"http://{mcp_name}:{port}/sse"
-                            # For backward compatibility, also set the full container name URL
-                            env_vars[f"MCP_{idx}_CONTAINER_URL"] = (
-                                f"http://{container_name}:{port}/sse"
-                            )
-
-                        # Set type-specific information
-                        env_vars[f"MCP_{idx}_TYPE"] = mcp_config.get("type")
-                        env_vars[f"MCP_{idx}_NAME"] = mcp_name
-
                     except Exception as e:
                         print(f"Warning: Failed to start MCP server '{mcp_name}': {e}")
                         # Get the container name before trying to remove it from the list
@@ -445,30 +472,8 @@ class ContainerManager:
                             pass
 
                 elif mcp_config.get("type") == "remote":
-                    # For remote MCP, just set environment variables
-                    idx = len(mcp_names) - 1  # 0-based index for the current MCP
-
-                    env_vars[f"MCP_{idx}_URL"] = mcp_config.get("url")
-                    if mcp_config.get("headers"):
-                        # Serialize headers as JSON
-                        import json
-
-                        env_vars[f"MCP_{idx}_HEADERS"] = json.dumps(
-                            mcp_config.get("headers")
-                        )
-
-                    # Set type-specific information
-                    env_vars[f"MCP_{idx}_TYPE"] = mcp_config.get("mcp_type", "sse")
-                    env_vars[f"MCP_{idx}_NAME"] = mcp_name
-
-            # Set environment variables for MCP count if we have any
-            if mcp_names:
-                env_vars["MCP_COUNT"] = str(len(mcp_names))
-                env_vars["MCP_ENABLED"] = "true"
-                # Serialize all MCP names as JSON
-                import json
-
-                env_vars["MCP_NAMES"] = json.dumps(mcp_names)
+                    # Remote MCP - nothing to do here, config will handle it
+                    pass
 
             # Add user-specified networks
             # Default Cubbi network
@@ -499,38 +504,17 @@ class ContainerManager:
             target_shell = "/bin/bash"
 
             if run_command:
-                # Set environment variable for cubbi-init.sh to pick up
-                env_vars["CUBBI_RUN_COMMAND"] = run_command
-
-                # If no_shell is true, set CUBBI_NO_SHELL environment variable
-                if no_shell:
-                    env_vars["CUBBI_NO_SHELL"] = "true"
-                    logger.info(
-                        "Setting CUBBI_NO_SHELL=true, container will exit after run command"
-                    )
-
                 # Set the container's command to be the final shell (or exit if no_shell is true)
                 container_command = [target_shell]
-                logger.info(
-                    f"Setting CUBBI_RUN_COMMAND and targeting shell {target_shell}"
-                )
+                logger.info(f"Using run command with shell {target_shell}")
+                if no_shell:
+                    logger.info("Container will exit after run command")
             else:
                 # Use default behavior (often defined by image's ENTRYPOINT/CMD)
-                # Set the container's command to be the final shell if none specified by Dockerfile CMD
-                # Note: Dockerfile CMD is ["tail", "-f", "/dev/null"], so this might need adjustment
-                # if we want interactive shell by default without --run. Let's default to bash for now.
                 container_command = [target_shell]
                 logger.info(
                     "Using default container entrypoint/command for interactive shell."
                 )
-
-            # Set default model/provider from user config if not explicitly provided
-            env_vars["CUBBI_MODEL"] = model or self.user_config_manager.get(
-                "defaults.model", ""
-            )
-            env_vars["CUBBI_PROVIDER"] = provider or self.user_config_manager.get(
-                "defaults.provider", ""
-            )
 
             # Handle network-filter if domains are specified
             network_filter_container = None
@@ -614,6 +598,29 @@ class ContainerManager:
                     print(
                         "[yellow]Warning: MCP servers may not be accessible when using domain restrictions.[/yellow]"
                     )
+
+            # Generate configuration file
+            project_url = project if is_git_repo else None
+            config_file_path = self._generate_container_config(
+                image_name=image_name,
+                project_url=project_url,
+                uid=uid,
+                gid=gid,
+                model=model,
+                ssh=ssh,
+                run_command=run_command,
+                no_shell=no_shell,
+                mcp_list=mcp_names,
+                persistent_links=persistent_links
+                if "persistent_links" in locals()
+                else None,
+            )
+
+            # Mount config file
+            session_volumes[str(config_file_path)] = {
+                "bind": "/cubbi/config.yaml",
+                "mode": "ro",
+            }
 
             # Create container
             container_params = {

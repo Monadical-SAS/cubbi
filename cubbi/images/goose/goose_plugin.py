@@ -1,31 +1,21 @@
 #!/usr/bin/env python3
-"""
-Goose-specific plugin for Cubbi initialization
-"""
 
 import os
 from pathlib import Path
-from typing import Any, Dict
 
-from cubbi_init import ToolPlugin
+from cubbi_init import ToolPlugin, cubbi_config
 from ruamel.yaml import YAML
 
 
 class GoosePlugin(ToolPlugin):
-    """Plugin for Goose AI tool initialization"""
-
     @property
     def tool_name(self) -> str:
         return "goose"
 
     def _get_user_ids(self) -> tuple[int, int]:
-        """Get the cubbi user and group IDs from environment"""
-        user_id = int(os.environ.get("CUBBI_USER_ID", "1000"))
-        group_id = int(os.environ.get("CUBBI_GROUP_ID", "1000"))
-        return user_id, group_id
+        return cubbi_config.user.uid, cubbi_config.user.gid
 
     def _set_ownership(self, path: Path) -> None:
-        """Set ownership of a path to the cubbi user"""
         user_id, group_id = self._get_user_ids()
         try:
             os.chown(path, user_id, group_id)
@@ -33,11 +23,9 @@ class GoosePlugin(ToolPlugin):
             self.status.log(f"Failed to set ownership for {path}: {e}", "WARNING")
 
     def _get_user_config_path(self) -> Path:
-        """Get the correct config path for the cubbi user"""
         return Path("/home/cubbi/.config/goose")
 
     def _ensure_user_config_dir(self) -> Path:
-        """Ensure config directory exists with correct ownership"""
         config_dir = self._get_user_config_path()
 
         # Create the full directory path
@@ -62,13 +50,64 @@ class GoosePlugin(ToolPlugin):
 
         return config_dir
 
+    def _write_env_vars_to_profile(self, env_vars: dict) -> None:
+        """Write environment variables to shell profile for interactive sessions"""
+        try:
+            # Write to cubbi user's bash profile
+            profile_path = Path("/home/cubbi/.bashrc")
+
+            # Create cubbi env section marker
+            env_section_start = "# CUBBI GOOSE ENVIRONMENT VARIABLES"
+            env_section_end = "# END CUBBI GOOSE ENVIRONMENT VARIABLES"
+
+            # Read existing profile or create empty
+            if profile_path.exists():
+                with open(profile_path, "r") as f:
+                    lines = f.readlines()
+            else:
+                lines = []
+
+            # Remove existing cubbi env section
+            new_lines = []
+            skip_section = False
+            for line in lines:
+                if env_section_start in line:
+                    skip_section = True
+                elif env_section_end in line:
+                    skip_section = False
+                    continue
+                elif not skip_section:
+                    new_lines.append(line)
+
+            # Add new env vars section
+            if env_vars:
+                new_lines.append(f"\n{env_section_start}\n")
+                for key, value in env_vars.items():
+                    new_lines.append(f'export {key}="{value}"\n')
+                new_lines.append(f"{env_section_end}\n")
+
+            # Write updated profile
+            profile_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(profile_path, "w") as f:
+                f.writelines(new_lines)
+
+            # Set ownership
+            self._set_ownership(profile_path)
+
+            self.status.log(
+                f"Updated shell profile with {len(env_vars)} environment variables"
+            )
+
+        except Exception as e:
+            self.status.log(
+                f"Failed to write environment variables to profile: {e}", "ERROR"
+            )
+
     def initialize(self) -> bool:
-        """Initialize Goose configuration"""
         self._ensure_user_config_dir()
         return self.setup_tool_configuration()
 
     def setup_tool_configuration(self) -> bool:
-        """Set up Goose configuration file"""
         # Ensure directory exists before writing
         config_dir = self._ensure_user_config_dir()
         if not config_dir.exists():
@@ -99,24 +138,52 @@ class GoosePlugin(ToolPlugin):
             "type": "builtin",
         }
 
-        # Update with environment variables
-        goose_model = os.environ.get("CUBBI_MODEL")
-        goose_provider = os.environ.get("CUBBI_PROVIDER")
+        # Configure Goose with the default model
+        provider_config = cubbi_config.get_provider_for_default_model()
+        if provider_config and cubbi_config.defaults.model:
+            _, model_name = cubbi_config.defaults.model.split("/", 1)
 
-        if goose_model:
-            config_data["GOOSE_MODEL"] = goose_model
-            self.status.log(f"Set GOOSE_MODEL to {goose_model}")
+            # Set Goose model and provider
+            config_data["GOOSE_MODEL"] = model_name
+            config_data["GOOSE_PROVIDER"] = provider_config.type
 
-        if goose_provider:
-            config_data["GOOSE_PROVIDER"] = goose_provider
-            self.status.log(f"Set GOOSE_PROVIDER to {goose_provider}")
+            # Set ONLY the specific API key for the selected provider
+            # Set both in current process AND in shell environment file
+            env_vars_to_set = {}
 
-            # If provider is OpenAI and OPENAI_URL is set, configure OPENAI_HOST
-            if goose_provider.lower() == "openai":
-                openai_url = os.environ.get("OPENAI_URL")
-                if openai_url:
-                    config_data["OPENAI_HOST"] = openai_url
-                    self.status.log(f"Set OPENAI_HOST to {openai_url}")
+            if provider_config.type == "anthropic" and provider_config.api_key:
+                env_vars_to_set["ANTHROPIC_API_KEY"] = provider_config.api_key
+                self.status.log("Set Anthropic API key for goose")
+            elif provider_config.type == "openai" and provider_config.api_key:
+                # For OpenAI-compatible providers (including litellm), goose expects OPENAI_API_KEY
+                env_vars_to_set["OPENAI_API_KEY"] = provider_config.api_key
+                self.status.log("Set OpenAI API key for goose")
+                # Set base URL for OpenAI-compatible providers in both env and config
+                if provider_config.base_url:
+                    env_vars_to_set["OPENAI_BASE_URL"] = provider_config.base_url
+                    config_data["OPENAI_HOST"] = provider_config.base_url
+                    self.status.log(
+                        f"Set OPENAI_BASE_URL and OPENAI_HOST to {provider_config.base_url}"
+                    )
+            elif provider_config.type == "google" and provider_config.api_key:
+                env_vars_to_set["GOOGLE_API_KEY"] = provider_config.api_key
+                self.status.log("Set Google API key for goose")
+            elif provider_config.type == "openrouter" and provider_config.api_key:
+                env_vars_to_set["OPENROUTER_API_KEY"] = provider_config.api_key
+                self.status.log("Set OpenRouter API key for goose")
+
+            # Set environment variables for current process (for --run commands)
+            for key, value in env_vars_to_set.items():
+                os.environ[key] = value
+
+            # Write environment variables to shell profile for interactive sessions
+            self._write_env_vars_to_profile(env_vars_to_set)
+
+            self.status.log(
+                f"Configured Goose: model={model_name}, provider={provider_config.type}"
+            )
+        else:
+            self.status.log("No default model or provider configured", "WARNING")
 
         try:
             with config_file.open("w") as f:
@@ -131,9 +198,8 @@ class GoosePlugin(ToolPlugin):
             self.status.log(f"Failed to write Goose configuration: {e}", "ERROR")
             return False
 
-    def integrate_mcp_servers(self, mcp_config: Dict[str, Any]) -> bool:
-        """Integrate Goose with available MCP servers"""
-        if mcp_config["count"] == 0:
+    def integrate_mcp_servers(self) -> bool:
+        if not cubbi_config.mcps:
             self.status.log("No MCP servers to integrate")
             return True
 
@@ -158,36 +224,33 @@ class GoosePlugin(ToolPlugin):
         if "extensions" not in config_data:
             config_data["extensions"] = {}
 
-        for server in mcp_config["servers"]:
-            server_name = server["name"]
-            server_host = server["host"]
-            server_url = server["url"]
-
-            if server_name and server_host:
-                mcp_url = f"http://{server_host}:8080/sse"
-                self.status.log(f"Adding MCP extension: {server_name} - {mcp_url}")
-
-                config_data["extensions"][server_name] = {
-                    "enabled": True,
-                    "name": server_name,
-                    "timeout": 60,
-                    "type": server.get("type", "sse"),
-                    "uri": mcp_url,
-                    "envs": {},
-                }
-            elif server_name and server_url:
-                self.status.log(
-                    f"Adding remote MCP extension: {server_name} - {server_url}"
-                )
-
-                config_data["extensions"][server_name] = {
-                    "enabled": True,
-                    "name": server_name,
-                    "timeout": 60,
-                    "type": server.get("type", "sse"),
-                    "uri": server_url,
-                    "envs": {},
-                }
+        for mcp in cubbi_config.mcps:
+            if mcp.type == "remote":
+                if mcp.name and mcp.url:
+                    self.status.log(
+                        f"Adding remote MCP extension: {mcp.name} - {mcp.url}"
+                    )
+                    config_data["extensions"][mcp.name] = {
+                        "enabled": True,
+                        "name": mcp.name,
+                        "timeout": 60,
+                        "type": "sse",
+                        "uri": mcp.url,
+                        "envs": {},
+                    }
+            elif mcp.type in ["docker", "proxy"]:
+                if mcp.name and mcp.host:
+                    mcp_port = mcp.port or 8080
+                    mcp_url = f"http://{mcp.host}:{mcp_port}/sse"
+                    self.status.log(f"Adding MCP extension: {mcp.name} - {mcp_url}")
+                    config_data["extensions"][mcp.name] = {
+                        "enabled": True,
+                        "name": mcp.name,
+                        "timeout": 60,
+                        "type": "sse",
+                        "uri": mcp_url,
+                        "envs": {},
+                    }
 
         try:
             with config_file.open("w") as f:

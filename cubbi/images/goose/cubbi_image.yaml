@@ -3,29 +3,14 @@ description: Goose AI environment
 version: 1.0.0
 maintainer: team@monadical.com
 image: monadical/cubbi-goose:latest
-
-init:
-  pre_command: /cubbi-init.sh
-  command: /entrypoint.sh
-
-environment:
-  - name: LANGFUSE_INIT_PROJECT_PUBLIC_KEY
-    description: Langfuse public key
-    required: false
-    sensitive: true
-
-  - name: LANGFUSE_INIT_PROJECT_SECRET_KEY
-    description: Langfuse secret key
-    required: false
-    sensitive: true
-
-  - name: LANGFUSE_URL
-    description: Langfuse API URL
-    required: false
-    default: https://cloud.langfuse.com
-
-volumes:
-  - mountPath: /app
-    description: Application directory
-
 persistent_configs: []
+environments_to_forward:
+  # API Keys
+  - OPENAI_API_KEY
+  - ANTHROPIC_API_KEY
+  - ANTHROPIC_AUTH_TOKEN
+  - ANTHROPIC_CUSTOM_HEADERS
+  - DEEPSEEK_API_KEY
+  - GEMINI_API_KEY
+  - OPENROUTER_API_KEY
+  - AIDER_API_KEYS

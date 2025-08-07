@@ -33,26 +33,15 @@ class PersistentConfig(BaseModel):
     description: str = ""
 
 
-class VolumeMount(BaseModel):
-    mountPath: str
-    description: str = ""
-
-
-class ImageInit(BaseModel):
-    pre_command: Optional[str] = None
-    command: str
-
-
 class Image(BaseModel):
     name: str
     description: str
     version: str
     maintainer: str
     image: str
-    init: Optional[ImageInit] = None
     environment: List[ImageEnvironmentVariable] = []
-    volumes: List[VolumeMount] = []
     persistent_configs: List[PersistentConfig] = []
+    environments_to_forward: List[str] = []
 
 
 class RemoteMCP(BaseModel):
