@@ -19,7 +19,7 @@ import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 from ruamel.yaml import YAML
@@ -31,9 +31,9 @@ class UserConfig(BaseModel):
 
 
 class ProjectConfig(BaseModel):
-    url: Optional[str] = None
-    config_dir: Optional[str] = None
-    image_config_dir: Optional[str] = None
+    url: str | None = None
+    config_dir: str | None = None
+    image_config_dir: str | None = None
 
 
 class PersistentLink(BaseModel):
@@ -45,20 +45,20 @@ class PersistentLink(BaseModel):
 class ProviderConfig(BaseModel):
     type: str
     api_key: str
-    base_url: Optional[str] = None
+    base_url: str | None = None
 
 
 class MCPConfig(BaseModel):
     name: str
     type: str
-    host: Optional[str] = None
-    port: Optional[int] = None
-    url: Optional[str] = None
-    headers: Optional[Dict[str, str]] = None
+    host: str | None = None
+    port: int | None = None
+    url: str | None = None
+    headers: dict[str, str] | None = None
 
 
 class DefaultsConfig(BaseModel):
-    model: Optional[str] = None
+    model: str | None = None
 
 
 class SSHConfig(BaseModel):
@@ -66,21 +66,18 @@ class SSHConfig(BaseModel):
 
 
 class CubbiConfig(BaseModel):
-    """Central configuration for container using Pydantic BaseModel"""
-
     version: str = "1.0"
     user: UserConfig = UserConfig()
-    providers: Dict[str, ProviderConfig] = {}
-    mcps: List[MCPConfig] = []
+    providers: dict[str, ProviderConfig] = {}
+    mcps: list[MCPConfig] = []
     project: ProjectConfig = ProjectConfig()
-    persistent_links: List[PersistentLink] = []
+    persistent_links: list[PersistentLink] = []
     defaults: DefaultsConfig = DefaultsConfig()
     ssh: SSHConfig = SSHConfig()
-    run_command: Optional[str] = None
+    run_command: str | None = None
     no_shell: bool = False
 
-    def get_provider_for_default_model(self) -> Optional[ProviderConfig]:
-        """Get the provider config for the default model"""
+    def get_provider_for_default_model(self) -> ProviderConfig | None:
         if not self.defaults.model or "/" not in self.defaults.model:
             return None
 
@@ -89,7 +86,6 @@ class CubbiConfig(BaseModel):
 
 
 def load_cubbi_config() -> CubbiConfig:
-    """Load configuration from file or return default"""
     config_path = Path("/cubbi/config.yaml")
     if not config_path.exists():
         return CubbiConfig()
@@ -104,9 +100,19 @@ def load_cubbi_config() -> CubbiConfig:
 cubbi_config = load_cubbi_config()
 
 
-class StatusManager:
-    """Manages initialization status and logging"""
+def get_user_ids() -> tuple[int, int]:
+    return cubbi_config.user.uid, cubbi_config.user.gid
 
+
+def set_ownership(path: Path) -> None:
+    user_id, group_id = get_user_ids()
+    try:
+        os.chown(path, user_id, group_id)
+    except OSError:
+        pass
+
+
+class StatusManager:
     def __init__(
         self, log_file: str = "/cubbi/init.log", status_file: str = "/cubbi/init.status"
     ):
@@ -127,17 +133,14 @@ class StatusManager:
             f.flush()
 
     def set_status(self, complete: bool) -> None:
-        """Set initialization completion status"""
         status = "true" if complete else "false"
         with open(self.status_file, "w") as f:
             f.write(f"INIT_COMPLETE={status}\n")
 
     def start_initialization(self) -> None:
-        """Mark initialization as started"""
         self.set_status(False)
 
     def complete_initialization(self) -> None:
-        """Mark initialization as completed"""
         self.set_status(True)
 
 
@@ -156,16 +159,14 @@ class ImageConfig:
     version: str
     maintainer: str
     image: str
-    persistent_configs: List[PersistentConfig] = field(default_factory=list)
-    environments_to_forward: List[str] = field(default_factory=list)
+    persistent_configs: list[PersistentConfig] = field(default_factory=list)
+    environments_to_forward: list[str] = field(default_factory=list)
 
 
 class ConfigParser:
-    """Parses Cubbi image configuration and environment variables"""
-
     def __init__(self, config_file: str = "/cubbi/cubbi_image.yaml"):
         self.config_file = Path(config_file)
-        self.environment: Dict[str, str] = dict(os.environ)
+        self.environment: dict[str, str] = dict(os.environ)
 
     def load_image_config(self) -> ImageConfig:
         if not self.config_file.exists():
@@ -191,8 +192,6 @@ class ConfigParser:
 
 
 class UserManager:
-    """Manages user and group creation/modification in containers"""
-
     def __init__(self, status: StatusManager):
         self.status = status
         self.username = "cubbi"
@@ -213,7 +212,6 @@ class UserManager:
             f"Setting up user '{self.username}' with UID: {user_id}, GID: {group_id}"
         )
 
-        # Handle group creation/modification
         try:
             existing_group = grp.getgrnam(self.username)
             if existing_group.gr_gid != group_id:
@@ -228,7 +226,6 @@ class UserManager:
             if not self._run_command(["groupadd", "-g", str(group_id), self.username]):
                 return False
 
-        # Handle user creation/modification
         try:
             existing_user = pwd.getpwnam(self.username)
             if existing_user.pw_uid != user_id or existing_user.pw_gid != group_id:
@@ -262,7 +259,6 @@ class UserManager:
             ):
                 return False
 
-        # Create the sudoers file entry for the 'cubbi' user
         sudoers_command = [
             "sh",
             "-c",
@@ -276,8 +272,6 @@ class UserManager:
 
 
 class DirectoryManager:
-    """Manages directory creation and permission setup"""
-
     def __init__(self, status: StatusManager):
         self.status = status
 
@@ -369,8 +363,6 @@ class DirectoryManager:
 
 
 class ConfigManager:
-    """Manages persistent configuration symlinks and mappings"""
-
     def __init__(self, status: StatusManager):
         self.status = status
 
@@ -420,7 +412,7 @@ class ConfigManager:
             return False
 
     def setup_persistent_configs(
-        self, persistent_configs: List[PersistentConfig], user_id: int, group_id: int
+        self, persistent_configs: list[PersistentConfig], user_id: int, group_id: int
     ) -> bool:
         if not persistent_configs:
             self.status.log("No persistent configurations defined in image config")
@@ -449,13 +441,11 @@ class ConfigManager:
 
 
 class CommandManager:
-    """Manages command execution and user switching"""
-
     def __init__(self, status: StatusManager):
         self.status = status
         self.username = "cubbi"
 
-    def run_as_user(self, command: List[str], user: str = None) -> int:
+    def run_as_user(self, command: list[str], user: str = None) -> int:
         if user is None:
             user = self.username
 
@@ -476,7 +466,7 @@ class CommandManager:
         self.status.log(f"Executing user command: {command}")
         return self.run_as_user(["sh", "-c", command])
 
-    def exec_as_user(self, args: List[str]) -> None:
+    def exec_as_user(self, args: list[str]) -> None:
         if not args:
             args = ["tail", "-f", "/dev/null"]
 
@@ -492,9 +482,7 @@ class CommandManager:
 
 
 class ToolPlugin(ABC):
-    """Base class for tool-specific initialization plugins"""
-
-    def __init__(self, status: StatusManager, config: Dict[str, Any]):
+    def __init__(self, status: StatusManager, config: dict[str, Any]):
         self.status = status
         self.config = config
 
@@ -503,14 +491,30 @@ class ToolPlugin(ABC):
     def tool_name(self) -> str:
         pass
 
+    def create_directory_with_ownership(self, path: Path) -> Path:
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            set_ownership(path)
+
+            # Also set ownership on parent directories if they were created
+            parent = path.parent
+            if parent.exists() and parent != Path("/"):
+                set_ownership(parent)
+
+        except OSError as e:
+            self.status.log(f"Failed to create directory {path}: {e}", "ERROR")
+
+        return path
+
     @abstractmethod
-    def initialize(self) -> bool:
+    def is_already_configured(self) -> bool:
         pass
 
-    def integrate_mcp_servers(self, mcp_config: Dict[str, Any]) -> bool:
-        return True
+    @abstractmethod
+    def configure(self) -> bool:
+        pass
 
-    def get_resolved_model(self) -> Dict[str, Any] | None:
+    def get_resolved_model(self) -> dict[str, Any] | None:
         model_spec = os.environ.get("CUBBI_MODEL_SPEC", "")
         if not model_spec:
             return None
@@ -539,7 +543,7 @@ class ToolPlugin(ABC):
             "model_spec": model_spec,
         }
 
-    def get_provider_config(self, provider_name: str) -> Dict[str, str]:
+    def get_provider_config(self, provider_name: str) -> dict[str, str]:
         provider_config = {}
 
         # Map provider names to their environment variables
@@ -568,7 +572,7 @@ class ToolPlugin(ABC):
 
         return provider_config
 
-    def get_all_providers_config(self) -> Dict[str, Dict[str, str]]:
+    def get_all_providers_config(self) -> dict[str, dict[str, str]]:
         all_providers = {}
 
         # Check for each standard provider
@@ -601,7 +605,7 @@ class CubbiInitializer:
         self.config_manager = ConfigManager(self.status)
         self.command_manager = CommandManager(self.status)
 
-    def run_initialization(self, final_args: List[str]) -> None:
+    def run_initialization(self, final_args: list[str]) -> None:
         """Run the complete initialization process"""
         try:
             self.status.start_initialization()
@@ -684,37 +688,26 @@ class CubbiInitializer:
             plugin_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(plugin_module)
 
-            # Find the plugin class (should inherit from ToolPlugin)
-            plugin_class = None
-            for attr_name in dir(plugin_module):
-                attr = getattr(plugin_module, attr_name)
-                if (
-                    isinstance(attr, type)
-                    and hasattr(attr, "tool_name")
-                    and hasattr(attr, "initialize")
-                    and attr_name != "ToolPlugin"
-                ):  # Skip the base class
-                    plugin_class = attr
-                    break
-
-            if not plugin_class:
+            # Get the plugin class from the standard export variable
+            if not hasattr(plugin_module, "PLUGIN_CLASS"):
                 self.status.log(
-                    f"No valid plugin class found in {plugin_file}", "ERROR"
+                    f"No PLUGIN_CLASS variable found in {plugin_file}", "ERROR"
                 )
                 return False
+
+            plugin_class = plugin_module.PLUGIN_CLASS
 
             # Instantiate and run the plugin
             plugin = plugin_class(self.status, {"image_config": image_config})
 
             self.status.log(f"Running {plugin.tool_name}-specific initialization")
 
-            if not plugin.initialize():
-                self.status.log(f"{plugin.tool_name} initialization failed", "ERROR")
-                return False
-
-            if not plugin.integrate_mcp_servers():
-                self.status.log(f"{plugin.tool_name} MCP integration failed", "ERROR")
-                return False
+            if not plugin.is_already_configured():
+                if not plugin.configure():
+                    self.status.log(f"{plugin.tool_name} configuration failed", "ERROR")
+                    return False
+            else:
+                self.status.log(f"{plugin.tool_name} is already configured, skipping")
 
             return True
 

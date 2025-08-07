@@ -3,25 +3,14 @@
 import os
 import stat
 from pathlib import Path
-from typing import Dict
 
-from cubbi_init import ToolPlugin, cubbi_config
+from cubbi_init import ToolPlugin, cubbi_config, set_ownership
 
 
 class AiderPlugin(ToolPlugin):
     @property
     def tool_name(self) -> str:
         return "aider"
-
-    def _get_user_ids(self) -> tuple[int, int]:
-        return cubbi_config.user.uid, cubbi_config.user.gid
-
-    def _set_ownership(self, path: Path) -> None:
-        user_id, group_id = self._get_user_ids()
-        try:
-            os.chown(path, user_id, group_id)
-        except OSError as e:
-            self.status.log(f"Failed to set ownership for {path}: {e}", "WARNING")
 
     def _get_aider_config_dir(self) -> Path:
         return Path("/home/cubbi/.aider")
@@ -33,28 +22,23 @@ class AiderPlugin(ToolPlugin):
         config_dir = self._get_aider_config_dir()
         cache_dir = self._get_aider_cache_dir()
 
-        # Create directories
-        for directory in [config_dir, cache_dir]:
-            try:
-                directory.mkdir(mode=0o755, parents=True, exist_ok=True)
-                self._set_ownership(directory)
-            except OSError as e:
-                self.status.log(
-                    f"Failed to create Aider directory {directory}: {e}", "ERROR"
-                )
+        self.create_directory_with_ownership(config_dir)
+        self.create_directory_with_ownership(cache_dir)
 
         return config_dir, cache_dir
 
-    def initialize(self) -> bool:
+    def is_already_configured(self) -> bool:
+        config_dir = self._get_aider_config_dir()
+        env_file = config_dir / ".env"
+        return env_file.exists()
+
+    def configure(self) -> bool:
         self.status.log("Setting up Aider configuration...")
 
-        # Ensure Aider directories exist
         config_dir, cache_dir = self._ensure_aider_dirs()
 
-        # Set up environment variables for the session
         env_vars = self._create_environment_config()
 
-        # Create .env file if we have API keys
         if env_vars:
             env_file = config_dir / ".env"
             success = self._write_env_file(env_file, env_vars)
@@ -71,22 +55,26 @@ class AiderPlugin(ToolPlugin):
                 "INFO",
             )
 
-        # Always return True to allow container to start
+        if not cubbi_config.mcps:
+            self.status.log("No MCP servers to integrate")
+            return True
+
+        self.status.log(
+            f"Found {len(cubbi_config.mcps)} MCP server(s) - no direct integration available for Aider"
+        )
+
         return True
 
-    def _create_environment_config(self) -> Dict[str, str]:
+    def _create_environment_config(self) -> dict[str, str]:
         env_vars = {}
 
-        # Configure Aider with the default model from cubbi config
         provider_config = cubbi_config.get_provider_for_default_model()
         if provider_config and cubbi_config.defaults.model:
             _, model_name = cubbi_config.defaults.model.split("/", 1)
 
-            # Set the model for Aider
             env_vars["AIDER_MODEL"] = model_name
             self.status.log(f"Set Aider model to {model_name}")
 
-            # Set provider-specific API key and configuration
             if provider_config.type == "anthropic":
                 env_vars["AIDER_ANTHROPIC_API_KEY"] = provider_config.api_key
                 self.status.log("Configured Anthropic API key for Aider")
@@ -100,10 +88,7 @@ class AiderPlugin(ToolPlugin):
                     )
                 self.status.log("Configured OpenAI API key for Aider")
 
-            # Note: Aider uses different environment variable names for some providers
-            # We map cubbi provider types to Aider's expected variable names
             elif provider_config.type == "google":
-                # Aider may expect GEMINI_API_KEY for Google models
                 env_vars["GEMINI_API_KEY"] = provider_config.api_key
                 self.status.log("Configured Google/Gemini API key for Aider")
 
@@ -122,7 +107,6 @@ class AiderPlugin(ToolPlugin):
                 "WARNING",
             )
 
-            # Fallback to legacy environment variable checking for backward compatibility
             api_key_mappings = {
                 "OPENAI_API_KEY": "AIDER_OPENAI_API_KEY",
                 "ANTHROPIC_API_KEY": "AIDER_ANTHROPIC_API_KEY",
@@ -138,7 +122,6 @@ class AiderPlugin(ToolPlugin):
                     provider = env_var.replace("_API_KEY", "").lower()
                     self.status.log(f"Added {provider} API key from environment")
 
-            # Check for OpenAI API base URL from legacy environment
             openai_url = os.environ.get("OPENAI_URL")
             if openai_url:
                 env_vars["AIDER_OPENAI_API_BASE"] = openai_url
@@ -146,17 +129,14 @@ class AiderPlugin(ToolPlugin):
                     f"Set OpenAI API base URL to {openai_url} from environment"
                 )
 
-            # Legacy model configuration
             model = os.environ.get("AIDER_MODEL")
             if model:
                 env_vars["AIDER_MODEL"] = model
                 self.status.log(f"Set model to {model} from environment")
 
-        # Handle additional API keys from AIDER_API_KEYS
         additional_keys = os.environ.get("AIDER_API_KEYS")
         if additional_keys:
             try:
-                # Parse format: "provider1=key1,provider2=key2"
                 for pair in additional_keys.split(","):
                     if "=" in pair:
                         provider, key = pair.strip().split("=", 1)
@@ -166,17 +146,14 @@ class AiderPlugin(ToolPlugin):
             except Exception as e:
                 self.status.log(f"Failed to parse AIDER_API_KEYS: {e}", "WARNING")
 
-        # Add git configuration
         auto_commits = os.environ.get("AIDER_AUTO_COMMITS", "true")
         if auto_commits.lower() in ["true", "false"]:
             env_vars["AIDER_AUTO_COMMITS"] = auto_commits
 
-        # Add dark mode setting
         dark_mode = os.environ.get("AIDER_DARK_MODE", "false")
         if dark_mode.lower() in ["true", "false"]:
             env_vars["AIDER_DARK_MODE"] = dark_mode
 
-        # Add proxy settings
         for proxy_var in ["HTTP_PROXY", "HTTPS_PROXY"]:
             value = os.environ.get(proxy_var)
             if value:
@@ -185,7 +162,7 @@ class AiderPlugin(ToolPlugin):
 
         return env_vars
 
-    def _write_env_file(self, env_file: Path, env_vars: Dict[str, str]) -> bool:
+    def _write_env_file(self, env_file: Path, env_vars: dict[str, str]) -> bool:
         try:
             content = "\n".join(f"{key}={value}" for key, value in env_vars.items())
 
@@ -193,8 +170,7 @@ class AiderPlugin(ToolPlugin):
                 f.write(content)
                 f.write("\n")
 
-            # Set ownership and secure file permissions (read/write for owner only)
-            self._set_ownership(env_file)
+            set_ownership(env_file)
             os.chmod(env_file, stat.S_IRUSR | stat.S_IWUSR)
 
             self.status.log(f"Created Aider environment file at {env_file}")
@@ -203,18 +179,5 @@ class AiderPlugin(ToolPlugin):
             self.status.log(f"Failed to write Aider environment file: {e}", "ERROR")
             return False
 
-    def setup_tool_configuration(self) -> bool:
-        # Additional tool configuration can be added here if needed
-        return True
 
-    def integrate_mcp_servers(self) -> bool:
-        if not cubbi_config.mcps:
-            self.status.log("No MCP servers to integrate")
-            return True
-
-        # Aider doesn't have native MCP support like Claude Code,
-        # but we could potentially add custom integrations here
-        self.status.log(
-            f"Found {len(cubbi_config.mcps)} MCP server(s) - no direct integration available for Aider"
-        )
-        return True
+PLUGIN_CLASS = AiderPlugin
