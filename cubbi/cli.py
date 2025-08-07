@@ -14,6 +14,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .config import ConfigManager
+from .configure import run_interactive_config
 from .container import ContainerManager
 from .mcp import MCPManager
 from .models import SessionStatus
@@ -58,6 +59,12 @@ def main(
     # Set log level based on verbose flag
     if verbose:
         logging.getLogger().setLevel(logging.INFO)
+
+
+@app.command()
+def configure() -> None:
+    """Interactive configuration of LLM providers and models"""
+    run_interactive_config()
 
 
 @app.command()
