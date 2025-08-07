@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-from cubbi_init import ToolPlugin, cubbi_config
+from cubbi_init import ToolPlugin, cubbi_config, set_ownership
 from ruamel.yaml import YAML
 
 
@@ -12,62 +12,36 @@ class GoosePlugin(ToolPlugin):
     def tool_name(self) -> str:
         return "goose"
 
-    def _get_user_ids(self) -> tuple[int, int]:
-        return cubbi_config.user.uid, cubbi_config.user.gid
+    def is_already_configured(self) -> bool:
+        config_file = Path("/home/cubbi/.config/goose/config.yaml")
+        return config_file.exists()
 
-    def _set_ownership(self, path: Path) -> None:
-        user_id, group_id = self._get_user_ids()
-        try:
-            os.chown(path, user_id, group_id)
-        except OSError as e:
-            self.status.log(f"Failed to set ownership for {path}: {e}", "WARNING")
+    def configure(self) -> bool:
+        self._ensure_user_config_dir()
+        if not self.setup_tool_configuration():
+            return False
+        return self.integrate_mcp_servers()
 
     def _get_user_config_path(self) -> Path:
         return Path("/home/cubbi/.config/goose")
 
     def _ensure_user_config_dir(self) -> Path:
         config_dir = self._get_user_config_path()
-
-        # Create the full directory path
-        try:
-            config_dir.mkdir(parents=True, exist_ok=True)
-        except FileExistsError:
-            # Directory already exists, which is fine
-            pass
-        except OSError as e:
-            self.status.log(
-                f"Failed to create config directory {config_dir}: {e}", "ERROR"
-            )
-            return config_dir
-
-        # Set ownership for the directories
-        config_parent = config_dir.parent
-        if config_parent.exists():
-            self._set_ownership(config_parent)
-
-        if config_dir.exists():
-            self._set_ownership(config_dir)
-
-        return config_dir
+        return self.create_directory_with_ownership(config_dir)
 
     def _write_env_vars_to_profile(self, env_vars: dict) -> None:
-        """Write environment variables to shell profile for interactive sessions"""
         try:
-            # Write to cubbi user's bash profile
             profile_path = Path("/home/cubbi/.bashrc")
 
-            # Create cubbi env section marker
             env_section_start = "# CUBBI GOOSE ENVIRONMENT VARIABLES"
             env_section_end = "# END CUBBI GOOSE ENVIRONMENT VARIABLES"
 
-            # Read existing profile or create empty
             if profile_path.exists():
                 with open(profile_path, "r") as f:
                     lines = f.readlines()
             else:
                 lines = []
 
-            # Remove existing cubbi env section
             new_lines = []
             skip_section = False
             for line in lines:
@@ -79,20 +53,17 @@ class GoosePlugin(ToolPlugin):
                 elif not skip_section:
                     new_lines.append(line)
 
-            # Add new env vars section
             if env_vars:
                 new_lines.append(f"\n{env_section_start}\n")
                 for key, value in env_vars.items():
                     new_lines.append(f'export {key}="{value}"\n')
                 new_lines.append(f"{env_section_end}\n")
 
-            # Write updated profile
             profile_path.parent.mkdir(parents=True, exist_ok=True)
             with open(profile_path, "w") as f:
                 f.writelines(new_lines)
 
-            # Set ownership
-            self._set_ownership(profile_path)
+            set_ownership(profile_path)
 
             self.status.log(
                 f"Updated shell profile with {len(env_vars)} environment variables"
@@ -103,12 +74,7 @@ class GoosePlugin(ToolPlugin):
                 f"Failed to write environment variables to profile: {e}", "ERROR"
             )
 
-    def initialize(self) -> bool:
-        self._ensure_user_config_dir()
-        return self.setup_tool_configuration()
-
     def setup_tool_configuration(self) -> bool:
-        # Ensure directory exists before writing
         config_dir = self._ensure_user_config_dir()
         if not config_dir.exists():
             self.status.log(
@@ -189,8 +155,7 @@ class GoosePlugin(ToolPlugin):
             with config_file.open("w") as f:
                 yaml.dump(config_data, f)
 
-            # Set ownership of the config file to cubbi user
-            self._set_ownership(config_file)
+            set_ownership(config_file)
 
             self.status.log(f"Updated Goose configuration at {config_file}")
             return True
@@ -203,7 +168,6 @@ class GoosePlugin(ToolPlugin):
             self.status.log("No MCP servers to integrate")
             return True
 
-        # Ensure directory exists before writing
         config_dir = self._ensure_user_config_dir()
         if not config_dir.exists():
             self.status.log(
@@ -256,8 +220,7 @@ class GoosePlugin(ToolPlugin):
             with config_file.open("w") as f:
                 yaml.dump(config_data, f)
 
-            # Set ownership of the config file to cubbi user
-            self._set_ownership(config_file)
+            set_ownership(config_file)
 
             return True
         except Exception as e:
