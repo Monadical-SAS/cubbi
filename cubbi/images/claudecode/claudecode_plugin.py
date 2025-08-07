@@ -1,49 +1,23 @@
 #!/usr/bin/env python3
-"""
-Claude Code Plugin for Cubbi
-Handles authentication setup and configuration for Claude Code
-"""
 
 import json
 import os
 import stat
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
-from cubbi_init import ToolPlugin
-
-# API key mappings from environment variables to Claude Code configuration
-API_KEY_MAPPINGS = {
-    "ANTHROPIC_API_KEY": "api_key",
-    "ANTHROPIC_AUTH_TOKEN": "auth_token",
-    "ANTHROPIC_CUSTOM_HEADERS": "custom_headers",
-}
-
-# Enterprise integration environment variables
-ENTERPRISE_MAPPINGS = {
-    "CLAUDE_CODE_USE_BEDROCK": "use_bedrock",
-    "CLAUDE_CODE_USE_VERTEX": "use_vertex",
-    "HTTP_PROXY": "http_proxy",
-    "HTTPS_PROXY": "https_proxy",
-    "DISABLE_TELEMETRY": "disable_telemetry",
-}
+from cubbi_init import ToolPlugin, cubbi_config
 
 
 class ClaudeCodePlugin(ToolPlugin):
-    """Plugin for setting up Claude Code authentication and configuration"""
-
     @property
     def tool_name(self) -> str:
         return "claudecode"
 
     def _get_user_ids(self) -> tuple[int, int]:
-        """Get the cubbi user and group IDs from environment"""
-        user_id = int(os.environ.get("CUBBI_USER_ID", "1000"))
-        group_id = int(os.environ.get("CUBBI_GROUP_ID", "1000"))
-        return user_id, group_id
+        return cubbi_config.user.uid, cubbi_config.user.gid
 
     def _set_ownership(self, path: Path) -> None:
-        """Set ownership of a path to the cubbi user"""
         user_id, group_id = self._get_user_ids()
         try:
             os.chown(path, user_id, group_id)
@@ -51,11 +25,9 @@ class ClaudeCodePlugin(ToolPlugin):
             self.status.log(f"Failed to set ownership for {path}: {e}", "WARNING")
 
     def _get_claude_dir(self) -> Path:
-        """Get the Claude Code configuration directory"""
         return Path("/home/cubbi/.claude")
 
     def _ensure_claude_dir(self) -> Path:
-        """Ensure Claude directory exists with correct ownership"""
         claude_dir = self._get_claude_dir()
 
         try:
@@ -69,7 +41,6 @@ class ClaudeCodePlugin(ToolPlugin):
         return claude_dir
 
     def initialize(self) -> bool:
-        """Initialize Claude Code configuration"""
         self.status.log("Setting up Claude Code authentication...")
 
         # Ensure Claude directory exists
@@ -97,23 +68,30 @@ class ClaudeCodePlugin(ToolPlugin):
             return True
 
     def _create_settings(self) -> Optional[Dict]:
-        """Create Claude Code settings configuration"""
         settings = {}
 
-        # Core authentication
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            return None
+        # Get Anthropic provider configuration from cubbi_config
+        anthropic_provider = None
+        for provider_name, provider_config in cubbi_config.providers.items():
+            if provider_config.type == "anthropic":
+                anthropic_provider = provider_config
+                break
 
-        # Basic authentication setup
-        settings["apiKey"] = api_key
+        if not anthropic_provider or not anthropic_provider.api_key:
+            # Fallback to environment variable for backward compatibility
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            if not api_key:
+                return None
+            settings["apiKey"] = api_key
+        else:
+            settings["apiKey"] = anthropic_provider.api_key
 
-        # Custom authorization token (optional)
+        # Custom authorization token (optional) - still from environment
         auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
         if auth_token:
             settings["authToken"] = auth_token
 
-        # Custom headers (optional)
+        # Custom headers (optional) - still from environment
         custom_headers = os.environ.get("ANTHROPIC_CUSTOM_HEADERS")
         if custom_headers:
             try:
@@ -124,14 +102,14 @@ class ClaudeCodePlugin(ToolPlugin):
                     "⚠️ Invalid ANTHROPIC_CUSTOM_HEADERS format, skipping", "WARNING"
                 )
 
-        # Enterprise integration settings
+        # Enterprise integration settings - still from environment
         if os.environ.get("CLAUDE_CODE_USE_BEDROCK") == "true":
             settings["provider"] = "bedrock"
 
         if os.environ.get("CLAUDE_CODE_USE_VERTEX") == "true":
             settings["provider"] = "vertex"
 
-        # Network proxy settings
+        # Network proxy settings - still from environment
         http_proxy = os.environ.get("HTTP_PROXY")
         https_proxy = os.environ.get("HTTPS_PROXY")
         if http_proxy or https_proxy:
@@ -141,7 +119,7 @@ class ClaudeCodePlugin(ToolPlugin):
             if https_proxy:
                 settings["proxy"]["https"] = https_proxy
 
-        # Telemetry settings
+        # Telemetry settings - still from environment
         if os.environ.get("DISABLE_TELEMETRY") == "true":
             settings["telemetry"] = {"enabled": False}
 
@@ -160,7 +138,6 @@ class ClaudeCodePlugin(ToolPlugin):
         return settings
 
     def _write_settings(self, settings_file: Path, settings: Dict) -> bool:
-        """Write settings to Claude Code configuration file"""
         try:
             # Write settings with secure permissions
             with open(settings_file, "w") as f:
@@ -177,13 +154,11 @@ class ClaudeCodePlugin(ToolPlugin):
             return False
 
     def setup_tool_configuration(self) -> bool:
-        """Set up Claude Code configuration - called by base class"""
         # Additional tool configuration can be added here if needed
         return True
 
-    def integrate_mcp_servers(self, mcp_config: Dict[str, Any]) -> bool:
-        """Integrate Claude Code with available MCP servers"""
-        if mcp_config["count"] == 0:
+    def integrate_mcp_servers(self) -> bool:
+        if not cubbi_config.mcps:
             self.status.log("No MCP servers to integrate")
             return True
 
