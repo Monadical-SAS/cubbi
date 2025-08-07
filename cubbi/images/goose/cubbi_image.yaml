@@ -4,14 +4,6 @@ version: 1.0.0
 maintainer: team@monadical.com
 image: monadical/cubbi-goose:latest
 
-init:
-  pre_command: /cubbi-init.sh
-  command: /entrypoint.sh
-
-volumes:
-  - mountPath: /app
-    description: Application directory
-
 persistent_configs:
   - source: "/app/.goose"
     target: "/cubbi-config/goose-app"

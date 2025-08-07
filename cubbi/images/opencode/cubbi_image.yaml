@@ -4,14 +4,6 @@ version: 1.0.0
 maintainer: team@monadical.com
 image: monadical/cubbi-opencode:latest
 
-init:
-  pre_command: /cubbi-init.sh
-  command: /entrypoint.sh
-
-volumes:
-  - mountPath: /app
-    description: Application directory
-
 persistent_configs:
   - source: "/home/cubbi/.config/opencode"
     target: "/cubbi-config/config-opencode"
