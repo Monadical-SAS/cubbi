@@ -64,3 +64,15 @@ persistent_configs:
     target: "/cubbi-config/claude-cache"
     type: "directory"
     description: "Claude Code cache directory"
+
+# Environment variables to forward from host to container
+# Claude Code needs the Anthropic API key regardless of the model selection
+environments_to_forward:
+  - ANTHROPIC_API_KEY
+  - ANTHROPIC_AUTH_TOKEN
+  - ANTHROPIC_CUSTOM_HEADERS
+  - CLAUDE_CODE_USE_BEDROCK
+  - CLAUDE_CODE_USE_VERTEX
+  - HTTP_PROXY
+  - HTTPS_PROXY
+  - DISABLE_TELEMETRY

@@ -53,6 +53,7 @@ class Image(BaseModel):
     environment: List[ImageEnvironmentVariable] = []
     volumes: List[VolumeMount] = []
     persistent_configs: List[PersistentConfig] = []
+    environments_to_forward: List[str] = []
 
 
 class RemoteMCP(BaseModel):

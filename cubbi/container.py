@@ -289,6 +289,19 @@ class ContainerManager:
             env_vars = environment or {}
             env_vars["CUBBI_CONFIG_FILE"] = "/cubbi/config.yaml"
 
+            # Forward specified environment variables from the host to the container
+            if (
+                hasattr(image, "environments_to_forward")
+                and image.environments_to_forward
+            ):
+                for env_name in image.environments_to_forward:
+                    env_value = os.environ.get(env_name)
+                    if env_value is not None:
+                        env_vars[env_name] = env_value
+                        print(
+                            f"Forwarding environment variable {env_name} to container"
+                        )
+
             # Pull image if needed
             try:
                 self.client.images.get(image.image)

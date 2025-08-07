@@ -157,6 +157,7 @@ class ImageConfig:
     maintainer: str
     image: str
     persistent_configs: List[PersistentConfig] = field(default_factory=list)
+    environments_to_forward: List[str] = field(default_factory=list)
 
 
 class ConfigParser:
@@ -185,6 +186,7 @@ class ConfigParser:
             maintainer=config_data["maintainer"],
             image=config_data["image"],
             persistent_configs=persistent_configs,
+            environments_to_forward=config_data.get("environments_to_forward", []),
         )
 
 
