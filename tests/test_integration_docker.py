@@ -24,20 +24,6 @@ def execute_command_in_container(container_id, command):
 
 
 def wait_for_container_init(container_id, timeout=5.0, poll_interval=0.1):
-    """
-    Wait for a Cubbi container to complete initialization by polling /cubbi/init.status.
-
-    Args:
-        container_id: Docker container ID
-        timeout: Maximum time to wait in seconds (default: 5.0)
-        poll_interval: Time between polls in seconds (default: 0.1)
-
-    Returns:
-        bool: True if initialization completed, False if timed out
-
-    Raises:
-        subprocess.CalledProcessError: If docker exec command fails
-    """
     start_time = time.time()
 
     while time.time() - start_time < timeout:
