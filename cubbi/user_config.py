@@ -635,3 +635,113 @@ class UserConfigManager:
             self.set("defaults.ports", ports)
             return True
         return False
+
+    # Model management methods
+    def list_provider_models(self, provider_name: str) -> List[Dict[str, str]]:
+        """Get all models for a specific provider.
+
+        Args:
+            provider_name: Name of the provider
+
+        Returns:
+            List of model dictionaries with 'id' and 'name' keys
+        """
+        provider_config = self.get_provider(provider_name)
+        if not provider_config:
+            return []
+
+        models = provider_config.get("models", [])
+        normalized_models = []
+        for model in models:
+            if isinstance(model, str):
+                normalized_models.append({"id": model})
+            elif isinstance(model, dict):
+                model_id = model.get("id", "")
+                if model_id:
+                    normalized_models.append({"id": model_id})
+
+        return normalized_models
+
+    def set_provider_models(
+        self, provider_name: str, models: List[Dict[str, str]]
+    ) -> None:
+        """Set the models for a specific provider.
+
+        Args:
+            provider_name: Name of the provider
+            models: List of model dictionaries with 'id' and optional 'name' keys
+        """
+        provider_config = self.get_provider(provider_name)
+        if not provider_config:
+            return
+
+        # Normalize models - ensure each has id, name defaults to id
+        normalized_models = []
+        for model in models:
+            if isinstance(model, dict) and "id" in model:
+                normalized_model = {
+                    "id": model["id"],
+                }
+                normalized_models.append(normalized_model)
+
+        provider_config["models"] = normalized_models
+        self.set(f"providers.{provider_name}", provider_config)
+
+    def add_provider_model(
+        self, provider_name: str, model_id: str, model_name: Optional[str] = None
+    ) -> None:
+        """Add a model to a provider.
+
+        Args:
+            provider_name: Name of the provider
+            model_id: ID of the model
+            model_name: Optional display name for the model (defaults to model_id)
+        """
+        models = self.list_provider_models(provider_name)
+
+        for existing_model in models:
+            if existing_model["id"] == model_id:
+                return
+
+        new_model = {"id": model_id}
+        models.append(new_model)
+        self.set_provider_models(provider_name, models)
+
+    def remove_provider_model(self, provider_name: str, model_id: str) -> bool:
+        """Remove a model from a provider.
+
+        Args:
+            provider_name: Name of the provider
+            model_id: ID of the model to remove
+
+        Returns:
+            True if model was removed, False if it didn't exist
+        """
+        models = self.list_provider_models(provider_name)
+        original_length = len(models)
+
+        # Filter out the model with the specified ID
+        models = [model for model in models if model["id"] != model_id]
+
+        if len(models) < original_length:
+            self.set_provider_models(provider_name, models)
+            return True
+        return False
+
+    def is_provider_openai_compatible(self, provider_name: str) -> bool:
+        provider_config = self.get_provider(provider_name)
+        if not provider_config:
+            return False
+
+        provider_type = provider_config.get("type", "")
+        return provider_type == "openai" and provider_config.get("base_url") is not None
+
+    def list_openai_compatible_providers(self) -> List[str]:
+        providers = self.list_providers()
+        compatible_providers = []
+
+        for provider_name in providers.keys():
+            if self.is_provider_openai_compatible(provider_name):
+                compatible_providers.append(provider_name)
+
+        return compatible_providers

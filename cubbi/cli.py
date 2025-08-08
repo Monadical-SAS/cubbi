@@ -762,6 +762,10 @@ config_app.add_typer(port_app, name="port", no_args_is_help=True)
 config_mcp_app = typer.Typer(help="Manage default MCP servers")
 config_app.add_typer(config_mcp_app, name="mcp", no_args_is_help=True)
 
+# Create a models subcommand for config
+models_app = typer.Typer(help="Manage provider models")
+config_app.add_typer(models_app, name="models", no_args_is_help=True)
+
 
 # MCP configuration commands
 @config_mcp_app.command("list")
@@ -2229,6 +2233,139 @@ exec npm start
                 container.stop()
                 container.remove(force=True)
             console.print("[green]MCP Inspector stopped[/green]")
+
+
+# Model management commands
+@models_app.command("list")
+def list_models(
+    provider: Optional[str] = typer.Argument(None, help="Provider name (optional)"),
+) -> None:
+    if provider:
+        # List models for specific provider
+        models = user_config.list_provider_models(provider)
+
+        if not models:
+            if not user_config.get_provider(provider):
+                console.print(f"[red]Provider '{provider}' not found[/red]")
+            else:
+                console.print(f"No models configured for provider '{provider}'")
+            return
+
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Model ID")
+
+        for model in models:
+            table.add_row(model["id"])
+
+        console.print(f"\n[bold]Models for provider '{provider}'[/bold]")
+        console.print(table)
+    else:
+        # List models for all providers
+        providers = user_config.list_providers()
+
+        if not providers:
+            console.print("No providers configured")
+            return
+
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Provider")
+        table.add_column("Model ID")
+
+        found_models = False
+        for provider_name in providers.keys():
+            models = user_config.list_provider_models(provider_name)
+            for model in models:
+                table.add_row(provider_name, model["id"])
+                found_models = True
+
+        if found_models:
+            console.print(table)
+        else:
+            console.print("No models configured for any provider")
+
+
+@models_app.command("refresh")
+def refresh_models(
+    provider: Optional[str] = typer.Argument(None, help="Provider name (optional)"),
+) -> None:
+    from .model_fetcher import fetch_provider_models
+
+    if provider:
+        # Refresh models for specific provider
+        provider_config = user_config.get_provider(provider)
+        if not provider_config:
+            console.print(f"[red]Provider '{provider}' not found[/red]")
+            return
+
+        if not user_config.is_provider_openai_compatible(provider):
+            console.print(
+                f"[red]Provider '{provider}' is not a custom OpenAI provider[/red]"
+            )
+            console.print(
+                "Only providers with type='openai' and custom base_url are supported"
+            )
+            return
+
+        console.print(f"Refreshing models for provider '{provider}'...")
+
+        try:
+            with console.status(f"Fetching models from {provider}..."):
+                models = fetch_provider_models(provider_config)
+
+            user_config.set_provider_models(provider, models)
+            console.print(
+                f"[green]Successfully refreshed {len(models)} models for '{provider}'[/green]"
+            )
+
+            # Show some examples
+            if models:
+                console.print("\nSample models:")
+                for model in models[:5]:  # Show first 5
+                    console.print(f"  - {model['id']}")
+                if len(models) > 5:
+                    console.print(f"  ... and {len(models) - 5} more")
+
+        except Exception as e:
+            console.print(f"[red]Failed to refresh models for '{provider}': {e}[/red]")
+    else:
+        # Refresh models for all OpenAI-compatible providers
+        compatible_providers = user_config.list_openai_compatible_providers()
+
+        if not compatible_providers:
+            console.print("[yellow]No custom OpenAI providers found[/yellow]")
+            console.print(
+                "Add providers with type='openai' and custom base_url to refresh models"
+            )
+            return
+
+        console.print(
+            f"Refreshing models for {len(compatible_providers)} custom OpenAI providers..."
+        )
+
+        success_count = 0
+        failed_providers = []
+
+        for provider_name in compatible_providers:
+            try:
+                provider_config = user_config.get_provider(provider_name)
+                with console.status(f"Fetching models from {provider_name}..."):
+                    models = fetch_provider_models(provider_config)
+
+                user_config.set_provider_models(provider_name, models)
+                console.print(f"[green]✓ {provider_name}: {len(models)} models[/green]")
+                success_count += 1
+
+            except Exception as e:
+                console.print(f"[red]✗ {provider_name}: {e}[/red]")
+                failed_providers.append(provider_name)
+
+        # Summary
+        console.print("\n[bold]Summary[/bold]")
+        console.print(f"Successfully refreshed: {success_count} providers")
+        if failed_providers:
+            console.print(
+                f"Failed: {len(failed_providers)} providers ({', '.join(failed_providers)})"
+            )
 
 
 def session_create_entry_point():
