@@ -14,6 +14,14 @@ BUILTIN_IMAGES_DIR = Path(__file__).parent / "images"
 # Dynamically loaded from images directory at runtime
 DEFAULT_IMAGES = {}
 
+# Default API URLs for standard providers
+PROVIDER_DEFAULT_URLS = {
+    "openai": "https://api.openai.com",
+    "anthropic": "https://api.anthropic.com",
+    "google": "https://generativelanguage.googleapis.com",
+    "openrouter": "https://openrouter.ai/api",
+}
+
 
 class ConfigManager:
     def __init__(self, config_path: Optional[Path] = None):

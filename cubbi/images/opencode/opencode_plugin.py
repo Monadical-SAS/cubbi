@@ -53,8 +53,8 @@ class OpencodePlugin(ToolPlugin):
                 # Custom provider - include baseURL and name
                 models_dict = {}
 
-                # Add all models for OpenAI-compatible providers
-                if provider_config.type == "openai" and provider_config.models:
+                # Add all models for any provider type that has models
+                if provider_config.models:
                     for model in provider_config.models:
                         model_id = model.get("id", "")
                         if model_id:
@@ -77,10 +77,6 @@ class OpencodePlugin(ToolPlugin):
                     elif provider_config.type == "openai":
                         provider_entry["npm"] = "@ai-sdk/openai-compatible"
                         provider_entry["name"] = f"OpenAI Compatible ({provider_name})"
-                        if models_dict:
-                            self.status.log(
-                                f"Added {len(models_dict)} models to {provider_name}"
-                            )
                     elif provider_config.type == "google":
                         provider_entry["npm"] = "@ai-sdk/google"
                         provider_entry["name"] = f"Google ({provider_name})"
@@ -93,19 +89,38 @@ class OpencodePlugin(ToolPlugin):
                     provider_entry["name"] = provider_name.title()
 
                 config_data["provider"][provider_name] = provider_entry
-                self.status.log(
-                    f"Added {provider_name} custom provider to OpenCode configuration"
-                )
+                if models_dict:
+                    self.status.log(
+                        f"Added {provider_name} custom provider with {len(models_dict)} models to OpenCode configuration"
+                    )
+                else:
+                    self.status.log(
+                        f"Added {provider_name} custom provider to OpenCode configuration"
+                    )
             else:
-                # Standard provider without custom URL - minimal config
+                # Standard provider without custom URL
                 if provider_config.type in STANDARD_PROVIDERS:
+                    # Populate models for any provider that has models
+                    models_dict = {}
+                    if provider_config.models:
+                        for model in provider_config.models:
+                            model_id = model.get("id", "")
+                            if model_id:
+                                models_dict[model_id] = {"name": model_id}
+
                     config_data["provider"][provider_name] = {
                         "options": {"apiKey": provider_config.api_key},
-                        "models": {},
+                        "models": models_dict,
                     }
-                    self.status.log(
-                        f"Added {provider_name} standard provider to OpenCode configuration"
-                    )
+
+                    if models_dict:
+                        self.status.log(
+                            f"Added {provider_name} standard provider with {len(models_dict)} models to OpenCode configuration"
+                        )
+                    else:
+                        self.status.log(
+                            f"Added {provider_name} standard provider to OpenCode configuration"
+                        )
 
         # Set default model
         if cubbi_config.defaults.model:

@@ -222,7 +222,7 @@ class ProviderConfigurator:
 
         console.print(f"[green]Added provider '{provider_name}'[/green]")
 
-        if self.user_config.is_provider_openai_compatible(provider_name):
+        if self.user_config.supports_model_fetching(provider_name):
             console.print("Refreshing models...")
             try:
                 self._refresh_provider_models(provider_name)
@@ -252,10 +252,10 @@ class ProviderConfigurator:
                             model_id = model.get("id", str(model))
                         else:
                             model_id = str(model)
-                        console.print(f"    {i+1}. {model_id}")
+                        console.print(f"    {i + 1}. {model_id}")
                     if len(value) > 10:
                         console.print(
-                            f"    ... and {len(value)-10} more ({len(value)} total)"
+                            f"    ... and {len(value) - 10} more ({len(value)} total)"
                         )
                     continue
                 else:
@@ -268,7 +268,7 @@ class ProviderConfigurator:
         while True:
             choices = ["Remove provider"]
 
-            if self.user_config.is_provider_openai_compatible(provider_name):
+            if self.user_config.supports_model_fetching(provider_name):
                 choices.append("Refresh models")
 
             choices.extend(["---", "Back"])
@@ -375,7 +375,9 @@ class ProviderConfigurator:
         for provider_name, provider_config in providers.items():
             provider_type = provider_config.get("type", "unknown")
             has_key = bool(provider_config.get("api_key"))
-            if has_key:
+
+            # Include provider if it has an API key OR supports model fetching (might not need key)
+            if has_key or self.user_config.supports_model_fetching(provider_name):
                 base_url = provider_config.get("base_url")
                 if base_url:
                     choices.append(f"{provider_name} ({provider_type}) - {base_url}")
@@ -383,7 +385,7 @@ class ProviderConfigurator:
                     choices.append(f"{provider_name} ({provider_type})")
 
         if not choices:
-            console.print("[yellow]No providers with API keys configured.[/yellow]")
+            console.print("[yellow]No usable providers configured.[/yellow]")
             return
 
         # Add separator and cancel option
@@ -401,7 +403,7 @@ class ProviderConfigurator:
         # Extract provider name
         provider_name = choice.split(" (")[0]
 
-        if self.user_config.is_provider_openai_compatible(provider_name):
+        if self.user_config.supports_model_fetching(provider_name):
             model_name = self._select_model_from_list(provider_name)
         else:
             model_name = questionary.text(

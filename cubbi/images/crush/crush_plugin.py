@@ -27,17 +27,28 @@ class CrushPlugin(ToolPlugin):
     def _map_provider_to_crush_format(
         self, provider_name: str, provider_config, is_default_provider: bool = False
     ) -> dict[str, Any] | None:
+        # Handle standard providers without base_url
         if not provider_config.base_url:
             if provider_config.type in STANDARD_PROVIDERS:
+                # Populate models for any standard provider that has models
+                models_list = []
+                if provider_config.models:
+                    for model in provider_config.models:
+                        model_id = model.get("id", "")
+                        if model_id:
+                            models_list.append({"id": model_id, "name": model_id})
+
                 provider_entry = {
                     "api_key": provider_config.api_key,
+                    "models": models_list,
                 }
                 return provider_entry
 
+        # Handle custom providers with base_url
         models_list = []
 
-        # Add all models for OpenAI-compatible providers
-        if provider_config.type == "openai" and provider_config.models:
+        # Add all models for any provider type that has models
+        if provider_config.models:
             for model in provider_config.models:
                 model_id = model.get("id", "")
                 if model_id:
