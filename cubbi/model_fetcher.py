@@ -27,6 +27,7 @@ class ModelFetcher:
         base_url: str,
         api_key: Optional[str] = None,
         headers: Optional[Dict[str, str]] = None,
+        provider_type: Optional[str] = None,
     ) -> List[Dict[str, str]]:
         """Fetch models from an OpenAI-compatible /v1/models endpoint.
 
@@ -34,6 +35,7 @@ class ModelFetcher:
             base_url: Base URL of the provider (e.g., "https://api.openai.com" or "https://api.litellm.com")
             api_key: Optional API key for authentication
             headers: Optional additional headers
+            provider_type: Optional provider type for authentication handling
 
         Returns:
             List of model dictionaries with 'id' and 'name' keys
@@ -46,7 +48,7 @@ class ModelFetcher:
         models_url = self._build_models_url(base_url)
 
         # Prepare headers
-        request_headers = self._build_headers(api_key, headers)
+        request_headers = self._build_headers(api_key, headers, provider_type)
 
         logger.info(f"Fetching models from {models_url}")
 
@@ -59,13 +61,22 @@ class ModelFetcher:
             # Parse JSON response
             data = response.json()
 
-            # Validate response structure
-            if not isinstance(data, dict) or "data" not in data:
-                raise ValueError(
-                    f"Invalid response format: expected dict with 'data' key, got {type(data)}"
-                )
+            # Handle provider-specific response formats
+            if provider_type == "google":
+                # Google uses {"models": [...]} format
+                if not isinstance(data, dict) or "models" not in data:
+                    raise ValueError(
+                        f"Invalid Google response format: expected dict with 'models' key, got {type(data)}"
+                    )
+                models_data = data["models"]
+            else:
+                # OpenAI-compatible format uses {"data": [...]}
+                if not isinstance(data, dict) or "data" not in data:
+                    raise ValueError(
+                        f"Invalid response format: expected dict with 'data' key, got {type(data)}"
+                    )
+                models_data = data["data"]
 
-            models_data = data["data"]
             if not isinstance(models_data, list):
                 raise ValueError(
                     f"Invalid models data: expected list, got {type(models_data)}"
@@ -77,7 +88,14 @@ class ModelFetcher:
                 if not isinstance(model_item, dict):
                     continue
 
-                model_id = model_item.get("id", "")
+                # Handle provider-specific model ID fields
+                if provider_type == "google":
+                    # Google uses "name" field (e.g., "models/gemini-1.5-pro")
+                    model_id = model_item.get("name", "")
+                else:
+                    # OpenAI-compatible uses "id" field
+                    model_id = model_item.get("id", "")
+
                 if not model_id:
                     continue
 
@@ -144,12 +162,14 @@ class ModelFetcher:
         self,
         api_key: Optional[str] = None,
         additional_headers: Optional[Dict[str, str]] = None,
+        provider_type: Optional[str] = None,
     ) -> Dict[str, str]:
         """Build request headers.
 
         Args:
             api_key: Optional API key for authentication
             additional_headers: Optional additional headers
+            provider_type: Provider type for specific auth handling
 
         Returns:
             Dictionary of headers
@@ -161,7 +181,15 @@ class ModelFetcher:
 
         # Add authentication header if API key is provided
         if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+            if provider_type == "anthropic":
+                # Anthropic uses x-api-key header
+                headers["x-api-key"] = api_key
+            elif provider_type == "google":
+                # Google uses x-goog-api-key header
+                headers["x-goog-api-key"] = api_key
+            else:
+                # Standard Bearer token for OpenAI, OpenRouter, and custom providers
+                headers["Authorization"] = f"Bearer {api_key}"
 
         # Add any additional headers
         if additional_headers:
@@ -183,26 +211,38 @@ def fetch_provider_models(
         List of model dictionaries
 
     Raises:
-        ValueError: If provider is not OpenAI-compatible or missing required fields
+        ValueError: If provider is not supported or missing required fields
         requests.RequestException: If the request fails
     """
     import os
+    from .config import PROVIDER_DEFAULT_URLS
 
     provider_type = provider_config.get("type", "")
     base_url = provider_config.get("base_url")
     api_key = provider_config.get("api_key", "")
 
+    # Resolve environment variables in API key
     if api_key.startswith("${") and api_key.endswith("}"):
         env_var_name = api_key[2:-1]
         api_key = os.environ.get(env_var_name, "")
 
-    if provider_type != "openai" and not base_url:
+    # Determine base URL - use custom base_url or default for standard providers
+    if base_url:
+        # Custom provider with explicit base_url
+        effective_base_url = base_url
+    elif provider_type in PROVIDER_DEFAULT_URLS:
+        # Standard provider - use default URL
+        effective_base_url = PROVIDER_DEFAULT_URLS[provider_type]
+    else:
         raise ValueError(
-            "Provider is not OpenAI-compatible (must have type='openai' or base_url)"
+            f"Unsupported provider type '{provider_type}'. Must be one of: {list(PROVIDER_DEFAULT_URLS.keys())} or have a custom base_url"
         )
 
-    if not base_url:
-        raise ValueError("No base_url specified for OpenAI-compatible provider")
+    # Prepare additional headers for specific providers
+    headers = {}
+    if provider_type == "anthropic":
+        # Anthropic uses a different API version header
+        headers["anthropic-version"] = "2023-06-01"
 
     fetcher = ModelFetcher(timeout=timeout)
-    return fetcher.fetch_models(base_url, api_key)
+    return fetcher.fetch_models(effective_base_url, api_key, headers, provider_type)

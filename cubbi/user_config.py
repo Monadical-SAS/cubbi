@@ -736,6 +736,22 @@ class UserConfigManager:
         provider_type = provider_config.get("type", "")
         return provider_type == "openai" and provider_config.get("base_url") is not None
 
+    def supports_model_fetching(self, provider_name: str) -> bool:
+        """Check if a provider supports model fetching via API."""
+        from .config import PROVIDER_DEFAULT_URLS
+
+        provider = self.get_provider(provider_name)
+        if not provider:
+            return False
+
+        provider_type = provider.get("type")
+        base_url = provider.get("base_url")
+
+        # Provider supports model fetching if:
+        # 1. It has a custom base_url (OpenAI-compatible), OR
+        # 2. It's a standard provider type that we support
+        return base_url is not None or provider_type in PROVIDER_DEFAULT_URLS
+
     def list_openai_compatible_providers(self) -> List[str]:
         providers = self.list_providers()
         compatible_providers = []
@@ -745,3 +761,14 @@ class UserConfigManager:
                 compatible_providers.append(provider_name)
 
         return compatible_providers
+
+    def list_model_fetchable_providers(self) -> List[str]:
+        """List all providers that support model fetching."""
+        providers = self.list_providers()
+        fetchable_providers = []
+
+        for provider_name in providers.keys():
+            if self.supports_model_fetching(provider_name):
+                fetchable_providers.append(provider_name)
+
+        return fetchable_providers

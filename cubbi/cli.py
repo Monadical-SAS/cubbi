@@ -2297,12 +2297,12 @@ def refresh_models(
             console.print(f"[red]Provider '{provider}' not found[/red]")
             return
 
-        if not user_config.is_provider_openai_compatible(provider):
+        if not user_config.supports_model_fetching(provider):
             console.print(
-                f"[red]Provider '{provider}' is not a custom OpenAI provider[/red]"
+                f"[red]Provider '{provider}' does not support model fetching[/red]"
             )
             console.print(
-                "Only providers with type='openai' and custom base_url are supported"
+                "Only providers of supported types (openai, anthropic, google, openrouter) can refresh models"
             )
             return
 
@@ -2328,24 +2328,24 @@ def refresh_models(
         except Exception as e:
             console.print(f"[red]Failed to refresh models for '{provider}': {e}[/red]")
     else:
-        # Refresh models for all OpenAI-compatible providers
-        compatible_providers = user_config.list_openai_compatible_providers()
+        # Refresh models for all model-fetchable providers
+        fetchable_providers = user_config.list_model_fetchable_providers()
 
-        if not compatible_providers:
-            console.print("[yellow]No custom OpenAI providers found[/yellow]")
+        if not fetchable_providers:
             console.print(
-                "Add providers with type='openai' and custom base_url to refresh models"
+                "[yellow]No providers with model fetching support found[/yellow]"
+            )
+            console.print(
+                "Add providers of supported types (openai, anthropic, google, openrouter) to refresh models"
             )
             return
 
-        console.print(
-            f"Refreshing models for {len(compatible_providers)} custom OpenAI providers..."
-        )
+        console.print(f"Refreshing models for {len(fetchable_providers)} providers...")
 
         success_count = 0
         failed_providers = []
 
-        for provider_name in compatible_providers:
+        for provider_name in fetchable_providers:
             try:
                 provider_config = user_config.get_provider(provider_name)
                 with console.status(f"Fetching models from {provider_name}..."):
