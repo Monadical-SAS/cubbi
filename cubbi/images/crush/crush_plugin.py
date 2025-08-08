@@ -34,10 +34,19 @@ class CrushPlugin(ToolPlugin):
                 }
                 return provider_entry
 
+        models_list = []
+
+        # Add all models for OpenAI-compatible providers
+        if provider_config.type == "openai" and provider_config.models:
+            for model in provider_config.models:
+                model_id = model.get("id", "")
+                if model_id:
+                    models_list.append({"id": model_id, "name": model_id})
+
         provider_entry = {
             "api_key": provider_config.api_key,
             "base_url": provider_config.base_url,
-            "models": [],
+            "models": models_list,
         }
 
         if provider_config.type in STANDARD_PROVIDERS:
