@@ -46,6 +46,7 @@ class ProviderConfig(BaseModel):
     type: str
     api_key: str
     base_url: str | None = None
+    models: list[dict[str, str]] = []
 
 
 class MCPConfig(BaseModel):

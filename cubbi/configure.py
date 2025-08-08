@@ -3,6 +3,7 @@ Interactive configuration tool for Cubbi providers and models.
 """
 
 import os
+from typing import Optional
 
 import docker
 import questionary
@@ -164,7 +165,8 @@ class ProviderConfigurator:
             "How would you like to provide the API key?",
             choices=[
                 "Enter API key directly (saved in config)",
-                "Reference environment variable (recommended)",
+                "Use environment variable (recommended)",
+                "No API key needed",
             ],
         ).ask()
 
@@ -184,11 +186,12 @@ class ProviderConfigurator:
 
             api_key = f"${{{env_var.strip()}}}"
 
-            # Check if the environment variable exists
             if not os.environ.get(env_var.strip()):
                 console.print(
                     f"[yellow]Warning: Environment variable '{env_var}' is not currently set[/yellow]"
                 )
+        elif "No API key" in api_key_choice:
+            api_key = ""
         else:
             api_key = questionary.password(
                 "Enter API key:",
@@ -219,6 +222,13 @@ class ProviderConfigurator:
 
         console.print(f"[green]Added provider '{provider_name}'[/green]")
 
+        if self.user_config.is_provider_openai_compatible(provider_name):
+            console.print("Refreshing models...")
+            try:
+                self._refresh_provider_models(provider_name)
+            except Exception as e:
+                console.print(f"[yellow]Could not refresh models: {e}[/yellow]")
+
     def _edit_provider(self, provider_name: str) -> None:
         """Edit an existing provider."""
         provider_config = self.user_config.get_provider(provider_name)
@@ -226,36 +236,129 @@ class ProviderConfigurator:
             console.print(f"[red]Provider '{provider_name}' not found![/red]")
             return
 
-        choices = ["View configuration", "Remove provider", "---", "Back"]
-
-        choice = questionary.select(
-            f"What would you like to do with '{provider_name}'?",
-            choices=choices,
-        ).ask()
-
-        if choice == "View configuration":
-            console.print(f"\n[bold]Configuration for '{provider_name}':[/bold]")
-            for key, value in provider_config.items():
-                if key == "api_key" and not value.startswith("${"):
-                    # Mask direct API keys
-                    display_value = (
-                        f"{'*' * (len(value) - 4)}{value[-4:]}"
-                        if len(value) > 4
-                        else "****"
-                    )
+        console.print(f"\n[bold]Configuration for '{provider_name}':[/bold]")
+        for key, value in provider_config.items():
+            if key == "api_key" and not value.startswith("${"):
+                display_value = (
+                    f"{'*' * (len(value) - 4)}{value[-4:]}"
+                    if len(value) > 4
+                    else "****"
+                )
+            elif key == "models" and isinstance(value, list):
+                if value:
+                    console.print(f"  {key}:")
+                    for i, model in enumerate(value[:10]):
+                        if isinstance(model, dict):
+                            model_id = model.get("id", str(model))
+                        else:
+                            model_id = str(model)
+                        console.print(f"    {i+1}. {model_id}")
+                    if len(value) > 10:
+                        console.print(
+                            f"    ... and {len(value)-10} more ({len(value)} total)"
+                        )
+                    continue
                 else:
-                    display_value = value
-                console.print(f"  {key}: {display_value}")
-            console.print()
+                    display_value = "(no models configured)"
+            else:
+                display_value = value
+            console.print(f"  {key}: {display_value}")
+        console.print()
 
-        elif choice == "Remove provider":
-            confirm = questionary.confirm(
-                f"Are you sure you want to remove provider '{provider_name}'?"
+        while True:
+            choices = ["Remove provider"]
+
+            if self.user_config.is_provider_openai_compatible(provider_name):
+                choices.append("Refresh models")
+
+            choices.extend(["---", "Back"])
+
+            choice = questionary.select(
+                f"What would you like to do with '{provider_name}'?",
+                choices=choices,
             ).ask()
 
-            if confirm:
-                self.user_config.remove_provider(provider_name)
-                console.print(f"[green]Removed provider '{provider_name}'[/green]")
+            if choice == "Remove provider":
+                confirm = questionary.confirm(
+                    f"Are you sure you want to remove provider '{provider_name}'?",
+                    default=False,
+                ).ask()
+
+                if confirm:
+                    self.user_config.remove_provider(provider_name)
+                    console.print(f"[green]Removed provider '{provider_name}'[/green]")
+                    break
+
+            elif choice == "Refresh models":
+                self._refresh_provider_models(provider_name)
+
+            elif choice == "Back" or choice is None:
+                break
+
+    def _refresh_provider_models(self, provider_name: str) -> None:
+        from .model_fetcher import fetch_provider_models
+
+        try:
+            provider_config = self.user_config.get_provider(provider_name)
+            console.print(f"Refreshing models for {provider_name}...")
+
+            models = fetch_provider_models(provider_config)
+            self.user_config.set_provider_models(provider_name, models)
+
+            console.print(
+                f"[green]Successfully refreshed {len(models)} models for '{provider_name}'[/green]"
+            )
+
+        except Exception as e:
+            console.print(f"[red]Failed to refresh models: {e}[/red]")
+
+    def _select_model_from_list(self, provider_name: str) -> Optional[str]:
+        from .model_fetcher import fetch_provider_models
+
+        models = self.user_config.list_provider_models(provider_name)
+
+        if not models:
+            console.print(f"No models found for {provider_name}. Refreshing...")
+            try:
+                provider_config = self.user_config.get_provider(provider_name)
+                models = fetch_provider_models(provider_config)
+                self.user_config.set_provider_models(provider_name, models)
+                console.print(f"[green]Refreshed {len(models)} models[/green]")
+            except Exception as e:
+                console.print(f"[red]Failed to refresh models: {e}[/red]")
+                return questionary.text(
+                    f"Enter model name for {provider_name}:",
+                    validate=lambda name: len(name.strip()) > 0
+                    or "Please enter a model name",
+                ).ask()
+
+        if not models:
+            console.print(f"[yellow]No models available for {provider_name}[/yellow]")
+            return questionary.text(
+                f"Enter model name for {provider_name}:",
+                validate=lambda name: len(name.strip()) > 0
+                or "Please enter a model name",
+            ).ask()
+
+        model_choices = [model["id"] for model in models]
+        model_choices.append("---")
+        model_choices.append("Enter manually")
+
+        choice = questionary.select(
+            f"Select a model for {provider_name}:",
+            choices=model_choices,
+        ).ask()
+
+        if choice is None or choice == "---":
+            return None
+        elif choice == "Enter manually":
+            return questionary.text(
+                f"Enter model name for {provider_name}:",
+                validate=lambda name: len(name.strip()) > 0
+                or "Please enter a model name",
+            ).ask()
+        else:
+            return choice
 
     def _set_default_model(self) -> None:
         """Set the default model."""
@@ -298,16 +401,18 @@ class ProviderConfigurator:
         # Extract provider name
         provider_name = choice.split(" (")[0]
 
-        # Ask for model name
-        model_name = questionary.text(
-            f"Enter model name for {provider_name} (e.g., 'claude-3-5-sonnet', 'gpt-4', 'llama3:70b'):",
-            validate=lambda name: len(name.strip()) > 0 or "Please enter a model name",
-        ).ask()
+        if self.user_config.is_provider_openai_compatible(provider_name):
+            model_name = self._select_model_from_list(provider_name)
+        else:
+            model_name = questionary.text(
+                f"Enter model name for {provider_name} (e.g., 'claude-3-5-sonnet', 'gpt-4', 'llama3:70b'):",
+                validate=lambda name: len(name.strip()) > 0
+                or "Please enter a model name",
+            ).ask()
 
         if model_name is None:
             return
 
-        # Set the default model in provider/model format
         default_model = f"{provider_name}/{model_name.strip()}"
         self.user_config.set("defaults.model", default_model)
 
@@ -659,17 +764,22 @@ class ProviderConfigurator:
 
         elif "defaults" in choice:
             if is_default:
-                self.user_config.remove_mcp(server_name)
-                console.print(
-                    f"[green]Removed '{server_name}' from default MCPs[/green]"
-                )
+                confirm = questionary.confirm(
+                    f"Remove '{server_name}' from default MCPs?", default=False
+                ).ask()
+                if confirm:
+                    self.user_config.remove_mcp(server_name)
+                    console.print(
+                        f"[green]Removed '{server_name}' from default MCPs[/green]"
+                    )
             else:
                 self.user_config.add_mcp(server_name)
                 console.print(f"[green]Added '{server_name}' to default MCPs[/green]")
 
         elif choice == "Remove server":
             confirm = questionary.confirm(
-                f"Are you sure you want to remove MCP server '{server_name}'?"
+                f"Are you sure you want to remove MCP server '{server_name}'?",
+                default=False,
             ).ask()
 
             if confirm:
@@ -749,7 +859,8 @@ class ProviderConfigurator:
 
         elif choice == "Remove network":
             confirm = questionary.confirm(
-                f"Are you sure you want to remove network '{network_name}'?"
+                f"Are you sure you want to remove network '{network_name}'?",
+                default=False,
             ).ask()
 
             if confirm:
@@ -829,7 +940,8 @@ class ProviderConfigurator:
 
         elif choice == "Remove volume":
             confirm = questionary.confirm(
-                f"Are you sure you want to remove volume mapping '{volume_mapping}'?"
+                f"Are you sure you want to remove volume mapping '{volume_mapping}'?",
+                default=False,
             ).ask()
 
             if confirm:
@@ -902,7 +1014,7 @@ class ProviderConfigurator:
 
         if choice == "Remove port":
             confirm = questionary.confirm(
-                f"Are you sure you want to remove port {port_num}?"
+                f"Are you sure you want to remove port {port_num}?", default=False
             ).ask()
 
             if confirm:

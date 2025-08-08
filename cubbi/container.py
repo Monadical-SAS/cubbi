@@ -116,6 +116,8 @@ class ContainerManager:
             }
             if provider.get("base_url"):
                 provider_config["base_url"] = provider.get("base_url")
+            if provider.get("models"):
+                provider_config["models"] = provider.get("models")
 
             providers[name] = provider_config
 

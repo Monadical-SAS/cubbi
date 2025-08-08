@@ -51,12 +51,21 @@ class OpencodePlugin(ToolPlugin):
             # Check if this is a custom provider (has baseURL)
             if provider_config.base_url:
                 # Custom provider - include baseURL and name
+                models_dict = {}
+
+                # Add all models for OpenAI-compatible providers
+                if provider_config.type == "openai" and provider_config.models:
+                    for model in provider_config.models:
+                        model_id = model.get("id", "")
+                        if model_id:
+                            models_dict[model_id] = {"name": model_id}
+
                 provider_entry: dict[str, str | dict[str, str]] = {
                     "options": {
                         "apiKey": provider_config.api_key,
                         "baseURL": provider_config.base_url,
                     },
-                    "models": {},
+                    "models": models_dict,
                 }
 
                 # Add npm package and name for custom providers
@@ -68,6 +77,10 @@ class OpencodePlugin(ToolPlugin):
                     elif provider_config.type == "openai":
                         provider_entry["npm"] = "@ai-sdk/openai-compatible"
                         provider_entry["name"] = f"OpenAI Compatible ({provider_name})"
+                        if models_dict:
+                            self.status.log(
+                                f"Added {len(models_dict)} models to {provider_name}"
+                            )
                     elif provider_config.type == "google":
                         provider_entry["npm"] = "@ai-sdk/google"
                         provider_entry["name"] = f"Google ({provider_name})"
@@ -94,22 +107,25 @@ class OpencodePlugin(ToolPlugin):
                         f"Added {provider_name} standard provider to OpenCode configuration"
                     )
 
-        # Set default model and add it only to the default provider
+        # Set default model
         if cubbi_config.defaults.model:
             config_data["model"] = cubbi_config.defaults.model
             self.status.log(f"Set default model to {config_data['model']}")
 
-            # Add the specific model only to the provider that matches the default model
+            # Add the default model to provider if it doesn't already have models
             provider_name: str
             model_name: str
             provider_name, model_name = cubbi_config.defaults.model.split("/", 1)
             if provider_name in config_data["provider"]:
-                config_data["provider"][provider_name]["models"] = {
-                    model_name: {"name": model_name}
-                }
-                self.status.log(
-                    f"Added default model {model_name} to {provider_name} provider"
-                )
+                provider_config = cubbi_config.providers.get(provider_name)
+                # Only add default model if provider doesn't already have models populated
+                if not (provider_config and provider_config.models):
+                    config_data["provider"][provider_name]["models"] = {
+                        model_name: {"name": model_name}
+                    }
+                    self.status.log(
+                        f"Added default model {model_name} to {provider_name} provider"
+                    )
         else:
             # Fallback to legacy environment variables
             opencode_model: str | None = os.environ.get("CUBBI_MODEL")
