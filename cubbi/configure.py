@@ -75,7 +75,11 @@ class ProviderConfigurator:
             # Add existing providers
             for name, config in providers.items():
                 provider_type = config.get("type", "unknown")
-                choices.append(f"{name} ({provider_type})")
+                base_url = config.get("base_url")
+                if base_url:
+                    choices.append(f"{name} ({provider_type}) - {base_url}")
+                else:
+                    choices.append(f"{name} ({provider_type})")
 
             # Add separator and options
             if choices:
@@ -93,12 +97,13 @@ class ProviderConfigurator:
                 self._add_new_provider()
             else:
                 # Extract provider name from the choice
-                # Format: "provider_name (provider_type)"
+                # Format: "provider_name (provider_type)" or "provider_name (provider_type) - base_url"
                 provider_name = choice.split(" (")[0]
                 self._edit_provider(provider_name)
 
     def _add_new_provider(self) -> None:
         """Add a new provider configuration."""
+        OTHER = "Other (openai compatible)"
         # Ask for provider type
         provider_type = questionary.select(
             "Select provider type:",
@@ -107,7 +112,7 @@ class ProviderConfigurator:
                 "OpenAI",
                 "Google",
                 "OpenRouter",
-                "OpenAI-compatible (custom)",
+                OTHER,
             ],
         ).ask()
 
@@ -120,13 +125,13 @@ class ProviderConfigurator:
             "OpenAI": "openai",
             "Google": "google",
             "OpenRouter": "openrouter",
-            "Other (openai compatible)": "openai",
+            OTHER: "openai",
         }
 
         internal_type = type_mapping[provider_type]
 
         # Ask for provider name
-        if provider_type == "OpenAI-compatible (custom)":
+        if provider_type == OTHER:
             provider_name = questionary.text(
                 "Enter a name for this provider (e.g., 'litellm', 'local-llm'):",
                 validate=lambda name: len(name.strip()) > 0
@@ -194,7 +199,7 @@ class ProviderConfigurator:
                 return
 
         base_url = None
-        if internal_type == "openai" and provider_type == "OpenAI-compatible (custom)":
+        if internal_type == "openai" and provider_type == OTHER:
             base_url = questionary.text(
                 "Base URL for API calls:",
                 validate=lambda url: url.startswith("http")
@@ -268,7 +273,11 @@ class ProviderConfigurator:
             provider_type = provider_config.get("type", "unknown")
             has_key = bool(provider_config.get("api_key"))
             if has_key:
-                choices.append(f"{provider_name} ({provider_type})")
+                base_url = provider_config.get("base_url")
+                if base_url:
+                    choices.append(f"{provider_name} ({provider_type}) - {base_url}")
+                else:
+                    choices.append(f"{provider_name} ({provider_type})")
 
         if not choices:
             console.print("[yellow]No providers with API keys configured.[/yellow]")
@@ -316,8 +325,12 @@ class ProviderConfigurator:
         console.print("\n[bold]Providers[/bold]")
         providers = self.user_config.list_providers()
         if providers:
-            for name in providers.keys():
-                console.print(f"  - {name}")
+            for name, config in providers.items():
+                base_url = config.get("base_url")
+                if base_url:
+                    console.print(f"  - {name} ({base_url})")
+                else:
+                    console.print(f"  - {name}")
         else:
             console.print("  (no providers configured)")
 
