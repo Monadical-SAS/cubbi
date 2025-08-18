@@ -224,9 +224,7 @@ class UserManager:
                 ):
                     return False
         except KeyError:
-            if not self._run_command(["groupadd", "-g", str(group_id), self.username]):
-                return False
-
+            self._run_command(["groupadd", "-g", str(group_id), self.username])
         try:
             existing_user = pwd.getpwnam(self.username)
             if existing_user.pw_uid != user_id or existing_user.pw_gid != group_id:
