@@ -189,6 +189,9 @@ cubbi image info crush
 cubbi image build goose
 cubbi image build opencode
 cubbi image build crush
+
+# Build an image without using cache (force fresh build)
+cubbi image build --no-cache goose
 ```
 
 Images are defined in the `cubbi/images/` directory, with each subdirectory containing:
@@ -365,7 +368,8 @@ Service credentials like API keys configured in `~/.config/cubbi/config.yaml` ar
 MCP (Model Control Protocol) servers provide tool-calling capabilities to AI models, enhancing their ability to interact with external services, databases, and systems. Cubbi supports multiple types of MCP servers:
 
 1. **Remote HTTP SSE servers** - External MCP servers accessed over HTTP
-2. **Docker-based MCP servers** - Local MCP servers running in Docker containers, with a SSE proxy for stdio-to-SSE conversion
+2. **Docker-based MCP servers** - MCP servers running in Docker containers, with a SSE proxy for stdio-to-SSE conversion
+3. **Local MCP servers** - MCP servers running as local processes on your host machine
 
 ### Managing MCP Servers
 
@@ -413,12 +417,24 @@ cubbi mcp remove github
 Cubbi supports different types of MCP servers:
 
 ```bash
-# Example of docker-based MCP server
+# Docker-based MCP server (with proxy)
 cubbi mcp add fetch mcp/fetch
-cubbi mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=xxxx github mcp/github
+cubbi mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=xxxx mcp/github mcp/github-proxy
 
-# Example of SSE-based MCP server
-cubbi mcp add myserver https://myssemcp.com
+# Remote HTTP SSE server
+cubbi mcp add-remote myserver https://myssemcp.com/sse
+
+# Local MCP server (runs as a local process)
+cubbi mcp add-local mylocalmcp /path/to/mcp-executable
+cubbi mcp add-local mylocalmcp /usr/local/bin/mcp-tool --args "--config" --args "/etc/mcp.conf"
+cubbi mcp add-local mylocalmcp npx --args "@modelcontextprotocol/server-filesystem" --args "/path/to/data"
+
+# Add environment variables to local MCP servers
+cubbi mcp add-local mylocalmcp /path/to/mcp-server -e API_KEY=xxx -e BASE_URL=https://api.example.com
+
+# Prevent adding to default MCPs
+cubbi mcp add myserver mcp/server --no-default
+cubbi mcp add-local mylocalmcp /path/to/executable --no-default
 ```
 
 ### Using MCP Servers with Sessions
