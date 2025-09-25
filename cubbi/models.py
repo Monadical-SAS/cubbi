@@ -71,7 +71,15 @@ class ProxyMCP(BaseModel):
     host_port: Optional[int] = None  # External port to bind the SSE port to on the host
 
 
-MCP = Union[RemoteMCP, DockerMCP, ProxyMCP]
+class LocalMCP(BaseModel):
+    name: str
+    type: str = "local"
+    command: str  # Path to executable
+    args: List[str] = Field(default_factory=list)  # Command arguments
+    env: Dict[str, str] = Field(default_factory=dict)  # Environment variables
+
+
+MCP = Union[RemoteMCP, DockerMCP, ProxyMCP, LocalMCP]
 
 
 class MCPContainer(BaseModel):

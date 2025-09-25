@@ -56,6 +56,9 @@ class MCPConfig(BaseModel):
     port: int | None = None
     url: str | None = None
     headers: dict[str, str] | None = None
+    command: str | None = None
+    args: list[str] = []
+    env: dict[str, str] = {}
 
 
 class DefaultsConfig(BaseModel):

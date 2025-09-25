@@ -202,6 +202,21 @@ class GoosePlugin(ToolPlugin):
                         "uri": mcp.url,
                         "envs": {},
                     }
+            elif mcp.type == "local":
+                if mcp.name and mcp.command:
+                    self.status.log(
+                        f"Adding local MCP extension: {mcp.name} - {mcp.command}"
+                    )
+                    # Goose uses stdio type for local MCPs
+                    config_data["extensions"][mcp.name] = {
+                        "enabled": True,
+                        "name": mcp.name,
+                        "timeout": 60,
+                        "type": "stdio",
+                        "command": mcp.command,
+                        "args": mcp.args if mcp.args else [],
+                        "envs": mcp.env if mcp.env else {},
+                    }
             elif mcp.type in ["docker", "proxy"]:
                 if mcp.name and mcp.host:
                     mcp_port = mcp.port or 8080

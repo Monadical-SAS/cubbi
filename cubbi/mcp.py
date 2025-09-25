@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 import docker
 from docker.errors import DockerException, ImageNotFound, NotFound
 
-from .models import DockerMCP, MCPContainer, MCPStatus, ProxyMCP, RemoteMCP
+from .models import DockerMCP, LocalMCP, MCPContainer, MCPStatus, ProxyMCP, RemoteMCP
 from .user_config import UserConfigManager
 
 # Configure logging
@@ -250,6 +250,56 @@ class MCPManager:
 
         return mcp_config
 
+    def add_local_mcp(
+        self,
+        name: str,
+        command: str,
+        args: List[str] = None,
+        env: Dict[str, str] = None,
+        add_as_default: bool = True,
+    ) -> Dict[str, Any]:
+        """Add a local MCP server.
+
+        Args:
+            name: Name of the MCP server
+            command: Path to executable
+            args: Command arguments
+            env: Environment variables to set for the command
+            add_as_default: Whether to add this MCP to the default MCPs list
+
+        Returns:
+            The MCP configuration dictionary
+        """
+        # Create the Local MCP configuration
+        local_mcp = LocalMCP(
+            name=name,
+            command=command,
+            args=args or [],
+            env=env or {},
+        )
+
+        # Add to the configuration
+        mcps = self.list_mcps()
+
+        # Remove existing MCP with the same name if it exists
+        mcps = [mcp for mcp in mcps if mcp.get("name") != name]
+
+        # Add the new MCP
+        mcp_config = local_mcp.model_dump()
+        mcps.append(mcp_config)
+
+        # Save the configuration
+        self.config_manager.set("mcps", mcps)
+
+        # Add to default MCPs if requested
+        if add_as_default:
+            default_mcps = self.config_manager.get("defaults.mcps", [])
+            if name not in default_mcps:
+                default_mcps.append(name)
+                self.config_manager.set("defaults.mcps", default_mcps)
+
+        return mcp_config
+
     def remove_mcp(self, name: str) -> bool:
         """Remove an MCP server configuration.
 
@@ -357,6 +407,14 @@ class MCPManager:
                 "status": "not_applicable",
                 "name": name,
                 "type": "remote",
+            }
+
+        elif mcp_type == "local":
+            # Local MCP servers don't need containers
+            return {
+                "status": "not_applicable",
+                "name": name,
+                "type": "local",
             }
 
         elif mcp_type == "docker":
@@ -637,8 +695,8 @@ ENTRYPOINT ["/entrypoint.sh"]
             )
             return True
 
-        # Remote MCPs don't have containers to stop
-        if mcp_config.get("type") == "remote":
+        # Remote and Local MCPs don't have containers to stop
+        if mcp_config.get("type") in ["remote", "local"]:
             return True
 
         # Get the container name
@@ -677,12 +735,12 @@ ENTRYPOINT ["/entrypoint.sh"]
         if not mcp_config:
             raise ValueError(f"MCP server '{name}' not found")
 
-        # Remote MCPs don't have containers to restart
-        if mcp_config.get("type") == "remote":
+        # Remote and Local MCPs don't have containers to restart
+        if mcp_config.get("type") in ["remote", "local"]:
             return {
                 "status": "not_applicable",
                 "name": name,
-                "type": "remote",
+                "type": mcp_config.get("type"),
             }
 
         # Get the container name
@@ -721,6 +779,16 @@ ENTRYPOINT ["/entrypoint.sh"]
                 "name": name,
                 "type": "remote",
                 "url": mcp_config.get("url"),
+            }
+
+        # Local MCPs don't have containers
+        if mcp_config.get("type") == "local":
+            return {
+                "status": "not_applicable",
+                "name": name,
+                "type": "local",
+                "command": mcp_config.get("command"),
+                "args": mcp_config.get("args", []),
             }
 
         # Get the container name
@@ -794,9 +862,11 @@ ENTRYPOINT ["/entrypoint.sh"]
         if not mcp_config:
             raise ValueError(f"MCP server '{name}' not found")
 
-        # Remote MCPs don't have logs
+        # Remote and Local MCPs don't have logs
         if mcp_config.get("type") == "remote":
             return "Remote MCPs don't have local logs"
+        if mcp_config.get("type") == "local":
+            return "Local MCPs don't have container logs"
 
         # Get the container name
         container_name = self.get_mcp_container_name(name)

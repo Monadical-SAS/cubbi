@@ -184,6 +184,24 @@ class CrushPlugin(ToolPlugin):
                         "transport": {"type": "sse", "url": mcp.url},
                         "enabled": True,
                     }
+            elif mcp.type == "local":
+                if mcp.name and mcp.command:
+                    self.status.log(
+                        f"Adding local MCP server: {mcp.name} - {mcp.command}"
+                    )
+                    # Crush uses stdio type for local MCPs
+                    transport_config = {
+                        "type": "stdio",
+                        "command": mcp.command,
+                    }
+                    if mcp.args:
+                        transport_config["args"] = mcp.args
+                    if mcp.env:
+                        transport_config["env"] = mcp.env
+                    config_data["mcps"][mcp.name] = {
+                        "transport": transport_config,
+                        "enabled": True,
+                    }
             elif mcp.type in ["docker", "proxy"]:
                 if mcp.name and mcp.host:
                     mcp_port = mcp.port or 8080

@@ -209,6 +209,25 @@ class OpencodePlugin(ToolPlugin):
                         "type": "remote",
                         "url": mcp.url,
                     }
+            elif mcp.type == "local":
+                if mcp.name and mcp.command:
+                    self.status.log(
+                        f"Adding local MCP extension: {mcp.name} - {mcp.command}"
+                    )
+                    # OpenCode expects command as an array with command and args combined
+                    command_array = [mcp.command]
+                    if mcp.args:
+                        command_array.extend(mcp.args)
+
+                    mcp_entry: dict[str, str | list[str] | bool | dict[str, str]] = {
+                        "type": "local",
+                        "command": command_array,
+                        "enabled": True,
+                    }
+                    if mcp.env:
+                        # OpenCode expects environment (not env)
+                        mcp_entry["environment"] = mcp.env
+                    config_data["mcp"][mcp.name] = mcp_entry
             elif mcp.type in ["docker", "proxy"]:
                 if mcp.name and mcp.host:
                     mcp_port: int = mcp.port or 8080

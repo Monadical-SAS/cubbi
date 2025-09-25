@@ -448,8 +448,22 @@ class ProviderConfigurator:
         if mcp_configs:
             for mcp_config in mcp_configs:
                 name = mcp_config.get("name", "unknown")
+                mcp_type = mcp_config.get("type", "unknown")
                 is_default = " (default)" if name in default_mcps else ""
-                console.print(f"  - {name}{is_default}")
+
+                # Add additional info for local MCPs
+                if mcp_type == "local":
+                    command = mcp_config.get("command", "")
+                    args = mcp_config.get("args", [])
+                    if args:
+                        cmd_display = f"{command} {' '.join(args[:2])}"
+                        if len(args) > 2:
+                            cmd_display += "..."
+                    else:
+                        cmd_display = command
+                    console.print(f"  - {name} ({mcp_type}: {cmd_display}){is_default}")
+                else:
+                    console.print(f"  - {name} ({mcp_type}){is_default}")
         else:
             console.print("  (no MCP servers configured)")
 
@@ -530,6 +544,7 @@ class ProviderConfigurator:
         mcp_type = questionary.select(
             "Select MCP server type:",
             choices=[
+                "Local MCP (stdio-based command)",
                 "Remote MCP (URL-based)",
                 "Docker MCP (containerized)",
                 "Proxy MCP (proxy + base image)",
@@ -539,7 +554,9 @@ class ProviderConfigurator:
         if mcp_type is None:
             return
 
-        if "Remote MCP" in mcp_type:
+        if "Local MCP" in mcp_type:
+            self._add_local_mcp()
+        elif "Remote MCP" in mcp_type:
             self._add_remote_mcp()
         elif "Docker MCP" in mcp_type:
             self._add_docker_mcp()
@@ -729,6 +746,75 @@ class ProviderConfigurator:
 
         console.print(f"[green]Added Proxy MCP server '{name}'[/green]")
 
+    def _add_local_mcp(self) -> None:
+        """Add a local MCP server."""
+        name = questionary.text(
+            "Enter MCP server name:",
+            validate=lambda n: len(n.strip()) > 0 or "Please enter a name",
+        ).ask()
+
+        if name is None:
+            return
+
+        command = questionary.text(
+            "Enter command path (e.g., 'npx', '/usr/bin/node', 'python'):",
+            validate=lambda c: len(c.strip()) > 0 or "Please enter a command",
+        ).ask()
+
+        if command is None:
+            return
+
+        # Ask for command arguments
+        args = []
+        add_args = questionary.confirm("Add command arguments?").ask()
+
+        if add_args:
+            console.print(
+                "[dim]Enter arguments one per line (empty line to finish):[/dim]"
+            )
+            while True:
+                arg = questionary.text("Argument:").ask()
+                if not arg or not arg.strip():
+                    break
+                args.append(arg.strip())
+
+        # Ask for environment variables
+        add_env = questionary.confirm("Add environment variables?").ask()
+        env = {}
+
+        if add_env:
+            while True:
+                env_name = questionary.text(
+                    "Environment variable name (empty to finish):"
+                ).ask()
+                if not env_name or not env_name.strip():
+                    break
+
+                env_value = questionary.text(f"Value for {env_name}:").ask()
+                if env_value:
+                    env[env_name.strip()] = env_value.strip()
+
+        mcp_config = {
+            "name": name.strip(),
+            "type": "local",
+            "command": command.strip(),
+            "args": args,
+            "env": env,
+        }
+
+        self.user_config.add_mcp_configuration(mcp_config)
+
+        # Ask if it should be a default
+        make_default = questionary.confirm(f"Add '{name}' to default MCPs?").ask()
+        if make_default:
+            self.user_config.add_mcp(name.strip())
+
+        console.print(f"[green]Added local MCP server '{name}'[/green]")
+        if args:
+            console.print(f"  Command: {command} {' '.join(args)}")
+        else:
+            console.print(f"  Command: {command}")
+
     def _edit_mcp_server(self, server_name: str) -> None:
         """Edit an existing MCP server."""
         mcp_config = self.user_config.get_mcp_configuration(server_name)
@@ -754,7 +840,11 @@ class ProviderConfigurator:
         if choice == "View configuration":
             console.print("\n[bold]MCP server configuration:[/bold]")
             for key, value in mcp_config.items():
-                if isinstance(value, dict) and value:
+                if key == "args" and isinstance(value, list) and value:
+                    console.print(f"  {key}:")
+                    for arg in value:
+                        console.print(f"    - {arg}")
+                elif isinstance(value, dict) and value:
                     console.print(f"  {key}:")
                     for sub_key, sub_value in value.items():
                         console.print(f"    {sub_key}: {sub_value}")

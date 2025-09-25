@@ -1786,6 +1786,50 @@ def add_remote_mcp(
         console.print(f"[red]Error adding remote MCP server: {e}[/red]")
 
 
+@mcp_app.command("add-local")
+def add_local_mcp(
+    name: str = typer.Argument(..., help="MCP server name"),
+    command: str = typer.Argument(..., help="Path to executable"),
+    args: List[str] = typer.Option([], "--args", "-a", help="Command arguments"),
+    env: List[str] = typer.Option(
+        [], "--env", "-e", help="Environment variables (format: KEY=VALUE)"
+    ),
+    no_default: bool = typer.Option(
+        False, "--no-default", help="Don't add to default MCPs"
+    ),
+) -> None:
+    """Add a local MCP server"""
+    # Parse environment variables
+    environment = {}
+    for e in env:
+        if "=" in e:
+            key, value = e.split("=", 1)
+            environment[key] = value
+        else:
+            console.print(f"[yellow]Warning: Ignoring invalid env format: {e}[/yellow]")
+
+    try:
+        with console.status(f"Adding local MCP server '{name}'..."):
+            mcp_manager.add_local_mcp(
+                name,
+                command,
+                args,
+                environment,
+                add_as_default=not no_default,
+            )
+        console.print(f"[green]Added local MCP server '{name}'[/green]")
+        console.print(f"Command: {command}")
+        if args:
+            console.print(f"Arguments: {' '.join(args)}")
+        if not no_default:
+            console.print(f"MCP server '{name}' added to defaults")
+        else:
+            console.print(f"MCP server '{name}' not added to defaults")
+
+    except Exception as e:
+        console.print(f"[red]Error adding local MCP server: {e}[/red]")
+
+
 @mcp_app.command("inspector")
 def run_mcp_inspector(
     client_port: int = typer.Option(
