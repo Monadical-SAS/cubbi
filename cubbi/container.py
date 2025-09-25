@@ -915,8 +915,21 @@ class ContainerManager:
             self.session_manager.remove_session(session.id)
             return True
         except DockerException as e:
-            print(f"Error closing session {session.id}: {e}")
-            return False
+            error_message = str(e).lower()
+            # If container is not running or already removed, still remove it from session list
+            if (
+                "is not running" in error_message
+                or "no such container" in error_message
+                or "not found" in error_message
+            ):
+                print(
+                    f"Container already stopped/removed, removing session {session.id} from list"
+                )
+                self.session_manager.remove_session(session.id)
+                return True
+            else:
+                print(f"Error closing session {session.id}: {e}")
+                return False
 
     def close_all_sessions(
         self, progress_callback=None, kill: bool = False
@@ -980,11 +993,30 @@ class ContainerManager:
 
                     return True
                 except DockerException as e:
-                    error_msg = f"Error: {str(e)}"
-                    if progress_callback:
-                        progress_callback(session.id, "failed", error_msg)
-                    print(f"Error closing session {session.id}: {e}")
-                    return False
+                    error_message = str(e).lower()
+                    # If container is not running or already removed, still remove it from session list
+                    if (
+                        "is not running" in error_message
+                        or "no such container" in error_message
+                        or "not found" in error_message
+                    ):
+                        print(
+                            f"Container already stopped/removed, removing session {session.id} from list"
+                        )
+                        self.session_manager.remove_session(session.id)
+                        if progress_callback:
+                            progress_callback(
+                                session.id,
+                                "completed",
+                                f"{session.name} removed from list (container already stopped)",
+                            )
+                        return True
+                    else:
+                        error_msg = f"Error: {str(e)}"
+                        if progress_callback:
+                            progress_callback(session.id, "failed", error_msg)
+                        print(f"Error closing session {session.id}: {e}")
+                        return False
 
             # Use ThreadPoolExecutor to close sessions in parallel
             with concurrent.futures.ThreadPoolExecutor(
