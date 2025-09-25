@@ -622,6 +622,9 @@ def build_image(
     push: bool = typer.Option(
         False, "--push", "-p", help="Push image to registry after building"
     ),
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Build without using cache"
+    ),
 ) -> None:
     """Build an image Docker image"""
     # Get image path
@@ -686,9 +689,11 @@ def build_image(
 
             # Build the image from temporary directory
             with console.status(f"Building image {docker_image_name}..."):
-                result = os.system(
-                    f"cd {temp_path} && docker build -t {docker_image_name} ."
-                )
+                build_cmd = f"cd {temp_path} && docker build"
+                if no_cache:
+                    build_cmd += " --no-cache"
+                build_cmd += f" -t {docker_image_name} ."
+                result = os.system(build_cmd)
 
         except Exception as e:
             console.print(f"[red]Error preparing build context: {e}[/red]")
