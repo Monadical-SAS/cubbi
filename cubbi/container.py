@@ -888,35 +888,39 @@ class ContainerManager:
             return False
 
         try:
-            # First, close the main session container
             container = self.client.containers.get(session.container_id)
-            if kill:
-                container.kill()
-            else:
-                container.stop()
+
+            try:
+                if kill:
+                    container.kill()
+                else:
+                    container.stop()
+            except DockerException:
+                pass
+
             container.remove()
 
-            # Check for and close any associated network-filter container
             network_filter_name = f"cubbi-network-filter-{session.id}"
             try:
                 network_filter_container = self.client.containers.get(
                     network_filter_name
                 )
                 logger.info(f"Stopping network-filter container {network_filter_name}")
-                if kill:
-                    network_filter_container.kill()
-                else:
-                    network_filter_container.stop()
+                try:
+                    if kill:
+                        network_filter_container.kill()
+                    else:
+                        network_filter_container.stop()
+                except DockerException:
+                    pass
                 network_filter_container.remove()
             except DockerException:
-                # Network-filter container might not exist, which is fine
                 pass
 
             self.session_manager.remove_session(session.id)
             return True
         except DockerException as e:
             error_message = str(e).lower()
-            # If container is not running or already removed, still remove it from session list
             if (
                 "is not running" in error_message
                 or "no such container" in error_message
@@ -951,39 +955,41 @@ class ContainerManager:
 
             # No need for session status as we receive it via callback
 
-            # Define a wrapper to track progress
             def close_with_progress(session):
                 if not session.container_id:
                     return False
 
                 try:
                     container = self.client.containers.get(session.container_id)
-                    # Stop and remove container
-                    if kill:
-                        container.kill()
-                    else:
-                        container.stop()
+
+                    try:
+                        if kill:
+                            container.kill()
+                        else:
+                            container.stop()
+                    except DockerException:
+                        pass
+
                     container.remove()
 
-                    # Check for and close any associated network-filter container
                     network_filter_name = f"cubbi-network-filter-{session.id}"
                     try:
                         network_filter_container = self.client.containers.get(
                             network_filter_name
                         )
-                        if kill:
-                            network_filter_container.kill()
-                        else:
-                            network_filter_container.stop()
+                        try:
+                            if kill:
+                                network_filter_container.kill()
+                            else:
+                                network_filter_container.stop()
+                        except DockerException:
+                            pass
                         network_filter_container.remove()
                     except DockerException:
-                        # Network-filter container might not exist, which is fine
                         pass
 
-                    # Remove from session storage
                     self.session_manager.remove_session(session.id)
 
-                    # Notify about completion
                     if progress_callback:
                         progress_callback(
                             session.id,
@@ -994,7 +1000,6 @@ class ContainerManager:
                     return True
                 except DockerException as e:
                     error_message = str(e).lower()
-                    # If container is not running or already removed, still remove it from session list
                     if (
                         "is not running" in error_message
                         or "no such container" in error_message
