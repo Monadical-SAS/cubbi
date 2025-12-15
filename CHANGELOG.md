@@ -1,6 +1,294 @@
 # CHANGELOG
 
 
+## v0.5.0 (2025-12-15)
+
+### Bug Fixes
+
+- Crush providers configuration ([#30](https://github.com/Monadical-SAS/cubbi/pull/30),
+  [`a709071`](https://github.com/Monadical-SAS/cubbi/commit/a709071d1008d7b805da86d82fb056e144a328fd))
+
+- Cubbi configure not working when configuring other provider
+  ([#32](https://github.com/Monadical-SAS/cubbi/pull/32),
+  [`310149d`](https://github.com/Monadical-SAS/cubbi/commit/310149dc34bfd41237ee92ff42620bf3f4316634))
+
+- Ensure Docker containers are always removed when closing sessions
+  ([#35](https://github.com/Monadical-SAS/cubbi/pull/35),
+  [`b788f3f`](https://github.com/Monadical-SAS/cubbi/commit/b788f3f52e6f85fd99e1dd117565850dbe13332b))
+
+When closing sessions with already-stopped containers, the stop/kill operation would raise an
+  exception, preventing container.remove() from being called. This left stopped containers in Docker
+  even though they were removed from cubbi's session tracking.
+
+The fix wraps stop/kill operations in their own try-except block, allowing the code to always reach
+  container.remove() regardless of whether the container was already stopped.
+
+- Make groupadd optional (group already may exist, like gid 20 from osx)
+  ([`407c1a1`](https://github.com/Monadical-SAS/cubbi/commit/407c1a1c9bc85e06600c762c78905d1bfdf89922))
+
+- Prevent concurrent YAML corruption in sessions
+  ([#36](https://github.com/Monadical-SAS/cubbi/pull/36),
+  [`10d9e9d`](https://github.com/Monadical-SAS/cubbi/commit/10d9e9d3abc135718be667adc574a7b3f8470ff7))
+
+fix: add file locking to prevent concurrent YAML corruption in sessions
+
+When multiple cubbi instances run simultaneously, they can corrupt the sessions.yaml file due to
+  concurrent writes. This manifests as malformed YAML entries (e.g., "status:
+  running\ning2dc3ff11:").
+
+This commit adds: - fcntl-based file locking for all write operations - Read-modify-write pattern
+  that reloads from disk before each write - Proper lock acquisition/release via context manager
+
+All write operations (add_session, remove_session, save) now: 1. Acquire exclusive lock on
+  sessions.yaml 2. Reload latest state from disk 3. Apply modifications 4. Write atomically to file
+  5. Update in-memory cache 6. Release lock
+
+This ensures that concurrent cubbi instances can safely modify the sessions file without corruption.
+
+- Remove container even if already removed
+  ([`a668437`](https://github.com/Monadical-SAS/cubbi/commit/a66843714d01d163e2ce17dd4399a0fa64d2be65))
+
+- Remove persistent_configs of images ([#28](https://github.com/Monadical-SAS/cubbi/pull/28),
+  [`e4c64a5`](https://github.com/Monadical-SAS/cubbi/commit/e4c64a54ed39ba0a65ace75c7f03ff287073e71e))
+
+### Documentation
+
+- Update README with --no-cache and local MCP server documentation
+  ([`3795de1`](https://github.com/Monadical-SAS/cubbi/commit/3795de1484e1df3905c8eb90908ab79927b03194))
+
+- Added documentation for the new --no-cache flag in image build command - Added documentation for
+  local MCP server support (add-local command) - Updated MCP server types to include local MCP
+  servers - Added examples for all three types of MCP servers (Docker, Remote, Local)
+
+### Features
+
+- Add --no-cache option to image build command
+  ([`be171cf`](https://github.com/Monadical-SAS/cubbi/commit/be171cf2c6252dfa926a759915a057a3a6791cc2))
+
+Added a --no-cache flag to 'cubbi image build' command to allow building Docker images without using
+  the build cache, useful for forcing fresh builds.
+
+- Add local MCP server support
+  ([`b9cffe3`](https://github.com/Monadical-SAS/cubbi/commit/b9cffe3008bccbcf4eaa7c5c03e62215520d8627))
+
+- Add LocalMCP model for stdio-based MCP servers - Implement add_local_mcp() method in MCPManager -
+  Add 'mcp add-local' CLI command with args and env support - Update cubbi_init.py MCPConfig with
+  command, args, env fields - Add local MCP support in interactive configure tool - Update image
+  plugins (opencode, goose, crush) to handle local MCPs - OpenCode: Maps to "local" type with
+  command array - Goose: Maps to "stdio" type with command/args - Crush: Maps to "stdio" transport
+  type
+
+Local MCPs run as stdio-based commands inside containers, allowing users to integrate local MCP
+  servers without containerization.
+
+- Add opencode state/cache to persistent_config
+  ([#27](https://github.com/Monadical-SAS/cubbi/pull/27),
+  [`b7b78ea`](https://github.com/Monadical-SAS/cubbi/commit/b7b78ea0754360efe56cf3f3255f90efda737a91))
+
+- Comprehensive configuration system and environment variable forwarding
+  ([#29](https://github.com/Monadical-SAS/cubbi/pull/29),
+  [`bae951c`](https://github.com/Monadical-SAS/cubbi/commit/bae951cf7c4e498b6cdd7cd00836935acbd98e42))
+
+* feat: migrate container configuration from env vars to YAML config files
+
+- Replace environment variable-based configuration with structured YAML config files - Add Pydantic
+  models for type-safe configuration management in cubbi_init.py - Update container.py to generate
+  /cubbi/config.yaml and mount into containers - Simplify goose plugin to extract provider from
+  default model format - Remove complex environment variable handling in favor of direct config
+  access - Maintain backward compatibility while enabling cleaner plugin architecture
+
+* feat: optimize goose plugin to only pass required API key for selected model
+
+- Update goose plugin to set only the API key for the provider of the selected model - Add selective
+  API key configuration for anthropic, openai, google, and openrouter - Update README.md with
+  comprehensive automated testing documentation - Add litellm/gpt-oss:120b to test.sh model matrix
+  (now 5 images × 4 models = 20 tests) - Include single prompt command syntax for each tool in the
+  documentation
+
+* feat: add comprehensive integration tests with pytest parametrization
+
+- Create tests/test_integration.py with parametrized tests for 5 images × 4 models (20 combinations)
+  - Add pytest configuration to exclude integration tests by default - Add integration marker for
+  selective test running - Include help command tests and image availability tests - Document test
+  usage in tests/README_integration.md
+
+Integration tests cover: - goose, aider, claudecode, opencode, crush images -
+  anthropic/claude-sonnet-4-20250514, openai/gpt-4o, openrouter/openai/gpt-4o, litellm/gpt-oss:120b
+  models - Proper command syntax for each tool - Success validation with exit codes and completion
+  markers
+
+Usage: - pytest (regular tests only) - pytest -m integration (integration tests only) - pytest -m
+  integration -k "goose" (specific image)
+
+* feat: update OpenCode plugin with perfect multi-provider configuration
+
+- Add global STANDARD_PROVIDERS constant for maintainability - Support custom providers (with
+  baseURL) vs standard providers - Custom providers: include npm package, name, baseURL, apiKey,
+  models - Standard providers: include only apiKey and empty models - Use direct API key values from
+  cubbi config instead of env vars - Only add default model to the provider that matches the default
+  model - Use @ai-sdk/openai-compatible for OpenAI-compatible providers - Preserve model names
+  without transformation - All providers get required empty models{} section per OpenCode spec
+
+This ensures OpenCode can properly recognize and use both native providers (anthropic, openai,
+  google, openrouter) and custom providers (litellm, etc.) with correct configuration format.
+
+* refactor: model is now a combination of provider/model
+
+* feat: add separate integration test for Claude Code without model config
+
+Claude Code is Anthropic-specific and doesn't require model selection like other tools. Created
+  dedicated test that verifies basic functionality without model preselection.
+
+* feat: update Claude Code and Crush plugins to use new config system
+
+- Claude Code plugin now uses cubbi_config.providers to get Anthropic API key - Crush plugin updated
+  to use cubbi_config.providers for provider configuration - Both plugins maintain backwards
+  compatibility with environment variables - Consistent plugin structure across all cubbi images
+
+* feat: add environments_to_forward support for images
+
+- Add environments_to_forward field to ImageConfig and Image models - Update container creation
+  logic to forward specified environment variables from host - Add environments_to_forward to
+  claudecode cubbi_image.yaml to ensure Anthropic API key is always available - Claude Code now gets
+  required environment variables regardless of model selection - This ensures Claude Code works
+  properly even when other models are specified
+
+Fixes the issue where Claude Code couldn't access Anthropic API key when using different model
+  configurations.
+
+* refactor: remove unused environment field from cubbi_image.yaml files
+
+The 'environment' field was loaded but never processed at runtime. Only 'environments_to_forward' is
+  actually used to pass environment variables from host to container.
+
+Cleaned up configuration files by removing: - 72 lines from aider/cubbi_image.yaml - 42 lines from
+  claudecode/cubbi_image.yaml - 28 lines from crush/cubbi_image.yaml - 16 lines from
+  goose/cubbi_image.yaml - Empty environment: [] from opencode/cubbi_image.yaml
+
+This makes the configuration files cleaner and only contains fields that are actually used by the
+  system.
+
+* feat: implement environment variable forwarding for aider
+
+Updates aider to automatically receive all relevant environment variables from the host, similar to
+  how opencode works.
+
+Changes: - Added environments_to_forward field to aider/cubbi_image.yaml with comprehensive list of
+  API keys, configuration, and proxy variables - Updated aider_plugin.py to use cubbi_config system
+  for provider/model setup - Environment variables now forwarded automatically during container
+  creation - Maintains backward compatibility with legacy environment variables
+
+Environment variables forwarded: - API Keys: OPENAI_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY,
+  etc. - Configuration: AIDER_MODEL, GIT_* variables, HTTP_PROXY, etc. - Timezone: TZ for proper log
+  timestamps
+
+Tested: All aider tests pass, environment variables confirmed forwarded.
+
+* refactor: remove unused volumes and init fields from cubbi_image.yaml files
+
+Both 'volumes' and 'init' fields were loaded but never processed at runtime. These were incomplete
+  implementations that didn't affect container behavior.
+
+Removed from all 5 images: - volumes: List with mountPath: /app (incomplete, missing host paths) -
+  init: pre_command and command fields (unused during container creation)
+
+The cubbi_image.yaml files now only contain fields that are actually used: - Basic metadata (name,
+  description, version, maintainer, image) - persistent_configs (working functionality) -
+  environments_to_forward (working functionality where present)
+
+This makes the configuration files cleaner and eliminates confusion about what functionality is
+  actually implemented.
+
+* refactor: remove unused ImageInit and VolumeMount models
+
+These models were only referenced in the Image model definition but never used at runtime since we
+  removed all init: and volumes: fields from cubbi_image.yaml files.
+
+Removed: - VolumeMount class (mountPath, description fields) - ImageInit class (pre_command, command
+  fields) - init: Optional[ImageInit] field from Image model - volumes: List[VolumeMount] field from
+  Image model
+
+The Image model now only contains fields that are actually used: - Basic metadata (name,
+  description, version, maintainer, image) - environment (loaded but unused - kept for future
+  cleanup) - persistent_configs (working functionality) - environments_to_forward (working
+  functionality)
+
+This makes the data model cleaner and eliminates dead code.
+
+* feat: add interactive configuration command
+
+Adds `cubbi configure` command for interactive setup of LLM providers and models through a
+  user-friendly questionnaire interface.
+
+New features: - Interactive provider configuration (OpenAI, Anthropic, OpenRouter, etc.) - API key
+  management with environment variable references - Model selection with provider/model format
+  validation - Default settings configuration (image, ports, volumes, etc.) - Added questionary
+  dependency for interactive prompts
+
+Changes: - Added cubbi/configure.py with full interactive configuration logic - Added configure
+  command to cubbi/cli.py - Updated uv.lock with questionary and prompt-toolkit dependencies
+
+Usage: `cubbi configure`
+
+* refactor: update integration tests for current functionality
+
+Updates integration tests to reflect current cubbi functionality:
+
+test_integration.py: - Simplified image list (removed crush temporarily) - Updated model list with
+  current supported models - Removed outdated help command tests that were timing out - Simplified
+  claudecode test to basic functionality test - Updated command templates for current tool versions
+
+test_integration_docker.py: - Cleaned up container management tests - Fixed formatting and improved
+  readability - Updated assertion formatting for better error messages
+
+These changes align the tests with the current state of the codebase and remove tests that were
+  causing timeouts or failures.
+
+* fix: fix temporary file chmod
+
+- Dynamic model management for OpenAI-compatible providers
+  ([#33](https://github.com/Monadical-SAS/cubbi/pull/33),
+  [`7d6bc5d`](https://github.com/Monadical-SAS/cubbi/commit/7d6bc5dbfa5f4d4ef69a7b806846aebdeec38aa0))
+
+feat: add models fetch for openai-compatible endpoint
+
+- Universal model management for all standard providers
+  ([#34](https://github.com/Monadical-SAS/cubbi/pull/34),
+  [`fc819a3`](https://github.com/Monadical-SAS/cubbi/commit/fc819a386185330e60946ee4712f268cfed2b66a))
+
+* fix: add crush plugin support too
+
+* feat: comprehensive model management for all standard providers
+
+- Add universal provider support for model fetching (OpenAI, Anthropic, Google, OpenRouter) - Add
+  default API URLs for standard providers in config.py - Enhance model fetcher with
+  provider-specific authentication: * Anthropic: x-api-key header + anthropic-version header *
+  Google: x-goog-api-key header + custom response format handling * OpenAI/OpenRouter: Bearer token
+  (unchanged) - Support Google's unique API response format (models vs data key, name vs id field) -
+  Update CLI commands to work with all supported provider types - Enhance configure interface to
+  include all providers (even those without API keys) - Update both OpenCode and Crush plugins to
+  populate models for all provider types - Add comprehensive provider support detection methods
+
+### Refactoring
+
+- Deep clean plugins ([#31](https://github.com/Monadical-SAS/cubbi/pull/31),
+  [`3a7b921`](https://github.com/Monadical-SAS/cubbi/commit/3a7b9213b0d4e5ce0cfb1250624651b242fdc325))
+
+* refactor: deep clean plugins
+
+* refactor: modernize plugin system with Python 3.12+ typing and simplified discovery
+
+- Update typing to Python 3.12+ style (Dict->dict, Optional->union types) - Simplify plugin
+  discovery using PLUGIN_CLASS exports instead of dir() reflection - Add public get_user_ids() and
+  set_ownership() functions in cubbi_init - Add create_directory_with_ownership() helper method to
+  ToolPlugin base class - Replace initialize() + integrate_mcp_servers() pattern with unified
+  configure() - Add is_already_configured() checks to prevent overwriting existing configs - Remove
+  excessive comments and clean up code structure - All 5 plugins updated: goose, opencode,
+  claudecode, aider, crush
+
+* fix: remove duplicate
+
+
 ## v0.4.0 (2025-08-06)
 
 ### Documentation
