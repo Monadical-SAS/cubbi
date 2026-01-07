@@ -21,6 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
     openssh-client \
     vim \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Install deps
