@@ -32,7 +32,7 @@ RUN curl -fsSL https://astral.sh/uv/install.sh -o install.sh && \
     rm install.sh
 RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh -o download_cli.sh && \
     chmod +x download_cli.sh && \
-    ./download_cli.sh && \
+    env CONFIGURE=false ./download_cli.sh && \
     mv /root/.local/bin/goose /usr/local/bin/goose && \
     rm -rf download_cli.sh /tmp/goose-*
 
