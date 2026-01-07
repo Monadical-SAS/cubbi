@@ -207,13 +207,13 @@ class GoosePlugin(ToolPlugin):
                     self.status.log(
                         f"Adding local MCP extension: {mcp.name} - {mcp.command}"
                     )
-                    # Goose uses stdio type for local MCPs
+                    # Goose uses stdio type for local MCPs with "cmd" field
                     config_data["extensions"][mcp.name] = {
                         "enabled": True,
                         "name": mcp.name,
-                        "timeout": 60,
+                        "timeout": 300,
                         "type": "stdio",
-                        "command": mcp.command,
+                        "cmd": mcp.command,
                         "args": mcp.args if mcp.args else [],
                         "envs": mcp.env if mcp.env else {},
                     }
