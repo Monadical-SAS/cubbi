@@ -296,6 +296,48 @@ def test_integration_session_create_with_single_port(isolate_cubbi_config):
 
 
 @requires_docker
+def test_integration_session_create_no_default_network(
+    isolate_cubbi_config, docker_test_network
+):
+    """Test creating a session with no_default_network=True skips the default cubbi-network."""
+    session = None
+
+    try:
+        container_manager = isolate_cubbi_config["container_manager"]
+
+        # Create a session with no_default_network and a custom network
+        session = container_manager.create_session(
+            image_name="goose",
+            session_name=f"cubbi-test-no-default-net-{uuid.uuid4().hex[:8]}",
+            mount_local=False,
+            networks=[docker_test_network],
+            no_default_network=True,
+        )
+
+        assert session is not None
+        assert session.status == "running"
+
+        # Wait for container initialization to complete
+        init_success = wait_for_container_init(session.container_id)
+        assert init_success, "Container initialization timed out"
+
+        # Verify network connections
+        client = docker.from_env()
+        container = client.containers.get(session.container_id)
+        container_networks = container.attrs["NetworkSettings"]["Networks"]
+
+        # Container should be connected to the custom test network
+        assert docker_test_network in container_networks
+
+        # Container should NOT be connected to cubbi-network
+        assert "cubbi-network" not in container_networks
+
+    finally:
+        if session and session.container_id:
+            container_manager.close_session(session.id, kill=True)
+
+
+@requires_docker
 def test_integration_kill_vs_stop_speed(isolate_cubbi_config):
     """Test that kill is faster than stop for container termination."""
     import time

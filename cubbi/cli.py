@@ -149,6 +149,11 @@ def create_session(
     network: List[str] = typer.Option(
         [], "--network", "-N", help="Connect to additional Docker networks"
     ),
+    no_default_network: bool = typer.Option(
+        False,
+        "--no-default-network",
+        help="Don't connect to the default Cubbi network",
+    ),
     port: List[str] = typer.Option(
         [],
         "--port",
@@ -419,6 +424,7 @@ def create_session(
             ssh=ssh,
             model=final_model,
             domains=all_domains,
+            no_default_network=no_default_network,
         )
 
     if session:

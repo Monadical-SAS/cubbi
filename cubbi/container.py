@@ -249,6 +249,7 @@ class ContainerManager:
         model: Optional[str] = None,
         ssh: bool = False,
         domains: Optional[List[str]] = None,
+        no_default_network: bool = False,
     ) -> Optional[Session]:
         """Create a new Cubbi session
 
@@ -295,8 +296,9 @@ class ContainerManager:
             if not session_name:
                 session_name = f"cubbi-{session_id}"
 
-            # Ensure network exists
-            self._ensure_network()
+            # Ensure network exists (skip if user opted out of default network)
+            if not no_default_network:
+                self._ensure_network()
 
             # Minimal environment variables
             env_vars = environment or {}
@@ -422,7 +424,7 @@ class ContainerManager:
             )
 
             # Get network list
-            network_list = [default_network]
+            network_list = [] if no_default_network else [default_network]
 
             # Process MCPs if provided
             mcp_configs = []
@@ -478,20 +480,16 @@ class ContainerManager:
                     pass
 
             # Add user-specified networks
-            # Default Cubbi network
-            default_network = self.config_manager.config.docker.get(
-                "network", "cubbi-network"
-            )
-
-            # Get network list, ensuring default is first and no duplicates
-            network_list_set = {default_network}
-            if networks:
-                network_list_set.update(networks)
-            network_list = (
-                [default_network] + [n for n in networks if n != default_network]
-                if networks
-                else [default_network]
-            )
+            if no_default_network:
+                # Only use user-specified networks
+                network_list = list(networks) if networks else []
+            else:
+                # Get network list, ensuring default is first and no duplicates
+                network_list = (
+                    [default_network] + [n for n in networks if n != default_network]
+                    if networks
+                    else [default_network]
+                )
 
             if networks:
                 for network in networks:
@@ -529,7 +527,7 @@ class ContainerManager:
                         "[yellow]Warning: Cannot use --domains with --network. Using domain restrictions only.[/yellow]"
                     )
                     networks = []
-                    network_list = [default_network]
+                    network_list = [] if no_default_network else [default_network]
 
                 # Create network-filter container
                 network_filter_name = f"cubbi-network-filter-{session_id}"
@@ -656,9 +654,10 @@ class ContainerManager:
                 # Cannot set hostname when using network_mode
             else:
                 container_params["hostname"] = session_name
-                container_params["network"] = network_list[
-                    0
-                ]  # Connect to the first network initially
+                if network_list:
+                    container_params["network"] = network_list[
+                        0
+                    ]  # Connect to the first network initially
 
             container = self.client.containers.create(**container_params)
 
