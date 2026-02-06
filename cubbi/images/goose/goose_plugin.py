@@ -196,11 +196,16 @@ class GoosePlugin(ToolPlugin):
                     )
                     config_data["extensions"][mcp.name] = {
                         "enabled": True,
+                        "type": "streamable_http",
                         "name": mcp.name,
-                        "timeout": 60,
-                        "type": "sse",
+                        "description": mcp.name,
                         "uri": mcp.url,
                         "envs": {},
+                        "env_keys": [],
+                        "headers": {},
+                        "timeout": 600,
+                        "bundled": None,
+                        "available_tools": [],
                     }
             elif mcp.type == "local":
                 if mcp.name and mcp.command:
@@ -220,15 +225,20 @@ class GoosePlugin(ToolPlugin):
             elif mcp.type in ["docker", "proxy"]:
                 if mcp.name and mcp.host:
                     mcp_port = mcp.port or 8080
-                    mcp_url = f"http://{mcp.host}:{mcp_port}/sse"
+                    mcp_url = f"http://{mcp.host}:{mcp_port}/mcp"
                     self.status.log(f"Adding MCP extension: {mcp.name} - {mcp_url}")
                     config_data["extensions"][mcp.name] = {
                         "enabled": True,
+                        "type": "streamable_http",
                         "name": mcp.name,
-                        "timeout": 60,
-                        "type": "sse",
+                        "description": mcp.name,
                         "uri": mcp_url,
                         "envs": {},
+                        "env_keys": [],
+                        "headers": {},
+                        "timeout": 600,
+                        "bundled": None,
+                        "available_tools": [],
                     }
 
         try:
